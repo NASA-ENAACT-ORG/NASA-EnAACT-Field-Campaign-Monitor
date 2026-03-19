@@ -186,9 +186,12 @@ def _trigger_rebuild():
     )
 
 
-def _run_drive_poll():
-    """Run one Drive poll cycle. Returns (new_count, error_msg)."""
+def _run_drive_poll(source: str = "background"):
+    """Run one Drive poll cycle. Returns (new_count, error_msg).
+    source: 'background' (polling thread) or 'gas' (GAS push trigger)
+    """
     global _drive_last_poll, _drive_new_today
+    print(f"[drive] Poll triggered by: {source}")
 
     if not DRIVE_FOLDER_ID:
         return 0, "GOOGLE_DRIVE_FOLDER_ID not set"
@@ -280,7 +283,7 @@ def _drive_poll_thread():
     print(f"[drive] Polling thread started (interval: {DRIVE_POLL_INTERVAL}s, folder: {DRIVE_FOLDER_ID or 'NOT SET'})")
     while True:
         try:
-            count, err = _run_drive_poll()
+            count, err = _run_drive_poll(source="background")
             if err:
                 print(f"[drive] Poll skipped: {err}")
             elif count:
@@ -403,12 +406,23 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         endpoint = self.path.split("?")[0]
 
+        # Authenticate /api/drive/poll and /api/rerun with GAS_SECRET bearer token.
+        # If GAS_SECRET is not set, these endpoints remain open (local dev compatible).
+        # /api/rebuild is not gated — it is only triggered by the browser UI.
+        _gas_secret = os.environ.get("GAS_SECRET", "")
+        if _gas_secret and endpoint in ("/api/drive/poll", "/api/rerun"):
+            auth_header = self.headers.get("Authorization", "")
+            if auth_header != f"Bearer {_gas_secret}":
+                self._send(401, "application/json",
+                           json.dumps({"error": "unauthorized"}).encode())
+                return
+
         if endpoint == "/api/rerun":
             self._stream_response(run_scheduler=True)
         elif endpoint == "/api/rebuild":
             self._stream_response(run_scheduler=False)
         elif endpoint == "/api/drive/poll":
-            count, err = _run_drive_poll()
+            count, err = _run_drive_poll(source="gas")
             if err:
                 body = json.dumps({"status": "error", "message": err}).encode()
                 self._send(500, "application/json", body)
@@ -467,9 +481,14 @@ def main():
     parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8765")))
     args = parser.parse_args()
 
-    # Start Drive polling background thread
-    t = threading.Thread(target=_drive_poll_thread, daemon=True)
-    t.start()
+    # Start Drive polling background thread.
+    # Set DRIVE_POLL_INTERVAL=0 to disable (use when GAS push triggers are active).
+    if DRIVE_POLL_INTERVAL > 0:
+        t = threading.Thread(target=_drive_poll_thread, daemon=True)
+        t.start()
+        print(f"  Drive poll : active (every {DRIVE_POLL_INTERVAL}s)")
+    else:
+        print(f"  Drive poll : DISABLED — relying on GAS push triggers")
 
     server = ThreadingHTTPServer(("0.0.0.0", args.port), Handler)
     url = f"http://localhost:{args.port}"
