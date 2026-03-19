@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Walk Scheduler — Algorithm Flowchart</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0f172a; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; height: 100vh; }
+#container { width: 100vw; height: 100vh; overflow: hidden; position: relative; cursor: grab; }
+#container.dragging { cursor: grabbing; }
+svg { display: block; position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+#controls {
+  position: fixed; bottom: 24px; right: 24px;
+  display: flex; flex-direction: column; gap: 8px; z-index: 100;
+}
+.ctrl-btn {
+  width: 44px; height: 44px; border-radius: 10px; border: 1px solid #334155;
+  background: #1e293b; color: #e2e8f0; font-size: 20px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s; line-height: 1;
+}
+.ctrl-btn:hover { background: #334155; }
+#legend {
+  position: fixed; top: 16px; left: 16px; background: rgba(15,23,42,0.92);
+  border: 1px solid #334155; border-radius: 12px; padding: 12px 16px;
+  color: #e2e8f0; font-size: 12px; z-index: 100; backdrop-filter: blur(6px);
+}
+#legend h3 { margin-bottom: 8px; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; }
+.leg { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.ldot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+#title {
+  position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+  color: #f1f5f9; font-size: 16px; font-weight: 700; z-index: 100;
+  background: rgba(15,23,42,0.92); padding: 8px 22px; border-radius: 10px;
+  border: 1px solid #334155; white-space: nowrap; backdrop-filter: blur(6px);
+}
+#hint {
+  position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+  color: #334155; font-size: 11px; z-index: 100; pointer-events: none;
+}
+</style>
+</head>
+<body>
+<div id="container"><svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg></div>
+
+<div id="title">Walk Scheduler — Algorithm Logic Diagram</div>
+
+<div id="legend">
+  <h3>Steps</h3>
+  <div class="leg"><div class="ldot" style="background:#7c3aed"></div>Transit Matrix</div>
+  <div class="leg"><div class="ldot" style="background:#2563eb"></div>Walk Log</div>
+  <div class="leg"><div class="ldot" style="background:#d97706"></div>Forecast / Weather</div>
+  <div class="leg"><div class="ldot" style="background:#059669"></div>Preferred Routes</div>
+  <div class="leg"><div class="ldot" style="background:#0891b2"></div>Availability</div>
+  <div class="leg"><div class="ldot" style="background:#dc2626"></div>Scoring</div>
+  <div class="leg"><div class="ldot" style="background:#ea580c"></div>Recalibration</div>
+  <div class="leg"><div class="ldot" style="background:#4f46e5"></div>Ranked Recs</div>
+  <div class="leg"><div class="ldot" style="background:#0d9488"></div>Calendar Build</div>
+  <h3 style="margin-top:10px">Shapes</h3>
+  <div class="leg"><div class="ldot" style="background:#fbbf24"></div>Decision ◇</div>
+  <div class="leg"><div class="ldot" style="background:#475569;border:1px dashed #94a3b8"></div>Output ▱</div>
+</div>
+
+<div id="controls">
+  <button class="ctrl-btn" id="zi">+</button>
+  <button class="ctrl-btn" id="zo">−</button>
+  <button class="ctrl-btn" id="zr" title="Reset view">⌂</button>
+</div>
+<div id="hint">Scroll to zoom · Drag to pan · Pinch on touch</div>
+
+<script>
+// ─── Palette ────────────────────────────────────────────────────────────────
+const P = {
+  transit:  { f:'#2e1065', s:'#7c3aed', t:'#ede9fe' },
+  walklog:  { f:'#1e3a8a', s:'#3b82f6', t:'#dbeafe' },
+  forecast: { f:'#78350f', s:'#f59e0b', t:'#fef3c7' },
+  routes:   { f:'#064e3b', s:'#10b981', t:'#d1fae5' },
+  avail:    { f:'#0c4a6e', s:'#38bdf8', t:'#e0f2fe' },
+  coords:   { f:'#500724', s:'#f43f5e', t:'#ffe4e6' },
+  scoring:  { f:'#7f1d1d', s:'#ef4444', t:'#fee2e2' },
+  recal:    { f:'#7c2d12', s:'#f97316', t:'#ffedd5' },
+  ranked:   { f:'#1e1b4b', s:'#818cf8', t:'#e0e7ff' },
+  calendar: { f:'#134e4a', s:'#2dd4bf', t:'#ccfbf1' },
+  decision: { f:'#713f12', s:'#fbbf24', t:'#fef9c3' },
+  output:   { f:'#1e293b', s:'#64748b', t:'#94a3b8' },
+  cap:      { f:'#0f172a', s:'#94a3b8', t:'#f1f5f9' },
+  sub:      { f:'#1e293b', s:'#475569', t:'#64748b' },
+};
+
+// ─── Node definitions ───────────────────────────────────────────────────────
+// shape: rect | diamond | oval | para (parallelogram)
+const N = [
+  // ── START ──
+  { id:'start', x:640,  y:20,   w:320, h:46,  label:['START', 'python walk_scheduler.py'], p:P.cap,      shape:'oval' },
+
+  // ── Step 0 ──
+  { id:'s0',    x:590,  y:104,  w:420, h:58,  label:['Step 0 — Load Transit Matrix','transit_matrix.json → route & collector matrices'], p:P.transit,  shape:'rect' },
+  { id:'d0',    x:715,  y:198,  w:170, h:52,  label:['File exists?'], p:P.decision, shape:'diamond' },
+  { id:'s0y',   x:960,  y:198,  w:200, h:52,  label:['Load matrices','(route, collector, TOD)'], p:P.transit,  shape:'rect' },
+  { id:'s0n',   x:340,  y:198,  w:200, h:52,  label:['Haversine','distance fallback'], p:P.transit,  shape:'rect' },
+
+  // ── Step 1 ──
+  { id:'s1',    x:590,  y:296,  w:420, h:58,  label:['Step 1 — Parse Walk Log','Walks_Log.txt  →  {(route, TOD, season): count}'], p:P.walklog,  shape:'rect' },
+  { id:'s1v',   x:340,  y:296,  w:190, h:52,  label:['Validate','BP · Route · TOD · Date'], p:P.walklog,  shape:'rect' },
+  { id:'s1o',   x:1070, y:296,  w:195, h:52,  label:['Skip duplicates','& malformed lines'], p:P.walklog,  shape:'rect' },
+
+  // ── Step 2 ──
+  { id:'s2',    x:590,  y:400,  w:420, h:58,  label:['Step 2 — Forecast PDF','Find latest PDF in Forecast/ folder'], p:P.forecast, shape:'rect' },
+  { id:'d2',    x:715,  y:495,  w:170, h:52,  label:['Cloud % ≤ 33%?'], p:P.decision, shape:'diamond' },
+  { id:'s2y',   x:960,  y:495,  w:195, h:52,  label:['Good weather','→  slot = True'], p:P.forecast, shape:'rect' },
+  { id:'s2n',   x:345,  y:495,  w:195, h:52,  label:['Bad weather','→  slot = False'], p:P.forecast, shape:'rect' },
+  { id:'s2o',   x:590,  y:590,  w:420, h:44,  label:['weather: {(date, TOD): bool}'], p:P.output,   shape:'para' },
+
+  // ── Step 3 ──
+  { id:'s3',    x:590,  y:678,  w:420, h:58,  label:['Step 3 — Preferred Routes','Preferred_Routes.xlsx  →  affinity scores 0–3'], p:P.routes,   shape:'rect' },
+
+  // ── Step 4 ──
+  { id:'s4',    x:590,  y:784,  w:420, h:58,  label:['Step 4 — Collector Availability','Primary: Availability.xlsx  (1=avail, blank=unavail)'], p:P.avail,    shape:'rect' },
+  { id:'d4',    x:715,  y:879,  w:170, h:52,  label:['Collectors\nmissing from xlsx?'], p:P.decision, shape:'diamond' },
+  { id:'s4y',   x:960,  y:879,  w:210, h:52,  label:['Vision/OCR fallback','Parse schedule via Claude API'], p:P.avail,    shape:'rect' },
+  { id:'s4n',   x:330,  y:879,  w:210, h:52,  label:['All covered ✓','Skip vision parsing'], p:P.avail,    shape:'rect' },
+  { id:'s4ter', x:590,  y:978,  w:420, h:56,  label:['TER Override','4th Monday of month?  →  Monday PM = Unavailable'], p:P.avail,    shape:'rect' },
+
+  // ── Step 5 ──
+  { id:'s5',    x:590,  y:1082, w:420, h:58,  label:['Step 5 — Parse Coordinates','Route KML files  +  Collector home locations'], p:P.coords,   shape:'rect' },
+
+  // ── Step 6 ──
+  { id:'s6h',   x:590,  y:1188, w:420, h:48,  label:['Step 6 — Score Combos  (for each route × TOD)'], p:P.scoring,  shape:'rect' },
+  { id:'d6a',   x:715,  y:1271, w:170, h:52,  label:['count ≥ 8\n(target hit)?'], p:P.decision, shape:'diamond' },
+  { id:'s6sk1', x:960,  y:1271, w:185, h:52,  label:['SKIP combo','target already met'], p:P.sub,      shape:'rect' },
+  { id:'d6b',   x:715,  y:1358, w:170, h:52,  label:['Good weather\nthis TOD?'], p:P.decision, shape:'diamond' },
+  { id:'s6sk2', x:960,  y:1358, w:185, h:52,  label:['SKIP combo','no good-weather days'], p:P.sub,      shape:'rect' },
+  { id:'s6col', x:590,  y:1445, w:420, h:50,  label:['Find available collectors (filter: affinity = 0 → excluded)'], p:P.scoring,  shape:'rect' },
+  { id:'d6c',   x:715,  y:1530, w:170, h:52,  label:['Regular\ncollectors?'], p:P.decision, shape:'diamond' },
+  { id:'s6reg', x:330,  y:1530, w:200, h:52,  label:['Use primary collectors','(SOT, AYA, ALX … )'], p:P.scoring,  shape:'rect' },
+  { id:'s6ang', x:960,  y:1530, w:200, h:52,  label:['Last resort only','ANG'], p:P.scoring,  shape:'rect' },
+  { id:'s6cls', x:590,  y:1622, w:420, h:50,  label:['Classify: comfortable (affinity > 0)  vs  uncomfortable'], p:P.scoring,  shape:'rect' },
+  { id:'s6sk',  x:590,  y:1712, w:420, h:68,  label:['Sort key per combo:','(below_min_flag, −deficit, −max_affinity, min_transit_min)'], p:P.scoring,  shape:'rect' },
+  { id:'s6bp',  x:590,  y:1825, w:420, h:48,  label:['Backpack:  count % 2 == 0  →  A  else  B'], p:P.scoring,  shape:'rect' },
+  { id:'s6o',   x:590,  y:1918, w:420, h:44,  label:['scored: ranked list of combos'], p:P.output,   shape:'para' },
+
+  // ── Step 7a ──
+  { id:'s7a',   x:590,  y:2006, w:420, h:58,  label:['Step 7a — Ranked Recommendations','Print top-8 combos with scores, distances, collectors'], p:P.ranked,   shape:'rect' },
+
+  // ── Recal ──
+  { id:'recal', x:590,  y:2112, w:420, h:48,  label:['Recalibration Check  (days since last RECAL_* entry)'], p:P.recal,    shape:'rect' },
+  { id:'drec',  x:715,  y:2194, w:170, h:52,  label:['Days elapsed?'], p:P.decision, shape:'diamond' },
+  { id:'reco',  x:335,  y:2194, w:200, h:52,  label:['< 25 days','Skip — not due yet'], p:P.recal,    shape:'rect' },
+  { id:'recp',  x:590,  y:2289, w:420, h:55,  label:['25–39 days  →  Propose recal day','pick worst-weather weekday (earliest)'], p:P.recal,    shape:'rect' },
+  { id:'recr',  x:960,  y:2194, w:200, h:52,  label:['≥ 40 days  REQUIRED','Hard-block calendar day'], p:P.recal,    shape:'rect' },
+
+  // ── Step 7b ──
+  { id:'s7b',   x:590,  y:2392, w:420, h:48,  label:['Step 7b — Build Weekly Calendars  (Backpack A & B)'], p:P.calendar, shape:'rect' },
+  { id:'s7b1',  x:590,  y:2476, w:420, h:50,  label:['Assign combos to backpack by campus proximity','CCNY (A) vs LAGCC (B) via transit time'], p:P.calendar, shape:'rect' },
+  { id:'s7b2',  x:590,  y:2564, w:420, h:50,  label:['Compute slot_demand (MRV)','Count combos needing each (day, TOD) slot'], p:P.calendar, shape:'rect' },
+  { id:'s7bl',  x:590,  y:2650, w:420, h:42,  label:['For each combo in top-8  ↻'], p:P.calendar, shape:'rect' },
+  { id:'s7b3',  x:590,  y:2730, w:420, h:52,  label:['Sort candidate days:','(is_past, slot_demand, date)  — try rarest slots first'], p:P.calendar, shape:'rect' },
+  { id:'d7d',   x:715,  y:2818, w:170, h:52,  label:['Valid day?\n(future · slot open\n· not recal day)'], p:P.decision, shape:'diamond' },
+  { id:'s7nd',  x:960,  y:2818, w:190, h:52,  label:['Try next day','in sorted list'], p:P.sub,      shape:'rect' },
+  { id:'s7b4',  x:590,  y:2915, w:420, h:62,  label:['Build eligible collector list:','available · not double-booked today','Score: (season_walks, affinity_penalty, continuity_cost)'], p:P.calendar, shape:'rect' },
+  { id:'d7e',   x:715,  y:3013, w:170, h:52,  label:['Eligible\ncollectors?'], p:P.decision, shape:'diamond' },
+  { id:'s7ne',  x:960,  y:3013, w:190, h:52,  label:['Try next day','in sorted list'], p:P.sub,      shape:'rect' },
+  { id:'s7b5',  x:590,  y:3108, w:420, h:62,  label:['Select best collector','Lowest (season_walks, affinity_penalty, continuity_cost)','→  Record assignment in calendar'], p:P.calendar, shape:'rect' },
+  { id:'d7p',   x:715,  y:3206, w:170, h:52,  label:['All days\nexhausted?'], p:P.decision, shape:'diamond' },
+  { id:'s7un',  x:960,  y:3206, w:190, h:52,  label:['Mark combo','UNASSIGNED'], p:P.sub,      shape:'rect' },
+
+  // ── Output ──
+  { id:'out',   x:590,  y:3308, w:420, h:48,  label:['schedule_output.json  +  printed A/B calendars'], p:P.output,   shape:'para' },
+  { id:'end',   x:640,  y:3396, w:320, h:46,  label:['END'], p:P.cap,      shape:'oval' },
+];
+
+// ─── Edge definitions ───────────────────────────────────────────────────────
+// route: 'down'(default) | 'right' | 'left'
+const E = [
+  { f:'start', t:'s0' },
+  { f:'s0',   t:'d0' },
+  { f:'d0',   t:'s0y', lbl:'Yes', route:'right' },
+  { f:'d0',   t:'s0n', lbl:'No',  route:'left'  },
+  { f:'s0y',  t:'s1',  route:'right' },
+  { f:'s0n',  t:'s1',  route:'left'  },
+  { f:'s0',   t:'s1v', route:'left',  col:'#3b82f6' },
+  { f:'s0',   t:'s1o', route:'right', col:'#3b82f6' },
+  { f:'s1',   t:'s2' },
+  { f:'s2',   t:'d2' },
+  { f:'d2',   t:'s2y', lbl:'Yes', route:'right' },
+  { f:'d2',   t:'s2n', lbl:'No',  route:'left'  },
+  { f:'s2y',  t:'s2o', route:'right' },
+  { f:'s2n',  t:'s2o', route:'left'  },
+  { f:'s2o',  t:'s3' },
+  { f:'s3',   t:'s4' },
+  { f:'s4',   t:'d4' },
+  { f:'d4',   t:'s4y', lbl:'Yes', route:'right' },
+  { f:'d4',   t:'s4n', lbl:'No',  route:'left'  },
+  { f:'s4y',  t:'s4ter', route:'right' },
+  { f:'s4n',  t:'s4ter', route:'left'  },
+  { f:'s4ter',t:'s5' },
+  { f:'s5',   t:'s6h' },
+  { f:'s6h',  t:'d6a' },
+  { f:'d6a',  t:'s6sk1',lbl:'Yes',route:'right' },
+  { f:'d6a',  t:'d6b', lbl:'No' },
+  { f:'d6b',  t:'s6sk2',lbl:'No', route:'right' },
+  { f:'d6b',  t:'s6col',lbl:'Yes' },
+  { f:'s6col',t:'d6c' },
+  { f:'d6c',  t:'s6reg',lbl:'Yes',route:'left'  },
+  { f:'d6c',  t:'s6ang',lbl:'No', route:'right' },
+  { f:'s6reg',t:'s6cls', route:'left'  },
+  { f:'s6ang',t:'s6cls', route:'right' },
+  { f:'s6cls',t:'s6sk' },
+  { f:'s6sk', t:'s6bp' },
+  { f:'s6bp', t:'s6o' },
+  { f:'s6o',  t:'s7a' },
+  { f:'s7a',  t:'recal' },
+  { f:'recal',t:'drec' },
+  { f:'drec', t:'reco', lbl:'< 25d', route:'left'  },
+  { f:'drec', t:'recp', lbl:'25–39d' },
+  { f:'drec', t:'recr', lbl:'≥ 40d', route:'right' },
+  { f:'reco', t:'s7b',  route:'left'  },
+  { f:'recp', t:'s7b'  },
+  { f:'recr', t:'s7b',  route:'right' },
+  { f:'s7b',  t:'s7b1' },
+  { f:'s7b1', t:'s7b2' },
+  { f:'s7b2', t:'s7bl' },
+  { f:'s7bl', t:'s7b3' },
+  { f:'s7b3', t:'d7d' },
+  { f:'d7d',  t:'s7nd', lbl:'No',  route:'right' },
+  { f:'d7d',  t:'s7b4', lbl:'Yes' },
+  { f:'s7b4', t:'d7e' },
+  { f:'d7e',  t:'s7ne', lbl:'No',  route:'right' },
+  { f:'d7e',  t:'s7b5', lbl:'Yes' },
+  { f:'s7b5', t:'d7p' },
+  { f:'d7p',  t:'s7un', lbl:'Yes', route:'right' },
+  { f:'d7p',  t:'out',  lbl:'No' },
+  { f:'s7un', t:'out',  route:'right', col:'#475569' },
+  { f:'out',  t:'end' },
+];
+
+// ─── Geometry helpers ────────────────────────────────────────────────────────
+const nmap = {};
+N.forEach(n => nmap[n.id] = n);
+const cx  = n => n.x + n.w / 2;
+const cy  = n => n.y + n.h / 2;
+const bot = n => n.y + n.h;
+const lft = n => n.x;
+const rgt = n => n.x + n.w;
+
+const W = 1600, H = 3500;
+const svg = document.getElementById('svg');
+svg.setAttribute('width', W);
+svg.setAttribute('height', H);
+svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+// Background
+const bg = el('rect'); attrs(bg, { width:W, height:H+300, fill:'#0f172a' }); svg.appendChild(bg);
+
+// Defs
+const defs = el('defs');
+// Per-color arrow markers
+const arrowCols = ['#64748b','#7c3aed','#3b82f6','#f59e0b','#10b981','#38bdf8','#ef4444','#f97316','#818cf8','#2dd4bf','#fbbf24','#475569'];
+arrowCols.forEach(c => {
+  const m = el('marker');
+  attrs(m, { id:'arr'+c.replace('#',''), markerWidth:'8', markerHeight:'6', refX:'7', refY:'3', orient:'auto' });
+  const p = el('path'); attrs(p, { d:'M0,0 L0,6 L8,3 z', fill:c });
+  m.appendChild(p); defs.appendChild(m);
+});
+// Section band gradient
+const lg = el('linearGradient'); attrs(lg, { id:'band', x1:'0', y1:'0', x2:'1', y2:'0' });
+[['0','rgba(255,255,255,0)'],['0.5','rgba(255,255,255,0.03)'],['1','rgba(255,255,255,0)']].forEach(([o,c]) => {
+  const s = el('stop'); attrs(s, { offset:o, 'stop-color':c }); lg.appendChild(s);
+});
+defs.appendChild(lg);
+svg.appendChild(defs);
+
+// ─── Section bands ───────────────────────────────────────────────────────────
+const bands = [
+  { y:96,   h:260,  col:'#7c3aed', lbl:'Step 0 · Transit Matrix' },
+  { y:288,  h:112,  col:'#3b82f6', lbl:'Step 1 · Walk Log' },
+  { y:392,  h:250,  col:'#f59e0b', lbl:'Step 2 · Forecast' },
+  { y:670,  h:114,  col:'#10b981', lbl:'Step 3 · Preferred Routes' },
+  { y:776,  h:298,  col:'#38bdf8', lbl:'Step 4 · Availability' },
+  { y:1074, h:114,  col:'#f43f5e', lbl:'Step 5 · Coordinates' },
+  { y:1180, h:794,  col:'#ef4444', lbl:'Step 6 · Scoring' },
+  { y:1998, h:114,  col:'#818cf8', lbl:'Step 7a · Ranked Recs' },
+  { y:2104, h:288,  col:'#f97316', lbl:'Recalibration Check' },
+  { y:2384, h:976,  col:'#2dd4bf', lbl:'Step 7b · Calendar Build' },
+  { y:3300, h:156,  col:'#64748b', lbl:'Output' },
+];
+bands.forEach(b => {
+  const r = el('rect');
+  attrs(r, { x:0, y:b.y, width:W, height:b.h, fill:b.col, opacity:'0.04', rx:0 });
+  svg.appendChild(r);
+  const border = el('rect');
+  attrs(border, { x:0, y:b.y, width:4, height:b.h, fill:b.col, opacity:'0.5' });
+  svg.appendChild(border);
+  const t = el('text');
+  attrs(t, { x:W-10, y:b.y+14, 'text-anchor':'end', fill:b.col, 'font-size':'10',
+    'font-family':'Segoe UI,system-ui,sans-serif', opacity:'0.6', 'font-weight':'600',
+    'letter-spacing':'0.05em' });
+  t.textContent = b.lbl.toUpperCase();
+  svg.appendChild(t);
+});
+
+// ─── Edges ───────────────────────────────────────────────────────────────────
+E.forEach(e => {
+  const fn = nmap[e.f], tn = nmap[e.t];
+  if (!fn || !tn) return;
+  const defCol = e.col || fn.p.s;
+  const mid = (defCol === fn.p.s) ? fn.p.s : defCol;
+
+  let d, lx, ly;
+
+  if (e.route === 'right') {
+    const x0 = rgt(fn), y0 = cy(fn);
+    const x1 = lft(tn), y1 = cy(tn);
+    const dx = Math.abs(x1 - x0);
+    if (Math.abs(y0 - y1) < 10) {
+      // Horizontal
+      d = `M${x0},${y0} L${x1},${y1}`;
+      lx = (x0+x1)/2; ly = y0 - 10;
+    } else {
+      d = `M${x0},${y0} C${x0+dx*0.5},${y0} ${x1-dx*0.3},${y1} ${x1},${y1}`;
+      lx = x0 + dx*0.3; ly = (y0+y1)/2 - 8;
+    }
+  } else if (e.route === 'left') {
+    const x0 = lft(fn), y0 = cy(fn);
+    const x1 = rgt(tn), y1 = cy(tn);
+    const dx = Math.abs(x0 - x1);
+    if (Math.abs(y0 - y1) < 10) {
+      d = `M${x0},${y0} L${x1},${y1}`;
+      lx = (x0+x1)/2; ly = y0 - 10;
+    } else {
+      d = `M${x0},${y0} C${x0-dx*0.5},${y0} ${x1+dx*0.3},${y1} ${x1},${y1}`;
+      lx = x0 - dx*0.3; ly = (y0+y1)/2 - 8;
+    }
+  } else {
+    // Straight down
+    const x0 = cx(fn), y0 = bot(fn);
+    const x1 = cx(tn), y1 = tn.y;
+    if (Math.abs(x0-x1) < 5) {
+      d = `M${x0},${y0} L${x1},${y1}`;
+    } else {
+      const m = (y0+y1)/2;
+      d = `M${x0},${y0} C${x0},${m} ${x1},${m} ${x1},${y1}`;
+    }
+    lx = (x0+x1)/2 + 8; ly = (y0+y1)/2;
+  }
+
+  const path = el('path');
+  const mc = mid.replace('#','');
+  attrs(path, { d, fill:'none', stroke:mid, 'stroke-width':'2',
+    'marker-end':`url(#arr${mc})` });
+  svg.appendChild(path);
+
+  if (e.lbl) {
+    const t = el('text');
+    attrs(t, { x:lx, y:ly, 'text-anchor':'middle', fill:'#94a3b8',
+      'font-size':'10.5', 'font-family':'Segoe UI,system-ui,sans-serif',
+      'font-weight':'600' });
+    t.textContent = e.lbl;
+    svg.appendChild(t);
+  }
+});
+
+// ─── Nodes ───────────────────────────────────────────────────────────────────
+N.forEach(n => {
+  const g = el('g');
+  const c = n.p;
+
+  if (n.shape === 'oval') {
+    const e = el('ellipse');
+    attrs(e, { cx:cx(n), cy:cy(n), rx:n.w/2, ry:n.h/2,
+      fill:c.f, stroke:c.s, 'stroke-width':'2.5' });
+    g.appendChild(e);
+  } else if (n.shape === 'diamond') {
+    const cx_ = cx(n), cy_ = cy(n), hw = n.w/2, hh = n.h/2;
+    const poly = el('polygon');
+    attrs(poly, { points:`${cx_},${cy_-hh} ${cx_+hw},${cy_} ${cx_},${cy_+hh} ${cx_-hw},${cy_}`,
+      fill:c.f, stroke:c.s, 'stroke-width':'2.5' });
+    g.appendChild(poly);
+  } else if (n.shape === 'para') {
+    const sk = 14;
+    const poly = el('polygon');
+    attrs(poly, { points:`${n.x+sk},${n.y} ${n.x+n.w+sk},${n.y} ${n.x+n.w},${n.y+n.h} ${n.x},${n.y+n.h}`,
+      fill:c.f, stroke:c.s, 'stroke-width':'1.5', 'stroke-dasharray':'5 3' });
+    g.appendChild(poly);
+  } else {
+    const r = el('rect');
+    attrs(r, { x:n.x, y:n.y, width:n.w, height:n.h, rx:'7',
+      fill:c.f, stroke:c.s, 'stroke-width':'2' });
+    g.appendChild(r);
+    // Glow stripe at top
+    const stripe = el('rect');
+    attrs(stripe, { x:n.x+2, y:n.y+2, width:n.w-4, height:3, rx:'2', fill:c.s, opacity:'0.35' });
+    g.appendChild(stripe);
+  }
+
+  // Text
+  const lines = n.label;
+  const lh = 15;
+  const totalH = lines.length * lh;
+  const startY = cy(n) - totalH/2 + lh * 0.8;
+  lines.forEach((line, i) => {
+    const t = el('text');
+    attrs(t, {
+      x: cx(n), y: startY + i*lh,
+      'text-anchor':'middle', fill: c.t,
+      'font-size': i===0 ? '12.5' : '10.5',
+      'font-weight': i===0 ? '700' : '400',
+      'font-family':'Segoe UI,system-ui,sans-serif',
+    });
+    t.textContent = line;
+    g.appendChild(t);
+  });
+
+  svg.appendChild(g);
+});
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function el(tag) { return document.createElementNS('http://www.w3.org/2000/svg', tag); }
+function attrs(el, obj) { for (const [k,v] of Object.entries(obj)) el.setAttribute(k,v); }
+
+// ─── Pan & Zoom ───────────────────────────────────────────────────────────────
+let sc = 1, tx = 0, ty = 0, drag = false, lx = 0, ly2 = 0;
+const cont = document.getElementById('container');
+
+function applyT() {
+  svg.style.transform = `translate(${tx}px,${ty}px) scale(${sc})`;
+}
+function fit() {
+  const vw = window.innerWidth, vh = window.innerHeight;
+  sc = Math.min(vw/W, vh/H) * 0.92;
+  tx = (vw - W*sc)/2; ty = 16;
+  applyT();
+}
+fit();
+
+cont.addEventListener('wheel', ev => {
+  ev.preventDefault();
+  const r = cont.getBoundingClientRect();
+  const mx = ev.clientX - r.left, my = ev.clientY - r.top;
+  const f  = ev.deltaY > 0 ? 0.88 : 1.14;
+  const ns = Math.min(Math.max(sc*f, 0.08), 8);
+  tx = mx - (mx-tx)*(ns/sc);
+  ty = my - (my-ty)*(ns/sc);
+  sc = ns; applyT();
+}, { passive:false });
+
+cont.addEventListener('mousedown', ev => { drag=true; lx=ev.clientX; ly2=ev.clientY; cont.classList.add('dragging'); });
+window.addEventListener('mousemove', ev => {
+  if (!drag) return;
+  tx += ev.clientX-lx; ty += ev.clientY-ly2;
+  lx=ev.clientX; ly2=ev.clientY; applyT();
+});
+window.addEventListener('mouseup', () => { drag=false; cont.classList.remove('dragging'); });
+
+document.getElementById('zi').onclick = () => zoom(1.2);
+document.getElementById('zo').onclick = () => zoom(0.8);
+document.getElementById('zr').onclick = fit;
+function zoom(f) {
+  const mx=window.innerWidth/2, my=window.innerHeight/2;
+  const ns=Math.min(Math.max(sc*f,0.08),8);
+  tx=mx-(mx-tx)*(ns/sc); ty=my-(my-ty)*(ns/sc); sc=ns; applyT();
+}
+
+// Touch
+let ltd = null;
+cont.addEventListener('touchstart', ev => {
+  if (ev.touches.length===1) { drag=true; lx=ev.touches[0].clientX; ly2=ev.touches[0].clientY; }
+}, {passive:true});
+cont.addEventListener('touchmove', ev => {
+  ev.preventDefault();
+  if (ev.touches.length===2) {
+    const dx=ev.touches[0].clientX-ev.touches[1].clientX;
+    const dy=ev.touches[0].clientY-ev.touches[1].clientY;
+    const d=Math.hypot(dx,dy);
+    if (ltd!==null) {
+      const mx=(ev.touches[0].clientX+ev.touches[1].clientX)/2;
+      const my=(ev.touches[0].clientY+ev.touches[1].clientY)/2;
+      const ns=Math.min(Math.max(sc*(d/ltd),0.08),8);
+      tx=mx-(mx-tx)*(ns/sc); ty=my-(my-ty)*(ns/sc); sc=ns; applyT();
+    }
+    ltd=d;
+  } else if (ev.touches.length===1&&drag) {
+    tx+=ev.touches[0].clientX-lx; ty+=ev.touches[0].clientY-ly2;
+    lx=ev.touches[0].clientX; ly2=ev.touches[0].clientY; applyT();
+  }
+}, {passive:false});
+cont.addEventListener('touchend', () => { drag=false; ltd=null; });
+</script>
+</body>
+</html>

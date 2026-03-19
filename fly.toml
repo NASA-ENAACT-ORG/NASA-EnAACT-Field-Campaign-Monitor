@@ -1,0 +1,31 @@
+# fly.toml — Fly.io deployment config for the Walk Scheduler dashboard server
+# Deploy with: fly launch (first time) or fly deploy (updates)
+
+app = "enact-walk-dashboard"
+primary_region = "ewr"   # Newark, NJ — closest to NYC
+
+[build]
+  # No Dockerfile needed — Fly detects Python via requirements.txt
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false    # IMPORTANT: keep always-on for live GPS + Drive polling
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1
+
+[env]
+  PORT = "8080"
+  # Set secrets via: fly secrets set ANTHROPIC_API_KEY=... GOOGLE_SERVICE_ACCOUNT_JSON=... etc.
+  # Never put secret values in this file.
+
+[mounts]
+  source = "walk_data"
+  destination = "/data"
+  # After deploying, symlink or copy data files to /data for persistence across deploys.
+  # Or set BASE_DIR in serve.py to point to /data when running on Fly.

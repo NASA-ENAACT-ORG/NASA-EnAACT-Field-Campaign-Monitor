@@ -29,6 +29,12 @@ venv/
 .venv/
 env/
 
+# Claude Code IDE local config
+.claude/
+
+# Binary Office docs (not well version-controlled)
+Architecture_Overview.docx
+
 # OS artifacts
 .DS_Store
 Thumbs.db
