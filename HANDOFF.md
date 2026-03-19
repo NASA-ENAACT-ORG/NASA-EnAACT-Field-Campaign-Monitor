@@ -8,16 +8,20 @@ This document covers everything needed to keep the server running after the orig
 
 ```
 [Traccar Client on phones] ──GPS push──▶ [serve.py on Fly.io] ◀── [Browser / Dashboard]
-[Google Drive folder]      ──polling──▶  [serve.py on Fly.io]
+[Google Drive folder]      ──onChange──▶ [GAS drive_watcher]
+                                              │ POST /api/drive/poll
+                                         [serve.py on Fly.io]
                                               │
                                          walk_scheduler.py
                                          build_dashboard.py
                                          Walks_Log.txt
 ```
 
-- **serve.py** is the single always-running process. It serves the dashboard, receives GPS data, and polls Google Drive every 60 seconds.
+- **serve.py** is the single always-running process. It serves the dashboard, receives GPS data, and accepts push triggers from Google Apps Script.
+- **gas/drive_watcher.js** is a Google Apps Script that fires an `onChange` trigger whenever a new file appears in the Drive folder. It calls `/api/drive/poll` immediately — replacing the old 60-second polling loop.
 - **Walks_Log.txt** is the source of truth for completed walks. Drive polling auto-appends to it.
 - **dashboard.html** is regenerated whenever the Drive poller detects new files or when "Rerun Scheduler" is clicked.
+- The background polling loop in serve.py is **disabled** in production (`DRIVE_POLL_INTERVAL=0`) — GAS push triggers handle all Drive sync. Set `DRIVE_POLL_INTERVAL=60` to re-enable polling as a fallback if GAS goes down.
 
 ---
 
@@ -31,8 +35,9 @@ Set these in the Fly.io dashboard (under **Secrets**), never in code or files:
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Yes (for Drive) | Full JSON content of the GCP service account key |
 | `GOOGLE_DRIVE_FOLDER_ID` | Yes (for Drive) | The Google Drive folder ID where collectors upload data |
 | `GPS_AUTH_TOKEN` | Recommended | Secret token that GPS devices must include in requests |
+| `GAS_SECRET` | Yes (for GAS) | Bearer token that GAS uses to authenticate Drive poll triggers |
 | `GPS_STALE_SECONDS` | Optional | Seconds before a GPS position is marked stale (default: 300) |
-| `DRIVE_POLL_INTERVAL` | Optional | Seconds between Drive polls (default: 60) |
+| `DRIVE_POLL_INTERVAL` | Optional | Set to `0` to disable background polling (use when GAS triggers are active). Default: 60 |
 | `PORT` | Set by Fly.io | Do not set manually |
 
 To set a secret on Fly.io:
@@ -41,6 +46,8 @@ fly secrets set ANTHROPIC_API_KEY=sk-ant-...
 fly secrets set GOOGLE_SERVICE_ACCOUNT_JSON='{"type":"service_account",...}'
 fly secrets set GOOGLE_DRIVE_FOLDER_ID=1aBcDeFgHiJkLmN...
 fly secrets set GPS_AUTH_TOKEN=choose-a-long-random-string
+fly secrets set GAS_SECRET=$(python -c "import secrets; print(secrets.token_urlsafe(32))")
+fly secrets set DRIVE_POLL_INTERVAL=0
 ```
 
 To rotate a key: just run `fly secrets set KEY=newvalue` and the app restarts automatically.
@@ -166,6 +173,33 @@ curl -X POST https://your-app.fly.dev/api/rebuild
 
 ---
 
+## Google Apps Script: Drive Watcher Setup
+
+The GAS Drive Watcher replaces the 60-second polling loop with instant push triggers.
+The script lives in `gas/drive_watcher.js` in this repo — copy its contents into GAS.
+
+### One-time setup
+1. Go to [script.google.com](https://script.google.com) → **New project** → name it `EnAACT Drive Watcher`
+2. Paste the contents of `gas/drive_watcher.js`
+3. Set `FLYIO_URL` to `https://enact-walk-dashboard.fly.dev` (already in the file)
+4. Set `DRIVE_FOLDER_ID` to the same value as `GOOGLE_DRIVE_FOLDER_ID`
+5. Go to **Project Settings → Script Properties → Add property**:
+   - Name: `GAS_SECRET`
+   - Value: the same token you set in `fly secrets set GAS_SECRET=...`
+6. In the editor, select `setupTrigger` from the function dropdown → **Run**
+7. Grant Drive permissions when prompted
+8. Verify in the **Executions** tab that `setupTrigger` completed with no errors
+
+### Verify the trigger chain
+1. Upload a test file to the Google Drive folder
+2. Check GAS **Executions** tab — `onDriveChange` should appear within seconds
+3. Check Fly.io logs (`fly logs`) — should show `[drive] Poll triggered by: gas`
+
+### Re-register the trigger
+If the trigger stops firing (can happen after GAS project updates), re-run `setupTrigger` from the GAS editor. It removes all existing triggers before creating a new one.
+
+---
+
 ## Troubleshooting
 
 | Problem | Fix |
@@ -175,3 +209,6 @@ curl -X POST https://your-app.fly.dev/api/rebuild
 | Drive sync finds no new files | Check that files are named correctly and the service account has Viewer access to the folder |
 | Dashboard not updating after Drive sync | Files were found but names don't match the walk format — check filenames |
 | Server not responding | Run `fly status` and `fly logs` to diagnose |
+| GAS trigger not firing | Re-run `setupTrigger` from the GAS editor; check Executions tab for errors |
+| `/api/drive/poll` returns 401 | `GAS_SECRET` in GAS Script Properties doesn't match the Fly.io secret; regenerate and sync both |
+| Drive poll still running as background thread | Check `DRIVE_POLL_INTERVAL` Fly.io secret — set it to `0` to disable |

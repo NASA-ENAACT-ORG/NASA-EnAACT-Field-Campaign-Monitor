@@ -318,6 +318,69 @@ select option{background:var(--bg3)}
 .live-badge.err{border-color:rgba(248,81,73,.4);color:#f85149}
 .drive-sync-btn{font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;transition:background .15s}
 .drive-sync-btn:hover{background:var(--bg4,#2d333b)}
+/* ── MOBILE RESPONSIVENESS ── */
+.mobile-menu-btn{display:none;background:transparent;border:1px solid var(--border);color:var(--text);font-size:20px;width:32px;height:32px;border-radius:6px;cursor:pointer;padding:0;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
+.mobile-menu-btn:hover{background:var(--bg3);border-color:var(--accent)}
+@media(max-width:768px){
+  .mobile-menu-btn{display:flex}
+  #header{flex-wrap:wrap;height:auto;padding:8px 12px;gap:8px}
+  #header h1{font-size:13px;order:1;flex-basis:100%}
+  #mobile-menu-btn{order:2}
+  #tabs{order:3;flex-basis:100%;margin-left:0;gap:4px;margin-top:4px}
+  .tab-btn{padding:5px 10px;font-size:11px;flex:1}
+  #filters{order:4;flex-basis:100%;flex-direction:column;gap:5px;margin:4px 0 0;margin-left:0}
+  #filters .fg{width:100%;gap:5px}
+  #filters .fg select,#filters .fg input{width:100%;height:32px;padding:4px 8px;font-size:12px}
+  #filters .btn{width:100%;justify-content:center;font-size:11px}
+  #filters #data-status{width:100%;text-align:center}
+  #live-badges{width:100%;flex-wrap:wrap;gap:4px;margin-left:0}
+  .live-badge{flex:1;text-align:center;font-size:9px;padding:3px 5px}
+  .drive-sync-btn{flex:1;height:32px}
+  #route-panel{width:100%;position:fixed;transform:translateX(100%);transition:transform .3s ease;z-index:600}
+  #route-panel.open{transform:translateX(0);width:100%;max-width:85vw}
+  #sched-panel{width:100%;position:fixed;transform:translateX(100%);transition:transform .3s ease;z-index:600;height:100%}
+  #sched-panel.open{transform:translateX(0);width:100%;max-width:85vw}
+  #map-view{flex-direction:column}
+  #map-wrap{flex:1;position:relative}
+  #schedule-view{flex-direction:column}
+  #sched-map-wrap{flex:1;position:relative}
+  #cal-grid{grid-template-columns:40px repeat(7,1fr);grid-template-rows:40px repeat(3,minmax(80px,1fr))}
+  .cal-dnum{font-size:16px}
+  .cal-day-head{padding:4px 2px}
+  .cal-dname{font-size:9px}
+  #collector-view{padding:10px 12px;gap:10px}
+  .cw{height:100px}
+  #cdetail{flex-direction:column}
+  #dstats{min-width:auto;width:100%}
+  #dcharts{min-width:auto;width:100%}
+  body{font-size:13px}
+  #header h1{font-size:12px}
+  .tab-btn{font-size:10px}
+  select,input[type=date]{font-size:11px;padding:4px 6px}
+  .btn{font-size:10px;padding:3px 8px}
+}
+@media(max-width:480px){
+  #header h1{font-size:11px;letter-spacing:-.5px}
+  #tabs{gap:2px}
+  .tab-btn{padding:4px 8px;font-size:9px}
+  #filters .fg{flex-direction:column;gap:3px}
+  #filters .fg span.fl{font-size:9px}
+  select,input[type=date]{font-size:10px;padding:3px 5px;height:28px}
+  .btn{font-size:9px;padding:2px 6px;height:28px}
+  #live-badges{gap:2px}
+  .live-badge{font-size:8px;padding:2px 4px}
+  .drive-sync-btn{font-size:9px;height:28px}
+  #cal-grid{grid-template-columns:30px repeat(7,1fr);grid-template-rows:32px repeat(3,minmax(60px,1fr))}
+  .cal-dnum{font-size:12px}
+  .cal-event{padding:3px 5px;font-size:9px}
+  body{font-size:12px}
+  .psec{padding:8px}
+  .schip{padding:5px 6px}
+  .schip .sv{font-size:18px}
+  .schip .sl{font-size:8px}
+  .cw{height:80px}
+  #route-panel.open,#sched-panel.open{max-width:95vw}
+}
 </style>
 </head>
 <body>
@@ -344,6 +407,7 @@ setTimeout(function(){
 <div id="app">
   <div id="header">
     <h1>NASA EnAACT Field Campaign Monitor</h1>
+    <button id="mobile-menu-btn" class="mobile-menu-btn" title="Toggle menu">☰</button>
     <div id="tabs">
       <button class="tab-btn active" data-view="map-view">&#x1F5FA;&#xFE0F; Map View</button>
       <button class="tab-btn" data-view="collector-view">&#x1F465; Collector View</button>
@@ -1610,6 +1674,56 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 document.addEventListener('DOMContentLoaded',init);
+
+// Mobile menu toggle functionality
+document.addEventListener('DOMContentLoaded', function() {
+  const menuBtn = document.getElementById('mobile-menu-btn');
+  const routePanel = document.getElementById('route-panel');
+  const schedPanel = document.getElementById('sched-panel');
+
+  if (menuBtn) {
+    menuBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      // Toggle panels - show/hide both
+      const isOpen = routePanel.classList.contains('open') || schedPanel.classList.contains('open');
+      if (isOpen) {
+        routePanel.classList.remove('open');
+        schedPanel.classList.remove('open');
+      } else {
+        // Show the panel for the current view
+        const activeView = document.querySelector('.view.active');
+        if (activeView && activeView.id === 'map-view') {
+          routePanel.classList.add('open');
+        } else if (activeView && activeView.id === 'schedule-view') {
+          schedPanel.classList.add('open');
+        }
+      }
+    });
+
+    // Close menus when clicking outside
+    document.addEventListener('click', function(e) {
+      const isClickOnPanel = routePanel.contains(e.target) || schedPanel.contains(e.target);
+      const isClickOnBtn = menuBtn.contains(e.target);
+
+      if (!isClickOnPanel && !isClickOnBtn) {
+        routePanel.classList.remove('open');
+        schedPanel.classList.remove('open');
+      }
+    });
+
+    // Close menus when switching views
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', function() {
+        setTimeout(() => {
+          routePanel.classList.remove('open');
+          schedPanel.classList.remove('open');
+        }, 100);
+      });
+    });
+  }
+});
+
 </script>
 </body>
 </html>
