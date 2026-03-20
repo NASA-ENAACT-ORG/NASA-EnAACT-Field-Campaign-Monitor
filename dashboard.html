@@ -251,15 +251,21 @@ select option{background:var(--bg3)}
 /* ── MOBILE RESPONSIVENESS ── */
 .mobile-menu-btn{display:none;background:transparent;border:1px solid var(--border);color:var(--text);font-size:20px;width:32px;height:32px;border-radius:6px;cursor:pointer;padding:0;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
 .mobile-menu-btn:hover{background:var(--bg3);border-color:var(--accent)}
+.filter-toggle-btn{display:none;background:transparent;border:1px solid var(--border);color:var(--text);font-size:18px;width:32px;height:32px;border-radius:6px;cursor:pointer;padding:0;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
+.filter-toggle-btn:hover{background:var(--bg3);border-color:var(--accent)}
+.filters-drawer{display:none;position:fixed;left:-100%;top:40px;width:280px;max-width:100%;height:calc(100vh-40px);background:var(--bg);border-right:1px solid var(--border);overflow-y:auto;z-index:580;padding:12px;gap:8px;flex-direction:column;transition:left .3s ease}
+.filters-drawer.open{display:flex;left:0}
 @media(max-width:768px){
   .mobile-menu-btn{display:flex}
+  .filter-toggle-btn{display:flex}
   #header{flex-wrap:wrap;height:auto;padding:8px 12px;gap:8px}
   #header h1{font-size:13px;order:1;flex-basis:100%}
-  #mobile-menu-btn{order:2}
-  #tabs{order:3;flex-basis:100%;margin-left:0;gap:4px;margin-top:4px}
+  #filter-toggle-btn{order:2}
+  #mobile-menu-btn{order:3}
+  #tabs{order:4;flex-basis:100%;margin-left:0;gap:4px;margin-top:4px}
   .tab-btn{padding:5px 10px;font-size:11px;flex:1}
-  #filters{order:4;flex-basis:100%;flex-direction:column;gap:5px;margin:4px 0 0;margin-left:0}
-  #filters .fg{width:100%;gap:5px}
+  #filters{position:fixed;left:-100%;top:44px;width:280px;max-width:calc(100% - 24px);height:calc(100vh-44px);padding:12px;flex-direction:column;gap:5px}
+  #filters .fg{width:100%;gap:5px;flex-direction:column}
   #filters .fg select,#filters .fg input{width:100%;height:32px;padding:4px 8px;font-size:12px}
   #filters .btn{width:100%;justify-content:center;font-size:11px}
   #filters #data-status{width:100%;text-align:center}
@@ -337,6 +343,7 @@ setTimeout(function(){
 <div id="app">
   <div id="header">
     <h1>NASA EnAACT Field Campaign Monitor</h1>
+    <button id="filter-toggle-btn" class="filter-toggle-btn" title="Toggle filters">⚙️</button>
     <button id="mobile-menu-btn" class="mobile-menu-btn" title="Toggle menu">☰</button>
     <div id="tabs">
       <button class="tab-btn active" data-view="map-view">&#x1F5FA;&#xFE0F; Map View</button>
@@ -344,7 +351,7 @@ setTimeout(function(){
       <button class="tab-btn" data-view="schedule-view">&#x1F4C5; Schedule</button>
       <button class="tab-btn" data-view="calendar-view">&#x1F4C6; Calendar</button>
     </div>
-    <div id="filters">
+    <div id="filters" class="filters-drawer">
       <div class="fg"><span class="fl">Season</span>
         <select id="fseason"><option value="">All</option><option value="Spring">Spring</option><option value="Summer">Summer</option><option value="Fall">Fall</option><option value="Winter">Winter</option></select>
       </div>
@@ -650,10 +657,11 @@ function initMap(){
     routeCentroids[code]=[pts.reduce((s,p)=>s+p[0],0)/pts.length,pts.reduce((s,p)=>s+p[1],0)/pts.length];
     routeLayers[code]=[];
     for(const line of geo.lines){
-      const L2=L.polyline(line,{color:'#888',weight:4,opacity:.8}).addTo(map);
-      L2.on('click',()=>openPanel(code));
+      const L2=L.polyline(line,{color:'#888',weight:4,opacity:.8,interactive:true});
+      L2.on('click',function(e){e.originalEvent.stopPropagation();openPanel(code);});
       L2.on('mouseover',function(){this.setStyle({weight:6,opacity:1});});
       L2.on('mouseout',function(){styleRoute(code);});
+      L2.addTo(map);
       routeLayers[code].push(L2);
     }
   }
@@ -1467,9 +1475,10 @@ async function init(){
     const r=await fetch('Walks_Log.txt');
     if(r.ok){logText=await r.text();src='Walks_Log.txt';}
   }catch(e){}
+  let schedLoaded=false;
   try{
-    const sr=await fetch('schedule_output.json').catch(()=>null);
-    if(sr&&sr.ok){try{schedData=await sr.json();}catch(e){}}
+    const sr=await fetch('schedule_output.json?t='+Date.now()).catch(()=>null);
+    if(sr&&sr.ok){try{const sd=await sr.json();schedData=sd;schedLoaded=true;loadScheduleJSON(JSON.stringify(sd));}catch(e){}}
   }catch(e){}
   try{
     allWalks=parseLog(logText);
@@ -1479,7 +1488,9 @@ async function init(){
     updateMapColors();
     updateMapStats();
     bindEvents();
-    toast(src?'Log loaded from disk':'Using embedded sample data','success');
+    const msgs=[src?'Log loaded from disk':'Using embedded sample data'];
+    if(schedLoaded)msgs.push('Schedule auto-loaded');
+    toast(msgs.join(' — '),'success');
   }catch(err){
     console.error('Dashboard init error:',err);
     document.querySelector('#loading p').textContent='Error: '+err.message;
@@ -1611,12 +1622,15 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 document.addEventListener('DOMContentLoaded',init);
 
-// Mobile menu toggle functionality
+// Mobile menu and filters toggle functionality
 document.addEventListener('DOMContentLoaded', function() {
   const menuBtn = document.getElementById('mobile-menu-btn');
+  const filterBtn = document.getElementById('filter-toggle-btn');
   const routePanel = document.getElementById('route-panel');
   const schedPanel = document.getElementById('sched-panel');
+  const filtersDrawer = document.getElementById('filters');
 
+  // Menu button
   if (menuBtn) {
     menuBtn.addEventListener('click', function(e) {
       e.stopPropagation();
@@ -1634,26 +1648,53 @@ document.addEventListener('DOMContentLoaded', function() {
           schedPanel.classList.add('open');
         }
       }
+      if (filtersDrawer) filtersDrawer.classList.remove('open');
     });
+  }
 
-    // Close menus when clicking outside
-    document.addEventListener('click', function(e) {
-      const isClickOnPanel = routePanel.contains(e.target) || schedPanel.contains(e.target);
-      const isClickOnBtn = menuBtn.contains(e.target);
+  // Filter button
+  if (filterBtn && filtersDrawer) {
+    filterBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      filtersDrawer.classList.toggle('open');
+      routePanel.classList.remove('open');
+      schedPanel.classList.remove('open');
+    });
+  }
 
-      if (!isClickOnPanel && !isClickOnBtn) {
+  // Close menus when clicking outside
+  document.addEventListener('click', function(e) {
+    const isClickOnPanel = routePanel.contains(e.target) || schedPanel.contains(e.target);
+    const isClickOnBtn = menuBtn && menuBtn.contains(e.target);
+    const isClickOnFilterBtn = filterBtn && filterBtn.contains(e.target);
+    const isClickOnFilters = filtersDrawer && filtersDrawer.contains(e.target);
+
+    if (!isClickOnPanel && !isClickOnBtn && !isClickOnFilters && !isClickOnFilterBtn) {
+      routePanel.classList.remove('open');
+      schedPanel.classList.remove('open');
+      if (filtersDrawer) filtersDrawer.classList.remove('open');
+    }
+  });
+
+  // Close menus when switching views
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', function() {
+      setTimeout(() => {
         routePanel.classList.remove('open');
         schedPanel.classList.remove('open');
-      }
+        if (filtersDrawer) filtersDrawer.classList.remove('open');
+      }, 100);
     });
+  });
 
-    // Close menus when switching views
-    const tabBtns = document.querySelectorAll('.tab-btn');
-    tabBtns.forEach(btn => {
-      btn.addEventListener('click', function() {
+  // Auto-close filters drawer when a filter is applied
+  if (filtersDrawer) {
+    const filterInputs = filtersDrawer.querySelectorAll('select, input[type="date"]');
+    filterInputs.forEach(input => {
+      input.addEventListener('change', function() {
         setTimeout(() => {
-          routePanel.classList.remove('open');
-          schedPanel.classList.remove('open');
+          filtersDrawer.classList.remove('open');
         }, 100);
       });
     });
