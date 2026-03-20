@@ -32,13 +32,13 @@ jobs:
 
       - name: Configure Docker authentication
         run: |
-          gcloud auth configure-docker gcr.io
+          gcloud auth configure-docker us-east1-docker.pkg.dev
 
       - name: Build and push Docker image
         run: |
           PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
-          IMAGE_URL="gcr.io/${PROJECT_ID}/${IMAGE_NAME}:${{ github.sha }}"
-          IMAGE_LATEST="gcr.io/${PROJECT_ID}/${IMAGE_NAME}:latest"
+          IMAGE_URL="us-east1-docker.pkg.dev/${PROJECT_ID}/${IMAGE_NAME}/${IMAGE_NAME}:${{ github.sha }}"
+          IMAGE_LATEST="us-east1-docker.pkg.dev/${PROJECT_ID}/${IMAGE_NAME}/${IMAGE_NAME}:latest"
 
           # Build the Docker image
           docker build -t ${IMAGE_URL} -t ${IMAGE_LATEST} .
