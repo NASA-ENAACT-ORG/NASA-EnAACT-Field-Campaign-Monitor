@@ -31,6 +31,10 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+# GCS support (optional — only initialized if GCS_BUCKET is set)
+_gcs_client = None
+_gcs_bucket = None
+
 BASE_DIR        = Path(__file__).parent.resolve()
 SCHEDULER       = BASE_DIR / "walk_scheduler.py"
 BUILD_DASHBOARD = BASE_DIR / "build_dashboard.py"
@@ -66,6 +70,55 @@ DRIVE_POLL_INTERVAL = int(os.environ.get("DRIVE_POLL_INTERVAL", "60"))
 _DRIVE_LOCK        = threading.Lock()
 _drive_last_poll   = None   # datetime or None
 _drive_new_today   = 0      # count of new files detected today
+
+
+# ── GCS helpers ───────────────────────────────────────────────────────────────
+
+def _init_gcs():
+    """Initialize GCS client if GCS_BUCKET is configured."""
+    global _gcs_client, _gcs_bucket
+    bucket_name = os.environ.get("GCS_BUCKET", "")
+    if not bucket_name:
+        print("[gcs] Disabled (GCS_BUCKET not set)")
+        return False
+
+    try:
+        from google.cloud import storage
+        _gcs_client = storage.Client()
+        _gcs_bucket = _gcs_client.bucket(bucket_name)
+        print(f"[gcs] Initialized — bucket: {bucket_name}")
+        return True
+    except Exception as e:
+        print(f"[gcs] Warning: Failed to initialize GCS: {e}")
+        return False
+
+
+def _download_from_gcs(gcs_path: str, local_path: Path) -> bool:
+    """Download a file from GCS to local path. Returns True if successful."""
+    if not _gcs_bucket:
+        return False
+    try:
+        blob = _gcs_bucket.blob(gcs_path)
+        if blob.exists():
+            blob.download_to_filename(str(local_path))
+            print(f"[gcs] Downloaded: {gcs_path} → {local_path}")
+            return True
+    except Exception as e:
+        print(f"[gcs] Download error ({gcs_path}): {e}")
+    return False
+
+
+def _upload_to_gcs(local_path: Path, gcs_path: str) -> bool:
+    """Upload a file to GCS. Returns True if successful."""
+    if not _gcs_bucket:
+        return False
+    try:
+        blob = _gcs_bucket.blob(gcs_path)
+        blob.upload_from_filename(str(local_path))
+        return True
+    except Exception as e:
+        print(f"[gcs] Upload error ({gcs_path}): {e}")
+        return False
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -174,6 +227,10 @@ def _append_to_walk_log(entry: str):
     with open(WALKS_LOG, "a", encoding="utf-8") as f:
         f.write(entry + "\n")
     print(f"[drive] Appended to Walks_Log.txt: {entry}")
+
+    # Also upload to GCS if configured
+    if _gcs_bucket:
+        _upload_to_gcs(WALKS_LOG, "Walks_Log.txt")
 
 
 def _trigger_rebuild():
@@ -480,6 +537,13 @@ def main():
     parser = argparse.ArgumentParser(description="Walk Scheduler server")
     parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8765")))
     args = parser.parse_args()
+
+    # Initialize GCS (optional)
+    _init_gcs()
+
+    # Download Walks_Log.txt from GCS on startup if it doesn't exist locally
+    if _gcs_bucket and not WALKS_LOG.exists():
+        _download_from_gcs("Walks_Log.txt", WALKS_LOG)
 
     # Start Drive polling background thread.
     # Set DRIVE_POLL_INTERVAL=0 to disable (use when GAS push triggers are active).

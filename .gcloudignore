@@ -1,0 +1,69 @@
+# Files to exclude from Cloud Run deployments
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# GitHub
+.github/
+
+# Local development
+.env
+.env.local
+.env.*.local
+
+# IDE / Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+logs/
+
+# Local data (will be migrated to GCS)
+Walks_Log.txt
+walk_data/
+
+# Build artifacts
+*.tar.gz
+*.zip
+
+# Fly.io config (not needed for Cloud Run)
+fly.toml
+Procfile
+
+# Documentation and project files (optional, reduce size)
+README.md
+LICENSE
+.git/
+
+# Terraform or other IaC (if using)
+*.tfstate
+terraform/
