@@ -1762,17 +1762,17 @@ def build_weekly_calendar(
         bp  = bp_map[idx]
         placed = False
 
-        # MRV: least-demanded future days first; past days always last
+        # MRV: least-demanded days first among today-or-future; past filtered out below
         gw_days_sorted = sorted(
-            combo["good_weather_days"],
-            key=lambda d: (d < today, slot_demand[(d, tod)], d),
+            (d for d in combo["good_weather_days"] if d >= today),
+            key=lambda d: (slot_demand[(d, tod)], d),
         )
 
         for d in gw_days_sorted:
             if d not in cal[bp]:
                 continue
-            if d <= today:
-                continue  # never schedule today or past days
+            if d < today:
+                continue  # never schedule days that have already passed
             if recal_day is not None and d == recal_day:
                 continue  # entire day reserved for CCNY recalibration
             if cal[bp][d][tod] is not None:
