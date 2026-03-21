@@ -45,6 +45,25 @@ BUILD_MAP             = BASE_DIR / "build_collector_map.py"
 FORECAST_STABILITY    = BASE_DIR / "forecast_stability_analysis.py"
 WALKS_LOG             = BASE_DIR / "Walks_Log.txt"
 SEEN_FILES_PATH       = BASE_DIR / "drive_seen_files.json"
+CONFIRMATIONS_FILE    = BASE_DIR / "schedule_confirmations.json"
+
+
+# ── Confirmation helpers ───────────────────────────────────────────────────────
+import threading
+_CONFIRM_LOCK = threading.Lock()
+
+def _load_confirmations() -> dict:
+    with _CONFIRM_LOCK:
+        if not CONFIRMATIONS_FILE.exists():
+            return {}
+        try:
+            return json.loads(CONFIRMATIONS_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+
+def _save_confirmations(data: dict) -> None:
+    with _CONFIRM_LOCK:
+        CONFIRMATIONS_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 # Files tracked by /api/status
 STATUS_FILES = {
@@ -445,6 +464,12 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, "application/json", json.dumps(trail).encode())
             return
 
+        # /api/confirmations — current confirm/deny state for schedule assignments
+        if path == "api/confirmations":
+            body = json.dumps(_load_confirmations()).encode()
+            self._send(200, "application/json", body)
+            return
+
         # Static files
         file_path = BASE_DIR / path
         if not file_path.exists() or not file_path.is_file():
@@ -488,6 +513,42 @@ class Handler(BaseHTTPRequestHandler):
             self._stream_response(run_scheduler=False)
         elif endpoint == "/api/forecast-stability":
             self._stream_forecast_stability()
+        elif endpoint == "/api/confirm":
+            # Body: {"id": "<route>_<tod>_<date>", "status": "confirmed"|"denied"|"pending",
+            #        "scheduler": "CCNY"|"LaGCC", "pin": "xxxx"}
+            _sched_pin = os.environ.get("SCHEDULER_PIN", "")
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body_bytes = self.rfile.read(length) if length else b"{}"
+                payload = json.loads(body_bytes)
+            except Exception:
+                self._send(400, "application/json",
+                           json.dumps({"error": "bad request"}).encode())
+                return
+            # Verify PIN (if SCHEDULER_PIN is set)
+            if _sched_pin and payload.get("pin", "") != _sched_pin:
+                self._send(403, "application/json",
+                           json.dumps({"error": "wrong pin"}).encode())
+                return
+            assign_id = payload.get("id", "").strip()
+            status    = payload.get("status", "")
+            scheduler = payload.get("scheduler", "unknown")
+            if not assign_id or status not in ("confirmed", "denied", "pending"):
+                self._send(400, "application/json",
+                           json.dumps({"error": "missing id or invalid status"}).encode())
+                return
+            data = _load_confirmations()
+            if status == "pending":
+                data.pop(assign_id, None)   # reset → remove entry
+            else:
+                data[assign_id] = {
+                    "status":    status,
+                    "scheduler": scheduler,
+                    "timestamp": __import__("datetime").datetime.now().isoformat(timespec="seconds"),
+                }
+            _save_confirmations(data)
+            self._send(200, "application/json",
+                       json.dumps({"ok": True, "confirmations": data}).encode())
         elif endpoint == "/api/drive/poll":
             count, err = _run_drive_poll(source="gas")
             if err:

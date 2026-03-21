@@ -2047,6 +2047,14 @@ def main() -> None:
     # ── Load existing schedule — preserve assignments still in good weather ──
     preserved_assignments: List[Dict] = []
     existing_path = Path(__file__).parent / "schedule_output.json"
+    confirmations_path = Path(__file__).parent / "schedule_confirmations.json"
+    # Load confirmation states so denied slots get re-scheduled
+    _confirmations: dict = {}
+    if confirmations_path.exists():
+        try:
+            _confirmations = json.loads(confirmations_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
     if existing_path.exists():
         try:
             with open(existing_path, encoding="utf-8") as _f:
@@ -2054,6 +2062,13 @@ def main() -> None:
             for _a in _existing.get("assignments", []):
                 _d   = date.fromisoformat(_a["date"])
                 _tod = _a["tod"]
+                # Build the canonical assignment ID used by the confirmation system
+                _aid = f"{_a['route']}_{_tod}_{_a['date']}"
+                _conf_status = _confirmations.get(_aid, {}).get("status", "pending")
+                # Skip if explicitly denied — it will be re-scheduled
+                if _conf_status == "denied":
+                    print(f"  ✗  Denied by scheduler — re-queuing: {_a['route']} {_tod} {_a['date']}")
+                    continue
                 # Keep if: within this week AND still good weather in new forecast
                 if week_start <= _d <= week_end and weather.get((_d, _tod), False):
                     preserved_assignments.append(_a)

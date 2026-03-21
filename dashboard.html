@@ -154,9 +154,36 @@ select option{background:var(--bg3)}
 #sched-legend h4{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:7px}
 .sli{display:flex;align-items:center;gap:7px;font-size:11px;margin-bottom:4px}
 .slsw{width:24px;height:3px;border-radius:2px;flex-shrink:0}
-#sched-btn-row{display:flex;gap:7px;margin:10px 12px}
+#sched-btn-row{display:flex;gap:7px;margin:10px 12px;align-items:center}
 #sched-load-btn{flex:1;padding:5px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text2);font-size:11px;cursor:pointer;text-align:center}
 #sched-load-btn:hover{background:var(--bg4);color:var(--text)}
+/* ── Scheduler auth & status ── */
+#sched-unlock-btn{padding:4px 10px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:10px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:4px}
+#sched-unlock-btn:hover{border-color:var(--accent);color:var(--text)}
+#sched-unlock-btn.authed{border-color:#3fb950;color:#3fb950;background:rgba(63,185,80,.1)}
+.status-badge{display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;flex-shrink:0}
+.status-badge.pending{background:rgba(201,209,217,.12);color:#8b949e}
+.status-badge.confirmed{background:rgba(63,185,80,.15);color:#3fb950}
+.status-badge.denied{background:rgba(248,81,73,.15);color:#f85149}
+.sched-row .sr-actions{display:none;gap:4px;margin-left:auto;flex-shrink:0}
+.sched-row .sr-actions button{padding:2px 7px;border-radius:4px;font-size:9px;font-weight:600;cursor:pointer;border:1px solid}
+.sr-confirm-btn{background:rgba(63,185,80,.15);border-color:#3fb950!important;color:#3fb950!important}
+.sr-deny-btn{background:rgba(248,81,73,.15);border-color:#f85149!important;color:#f85149!important}
+.sr-reset-btn{background:var(--bg3);border-color:var(--border)!important;color:var(--text2)!important}
+body.scheduler-mode .sched-row .sr-actions{display:flex}
+.cal-event .ce-actions{display:none;margin-top:4px;gap:3px}
+.cal-event .ce-actions button{flex:1;padding:2px 4px;border-radius:3px;font-size:9px;font-weight:600;cursor:pointer;border:1px solid}
+body.scheduler-mode .cal-event .ce-actions{display:flex}
+/* Auth modal */
+#auth-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;align-items:center;justify-content:center}
+#auth-modal-bg.open{display:flex}
+#auth-modal{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:22px 24px;width:280px;display:flex;flex-direction:column;gap:12px}
+#auth-modal h3{font-size:13px;font-weight:700;margin:0}
+#auth-modal label{font-size:10px;color:var(--text2);display:block;margin-bottom:3px}
+#auth-modal select,#auth-modal input{width:100%;padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;box-sizing:border-box}
+#auth-modal-err{font-size:10px;color:#f85149;display:none}
+#auth-modal-submit{padding:7px;border-radius:5px;background:var(--accent);border:none;color:#fff;font-size:12px;font-weight:600;cursor:pointer}
+#auth-modal-cancel{padding:7px;border-radius:5px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);font-size:12px;cursor:pointer}
 #sched-timeline{position:absolute;bottom:0;left:0;right:0;background:rgba(13,17,23,.95);border-top:1px solid var(--border);padding:5px 12px calc(10px + env(safe-area-inset-bottom));z-index:401;display:flex;flex-direction:column;gap:3px}
 #sched-map-wrap .leaflet-control-attribution{margin-bottom:88px!important}
 #sched-tl-top{display:flex;align-items:center;gap:6px}
@@ -476,6 +503,7 @@ setTimeout(function(){
         </div>
         <div id="sched-btn-row">
           <label id="sched-load-btn" for="sched-file">&#x1F4C2; Load JSON</label>
+          <button id="sched-unlock-btn" title="Enter scheduler PIN to confirm/deny assignments">&#x1F511; Scheduler Mode</button>
         </div>
         <input type="file" id="sched-file" accept=".json" style="display:none">
         <div id="sched-panel-body">
@@ -1000,6 +1028,52 @@ function updateStatus(src){
 }
 // ─── SCHEDULE ───
 let schedMap=null, schedData=null, schedLayers={};
+// ── Confirmation state ──────────────────────────────────────────────────────
+let schedConfirmations={};   // {assignId: {status,scheduler,timestamp}}
+let schedAuth={unlocked:false, scheduler:null, pin:null};
+
+function assignId(a){return `${a.route}_${a.tod}_${a.date}`;}
+
+function statusBadgeHTML(aid){
+  const c=schedConfirmations[aid];
+  const st=c?c.status:'pending';
+  const label=st==='confirmed'?'✅ Confirmed':st==='denied'?'❌ Denied':'🟡 Pending';
+  return `<span class="status-badge ${st}">${label}</span>`;
+}
+
+async function fetchConfirmations(){
+  try{
+    const r=await fetch('/api/confirmations');
+    if(r.ok){schedConfirmations=await r.json();}
+  }catch(e){}
+}
+
+async function doConfirm(aid, status){
+  try{
+    const resp=await fetch('/api/confirm',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id:aid,status,scheduler:schedAuth.scheduler,pin:schedAuth.pin||''})
+    });
+    const data=await resp.json();
+    if(!resp.ok){toast(data.error||'Error','');return;}
+    schedConfirmations=data.confirmations||schedConfirmations;
+    // Re-render both panels
+    renderSchedulePanel();
+    if(document.getElementById('calendar-view').classList.contains('active'))renderCalendar();
+    toast(status==='confirmed'?'Assignment confirmed ✅':status==='denied'?'Assignment denied ❌':'Reset to pending','success');
+  }catch(e){toast('Could not reach server','');}
+}
+
+function actionBtns(aid){
+  // Returns inner button HTML only — caller wraps with appropriate class
+  const st=(schedConfirmations[aid]||{}).status||'pending';
+  if(st==='pending'){
+    return `<button class="sr-confirm-btn" onclick="event.stopPropagation();doConfirm('${aid}','confirmed')">✓ Confirm</button>`
+          +`<button class="sr-deny-btn"    onclick="event.stopPropagation();doConfirm('${aid}','denied')">✗ Deny</button>`;
+  }
+  return `<button class="sr-reset-btn" onclick="event.stopPropagation();doConfirm('${aid}','pending')">↩ Reset</button>`;
+}
 let schedStep=-1, schedPlaying=false, schedPlayTimer=null;
 let tlWeekIdx=0;   // index into tlWeeks array (0 = most recent)
 
@@ -1292,11 +1366,14 @@ function renderSchedulePanel(){
     for(const r of rows){
       const label=ROUTE_LABELS[r.route]||r.route;
       const todCls=r.tod==='AM'?'tb-am':r.tod==='MD'?'tb-md':'tb-pm';
+      const aid=assignId(r);
       html+=`<div class="sched-row" onclick="highlightSchedRoute('${r.route}','${bp}')">
         <span class="sr-date">${fmtDate(r.date)}</span>
         <span class="sr-tod tb ${todCls}">${r.tod}</span>
         <span class="sr-route">${label}</span>
         <span class="sr-col">${r.collector}</span>
+        ${statusBadgeHTML(aid)}
+        <div class="sr-actions">${actionBtns(aid)}</div>
       </div>`;
     }
     html+='</div>';
@@ -1420,10 +1497,14 @@ function renderCalendar(){
         const bpLabel=w.backpack==='A'?'Backpack A':w.backpack==='B'?'Backpack B':'Legacy X';
         const routeLbl=ROUTE_LABELS[w.route]||w.route;
         const colLbl=CNAMES[w.collector]||w.collector||'—';
+        const aid=w.source==='schedule'?assignId(w):'';
+        const badge=aid?statusBadgeHTML(aid):'';
+        const actions=aid?`<div class="ce-actions">${actionBtns(aid)}</div>`:'';
         cellContent+=`<div class="cal-event ${bpCls}${compCls}">
           <div class="ce-bp">${bpLabel}</div>
           <div class="ce-route">${routeLbl}</div>
           <div class="ce-col">${colLbl}</div>
+          ${badge}${actions}
         </div>`;
       }
 
@@ -1449,7 +1530,8 @@ function bindEvents(){
     document.getElementById(b.dataset.view).classList.add('active');
     if(b.dataset.view==='map-view')setTimeout(()=>map&&map.invalidateSize(),50);
     else if(b.dataset.view==='schedule-view'){
-      setTimeout(()=>{
+      setTimeout(async()=>{
+        await fetchConfirmations();
         initSchedMap();
         setTimeout(()=>schedMap.invalidateSize(),150);
         applyScheduleColors();
@@ -1461,7 +1543,7 @@ function bindEvents(){
       },50);
     } else if(b.dataset.view==='calendar-view'){
       calWeekIdx=tlWeekIdx;
-      renderCalendar();
+      fetchConfirmations().then(()=>renderCalendar());
     } else renderCV();
   }));
   document.getElementById('tl-play').addEventListener('click',playSchedule);
@@ -1530,6 +1612,61 @@ function bindEvents(){
     document.querySelectorAll('.wtab').forEach(x=>x.classList.remove('active'));
     b.classList.add('active');currentWin=b.dataset.win;renderComparison();
   }));
+
+  // ── Scheduler auth ────────────────────────────────────────────────────────
+  const unlockBtn=document.getElementById('sched-unlock-btn');
+  const modalBg=document.getElementById('auth-modal-bg');
+  const modalErr=document.getElementById('auth-modal-err');
+  const pinInput=document.getElementById('auth-pin');
+
+  function openAuthModal(){modalBg.classList.add('open');pinInput.value='';modalErr.style.display='none';pinInput.focus();}
+  function closeAuthModal(){modalBg.classList.remove('open');}
+
+  unlockBtn.addEventListener('click',()=>{
+    if(schedAuth.unlocked){
+      // Log out
+      schedAuth={unlocked:false,scheduler:null,pin:null};
+      document.body.classList.remove('scheduler-mode');
+      unlockBtn.classList.remove('authed');
+      unlockBtn.innerHTML='&#x1F511; Scheduler Mode';
+      renderSchedulePanel();
+      if(document.getElementById('calendar-view').classList.contains('active'))renderCalendar();
+    } else { openAuthModal(); }
+  });
+
+  document.getElementById('auth-modal-cancel').addEventListener('click',closeAuthModal);
+  modalBg.addEventListener('click',e=>{if(e.target===modalBg)closeAuthModal();});
+  pinInput.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('auth-modal-submit').click();});
+
+  document.getElementById('auth-modal-submit').addEventListener('click',async()=>{
+    const pin=pinInput.value.trim();
+    const who=document.getElementById('auth-who').value;
+    modalErr.style.display='none';
+    // Verify PIN against server
+    try{
+      const resp=await fetch('/api/confirm',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        // Send a no-op "probe" — use a dummy id that won't match any real assignment
+        body:JSON.stringify({id:'__probe__',status:'pending',scheduler:who,pin})
+      });
+      if(resp.status===403){
+        modalErr.textContent='Incorrect PIN. Try again.';
+        modalErr.style.display='block';
+        pinInput.value='';pinInput.focus();
+        return;
+      }
+    }catch(e){
+      // Server unreachable — allow PIN-less mode for static viewing
+    }
+    schedAuth={unlocked:true,scheduler:who,pin};
+    document.body.classList.add('scheduler-mode');
+    unlockBtn.classList.add('authed');
+    unlockBtn.innerHTML=`&#x1F511; ${who} <span style="font-size:8px;opacity:.7">(click to lock)</span>`;
+    closeAuthModal();
+    renderSchedulePanel();
+    if(document.getElementById('calendar-view').classList.contains('active'))renderCalendar();
+  });
 }
 // ─── INIT ───
 async function init(){
@@ -1538,6 +1675,7 @@ async function init(){
     const r=await fetch('Walks_Log.txt');
     if(r.ok){logText=await r.text();src='Walks_Log.txt';}
   }catch(e){}
+  await fetchConfirmations();
   let schedLoaded=false;
   if(BAKED_SCHEDULE&&BAKED_SCHEDULE.assignments){
     schedData=BAKED_SCHEDULE;schedLoaded=true;loadScheduleJSON(JSON.stringify(BAKED_SCHEDULE));
@@ -1729,5 +1867,25 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 </script>
+<!-- ── Auth modal ── -->
+<div id="auth-modal-bg">
+  <div id="auth-modal">
+    <h3>&#x1F511; Scheduler Mode</h3>
+    <div>
+      <label for="auth-who">Your role</label>
+      <select id="auth-who">
+        <option value="CCNY">CCNY Scheduler</option>
+        <option value="LaGCC">LaGCC Scheduler</option>
+      </select>
+    </div>
+    <div>
+      <label for="auth-pin">Scheduler PIN</label>
+      <input type="password" id="auth-pin" placeholder="Enter PIN" autocomplete="current-password">
+    </div>
+    <div id="auth-modal-err"></div>
+    <button id="auth-modal-submit">Unlock</button>
+    <button id="auth-modal-cancel">Cancel</button>
+  </div>
+</div>
 </body>
 </html>
