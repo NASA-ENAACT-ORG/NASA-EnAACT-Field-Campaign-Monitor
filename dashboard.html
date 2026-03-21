@@ -42,7 +42,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .tab-btn.active{background:var(--bg3);border-color:var(--border);color:var(--text)}
 .tab-group:first-child .tab-btn.active{border-color:rgba(96,165,250,.5);color:#60a5fa}
 .tab-group:last-child .tab-btn.active{border-color:rgba(167,139,250,.5);color:#a78bfa}
-#filters{display:flex;align-items:center;gap:7px;margin-left:auto;flex-wrap:nowrap}
+#filters{display:flex;align-items:center;gap:7px;margin-left:auto;flex-wrap:nowrap;position:static;left:auto;height:auto;width:auto;background:transparent;padding:0;overflow:visible;border:none;flex-direction:row}
 select,input[type=date]{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:3px 7px;font-size:11px;height:28px;cursor:pointer;outline:none}
 select:hover,input[type=date]:hover{border-color:var(--accent)}
 select option{background:var(--bg3)}
@@ -948,8 +948,9 @@ function renderCollectorSelector(){
   el.innerHTML=COLLECTORS.map(cid=>{
     const tot=filteredWalks.filter(w=>w.collector===cid).length;
     return`<div class="cc${cid===currentCollector?' active':''}" data-cid="${cid}">
-      <div class="cn">${CNAMES[cid]}</div><div class="ci">${cid}</div>
-      <div class="cw">${tot}</div><div class="cwl">filtered walks</div>
+      <div class="cn">${CNAMES[cid]}</div>
+      <div class="cw">${tot}</div>
+      <div class="ci">${cid}</div>
     </div>`;
   }).join('');
   el.querySelectorAll('.cc').forEach(c=>c.addEventListener('click',()=>{
