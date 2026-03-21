@@ -99,16 +99,16 @@ HTML_TEMPLATE = """\
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;height:100vh;overflow:hidden}
-#header{display:flex;align-items:center;gap:10px;padding:0 14px;height:56px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;z-index:100}
+#header{display:flex;align-items:center;gap:8px;padding:0 12px;height:56px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;z-index:100}
 #header h1{font-size:13px;font-weight:700;white-space:nowrap;letter-spacing:-.2px;font-family:'Space Grotesk',sans-serif;line-height:1.25}
 #header h1 em{font-style:normal;color:var(--accent);font-size:10px;font-weight:600;background:rgba(56,139,253,.15);border:1px solid rgba(56,139,253,.3);border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle}
 #header-logos{display:flex;align-items:center;gap:10px;flex-shrink:0}
 #nasa-worm-logo{height:26px;width:auto;flex-shrink:0;display:block}
 #tempo-logo{height:38px;width:auto;flex-shrink:0;display:block}
 #header-divider{width:1px;height:32px;background:var(--border);flex-shrink:0}
-#header-title{display:flex;flex-direction:column;gap:1px}
+#header-title{display:flex;flex-direction:column;gap:1px;flex-shrink:1;min-width:0}
 #header-title h1{margin:0}
-#tabs{display:flex;gap:6px;margin-left:8px;align-items:flex-end}
+#tabs{display:flex;gap:6px;margin-left:auto;align-items:flex-end}
 .tab-group{display:flex;flex-direction:column;gap:2px}
 .tab-group-label{font-family:'Space Grotesk',sans-serif;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1.4px;padding:0 5px;color:var(--text3);white-space:nowrap}
 .tab-group-label.monitor{color:#60a5fa;opacity:.75}
@@ -120,7 +120,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .tab-btn.active{background:var(--bg3);border-color:var(--border);color:var(--text)}
 .tab-group:first-child .tab-btn.active{border-color:rgba(96,165,250,.5);color:#60a5fa}
 .tab-group:last-child .tab-btn.active{border-color:rgba(167,139,250,.5);color:#a78bfa}
-#filters{display:flex;align-items:center;gap:7px;margin-left:auto;flex-wrap:nowrap;position:static;left:auto;height:auto;width:auto;background:transparent;padding:0;overflow:visible;border:none;flex-direction:row}
+/* Filters always live in a drawer panel, opened by hamburger on all screen sizes */
+#filters{display:none;position:fixed;left:-100%;top:56px;width:280px;max-width:calc(100% - 16px);height:calc(100vh - 56px);background:var(--bg2);border-right:1px solid var(--border);border-top:1px solid var(--border);overflow-y:auto;z-index:580;padding:14px;gap:10px;flex-direction:column;transition:left .25s ease;box-shadow:4px 0 20px rgba(0,0,0,.4)}
+#filters.open{display:flex!important;left:0!important}
 select,input[type=date]{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:3px 7px;font-size:11px;height:28px;cursor:pointer;outline:none}
 select:hover,input[type=date]:hover{border-color:var(--accent)}
 select option{background:var(--bg3)}
@@ -229,7 +231,7 @@ select option{background:var(--bg3)}
 #schedule-view{flex-direction:row}
 #sched-map-wrap{flex:1;position:relative;overflow:hidden}
 #sched-map{width:100%;height:100%}
-#sched-panel{width:320px;flex-shrink:0;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+#sched-panel{width:400px;flex-shrink:0;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
 #sched-panel-head{padding:12px 14px 9px;border-bottom:1px solid var(--border)}
 #sched-panel-head h2{font-size:13px;font-weight:700}
 #sched-panel-head .smeta{font-size:10px;color:var(--text2);margin-top:3px}
@@ -298,14 +300,14 @@ body.scheduler-mode .cal-event .ce-actions{display:flex}
 .tl-dot.tl-past{opacity:.38}.tl-dot.tl-current{opacity:1;box-shadow:0 0 0 2px #fff4}.tl-dot.tl-future{opacity:.75}
 .tl-day-recal{font-size:8px;color:#f0a500;letter-spacing:.3px}
 .tl-day-sep{width:1px;background:var(--border);align-self:stretch;flex-shrink:0}
-#cselector{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;width:100%}
-.cc{aspect-ratio:1;padding:12px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:all .15s;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
+#cselector{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:12px;width:100%}
+.cc{aspect-ratio:1;padding:18px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;cursor:pointer;transition:all .15s;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
 .cc:hover{border-color:var(--accent);background:var(--bg3)}
 .cc.active{border-color:var(--accent);background:rgba(56,139,253,.12)}
-.cc .cn{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.cc .ci{font-size:10px;color:var(--text2);margin-top:2px}
-.cc .cw{font-size:24px;font-weight:700;color:var(--accent);line-height:1.1;margin-top:5px}
-.cc .cwl{font-size:9px;color:var(--text3);margin-top:1px}
+.cc .cn{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.cc .ci{font-size:11px;color:var(--text2);margin-top:3px}
+.cc .cw{font-size:30px;font-weight:700;color:var(--accent);line-height:1.1;margin-top:7px}
+.cc .cwl{font-size:10px;color:var(--text3);margin-top:2px}
 #cdetail{display:flex;gap:12px;flex-wrap:wrap}
 .dcard{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:13px}
 #dstats{flex:0 0 auto;min-width:240px}
@@ -366,35 +368,40 @@ body.scheduler-mode .cal-event .ce-actions{display:flex}
 .live-badge.err{border-color:rgba(248,81,73,.4);color:#f85149}
 .drive-sync-btn{font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;transition:background .15s}
 .drive-sync-btn:hover{background:var(--bg4,#2d333b)}
-/* ── MOBILE RESPONSIVENESS ── */
-.mobile-menu-btn{display:none;background:transparent;border:1px solid var(--border);color:var(--text);font-size:20px;width:32px;height:32px;border-radius:6px;cursor:pointer;padding:0;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
+/* ── Hamburger (visible on ALL screen sizes) ── */
+.mobile-menu-btn{display:flex;background:transparent;border:1px solid var(--border);color:var(--text);font-size:18px;width:32px;height:32px;border-radius:6px;cursor:pointer;padding:0;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;margin-left:6px}
 .mobile-menu-btn:hover{background:var(--bg3);border-color:var(--accent)}
-.filters-drawer{display:none;position:fixed;left:-100%;top:40px;width:280px;max-width:100%;height:calc(100vh-40px);background:var(--bg);border-right:1px solid var(--border);overflow-y:auto;z-index:580;padding:12px;gap:8px;flex-direction:column;transition:left .3s ease}
-.filters-drawer.open{display:flex;left:0}
+.mobile-menu-btn.filters-open{background:var(--bg3);border-color:var(--accent);color:var(--accent)}
+/* Filter drawer contents layout */
+#filters .fg{width:100%;gap:4px;flex-direction:column}
+#filters .fg select,#filters .fg input{width:100%;height:32px;padding:4px 8px;font-size:12px}
+#filters .fg span.fl{font-size:10px;color:var(--text3);font-weight:600}
+#filters .btn{width:100%;justify-content:center;font-size:11px}
+#filters #data-status{width:100%;text-align:center}
+#filters #live-badges{width:100%;flex-wrap:wrap;gap:4px;margin-left:0}
+#filters .live-badge{flex:1;text-align:center;font-size:9px;padding:3px 5px}
+#filters .drive-sync-btn{flex:1;height:32px}
+/* Filter drawer section headers */
+.filter-section-head{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);padding-bottom:4px;border-bottom:1px solid var(--border);margin-bottom:2px}
 @media(max-width:768px){
-  .mobile-menu-btn{display:flex}
-  #header{flex-wrap:wrap;height:auto;padding:8px 10px;gap:6px}
-  #header-logos{order:1;flex-basis:100%;justify-content:flex-start}
+  #header{flex-wrap:wrap;height:auto;padding:8px 10px;gap:0}
+  /* Row 1: logos (left) + title (right) + hamburger */
+  #header-logos{order:1;flex-shrink:0;margin-right:auto}
   #nasa-worm-logo{height:20px}
   #tempo-logo{height:30px}
   #header-divider{display:none}
-  #header-title{order:2;flex-basis:100%}
-  #header h1{font-size:12px}
-  #mobile-menu-btn{order:3}
-  #tabs{order:4;flex-basis:100%;margin-left:0;gap:3px;margin-top:4px;align-items:stretch}
+  #header-title{order:1;flex-shrink:1;min-width:0;text-align:right}
+  #header h1{font-size:11px;white-space:normal;line-height:1.2}
+  #mobile-menu-btn{order:1;margin-left:8px}
+  /* Row 2: tabs full width */
+  #tabs{order:2;flex-basis:100%;margin-left:0;gap:3px;margin-top:6px;align-items:stretch}
   .tab-group{flex-direction:row;flex:1}
   .tab-group-label{display:none}
   .tab-group-btns{flex:1;gap:3px}
   .tab-sep{display:none}
   .tab-btn{padding:5px 6px;font-size:11px;flex:1;text-align:center}
-  #filters{position:fixed;left:-100%;top:44px;width:280px;max-width:calc(100% - 24px);height:calc(100vh-44px);padding:12px;flex-direction:column;gap:5px}
-  #filters .fg{width:100%;gap:5px;flex-direction:column}
-  #filters .fg select,#filters .fg input{width:100%;height:32px;padding:4px 8px;font-size:12px}
-  #filters .btn{width:100%;justify-content:center;font-size:11px}
-  #filters #data-status{width:100%;text-align:center}
-  #live-badges{width:100%;flex-wrap:wrap;gap:4px;margin-left:0}
-  .live-badge{flex:1;text-align:center;font-size:9px;padding:3px 5px}
-  .drive-sync-btn{flex:1;height:32px}
+  /* Filter drawer on mobile — top offset matches header height */
+  #filters{top:auto}
   #route-panel{width:100%;position:fixed;transform:translateX(100%);transition:transform .3s ease;z-index:1100}
   #route-panel.open{transform:translateX(0);width:100%;max-width:85vw}
   #sched-panel{width:100%;position:fixed;transform:translateX(100%);transition:transform .3s ease;z-index:1100;height:100%}
@@ -413,22 +420,16 @@ body.scheduler-mode .cal-event .ce-actions{display:flex}
   #dstats{min-width:auto;width:100%}
   #dcharts{min-width:auto;width:100%}
   body{font-size:13px}
-  #header h1{font-size:12px}
   .tab-btn{font-size:10px}
   select,input[type=date]{font-size:11px;padding:4px 6px}
   .btn{font-size:10px;padding:3px 8px}
 }
 @media(max-width:480px){
-  #header h1{font-size:11px;letter-spacing:-.5px}
+  #header h1{font-size:10px;letter-spacing:-.3px}
   #tabs{gap:2px}
-  .tab-btn{padding:4px 8px;font-size:9px}
-  #filters .fg{flex-direction:column;gap:3px}
-  #filters .fg span.fl{font-size:9px}
+  .tab-btn{padding:4px 5px;font-size:9px}
   select,input[type=date]{font-size:10px;padding:3px 5px;height:28px}
   .btn{font-size:9px;padding:2px 6px;height:28px}
-  #live-badges{gap:2px}
-  .live-badge{font-size:8px;padding:2px 4px}
-  .drive-sync-btn{font-size:9px;height:28px}
   #cal-grid{grid-template-columns:30px repeat(7,1fr);grid-template-rows:32px repeat(3,minmax(60px,1fr))}
   .cal-dnum{font-size:12px}
   .cal-event{padding:3px 5px;font-size:9px}
@@ -525,7 +526,6 @@ setTimeout(function(){
     <div id="header-title">
       <h1>NASA EnAACT Field Campaign Monitor</h1>
     </div>
-    <button id="mobile-menu-btn" class="mobile-menu-btn" title="Toggle filters">&#x2630;</button>
     <div id="tabs">
       <div class="tab-group">
         <span class="tab-group-label monitor">Campaign Monitor</span>
@@ -543,22 +543,27 @@ setTimeout(function(){
         </div>
       </div>
     </div>
-    <div id="filters" class="filters-drawer">
+    <button id="mobile-menu-btn" class="mobile-menu-btn" title="Toggle filters">&#x2630;</button>
+    <div id="filters">
+      <div class="filter-section-head">Walk Filters</div>
       <div class="fg"><span class="fl">Season</span>
-        <select id="fseason"><option value="">All</option><option value="Spring">Spring</option><option value="Summer">Summer</option><option value="Fall">Fall</option><option value="Winter">Winter</option></select>
+        <select id="fseason"><option value="">All seasons</option><option value="Spring">Spring</option><option value="Summer">Summer</option><option value="Fall">Fall</option><option value="Winter">Winter</option></select>
       </div>
-      <div class="fg"><span class="fl">TOD</span>
-        <select id="ftod"><option value="">All</option><option value="AM">AM</option><option value="MD">MD</option><option value="PM">PM</option></select>
+      <div class="fg"><span class="fl">Time of Day</span>
+        <select id="ftod"><option value="">All</option><option value="AM">AM</option><option value="MD">Midday</option><option value="PM">PM</option></select>
       </div>
-      <div class="fg"><span class="fl">Pack</span>
-        <select id="fbp"><option value="">All</option><option value="A">A</option><option value="B">B</option><option value="X">X (legacy)</option></select>
+      <div class="fg"><span class="fl">Backpack</span>
+        <select id="fbp"><option value="">All</option><option value="A">A — CCNY</option><option value="B">B — LaGCC</option><option value="X">X (legacy)</option></select>
       </div>
-      <div class="fg"><span class="fl">From</span><input type="date" id="ffrom"></div>
-      <div class="fg"><span class="fl">To</span><input type="date" id="fto"></div>
-      <button class="btn" id="btn-refresh">&#x27F3; Refresh</button>
-      <label class="btn" for="ffile">&#x1F4C2; Load Log</label>
+      <div class="fg"><span class="fl">Date From</span><input type="date" id="ffrom"></div>
+      <div class="fg"><span class="fl">Date To</span><input type="date" id="fto"></div>
+      <div style="display:flex;gap:6px">
+        <button class="btn" id="btn-refresh" style="flex:1">&#x27F3; Refresh</button>
+        <label class="btn" for="ffile" style="flex:1;justify-content:center">&#x1F4C2; Load Log</label>
+      </div>
       <input type="file" id="ffile" accept=".txt" style="display:none">
       <div id="data-status">loading…</div>
+      <div class="filter-section-head" style="margin-top:4px">Live Status</div>
       <div id="live-badges">
         <span class="live-badge" id="gps-badge-a" title="Backpack A GPS">BP-A: —</span>
         <span class="live-badge" id="gps-badge-b" title="Backpack B GPS">BP-B: —</span>
@@ -1892,48 +1897,50 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 document.addEventListener('DOMContentLoaded',init);
 
-// Mobile menu and filters toggle functionality
+// Filter drawer toggle — hamburger button is always visible on all screen sizes
 document.addEventListener('DOMContentLoaded', function() {
   const menuBtn = document.getElementById('mobile-menu-btn');
-  const routePanel = document.getElementById('route-panel');
-  const schedPanel = document.getElementById('sched-panel');
   const filtersDrawer = document.getElementById('filters');
+
+  function openFilters() {
+    if (!filtersDrawer) return;
+    filtersDrawer.classList.add('open');
+    if (menuBtn) menuBtn.classList.add('filters-open');
+    // Ensure drawer top offset matches current header height
+    const hdr = document.getElementById('header');
+    if (hdr) filtersDrawer.style.top = hdr.offsetHeight + 'px';
+  }
+  function closeFilters() {
+    if (!filtersDrawer) return;
+    filtersDrawer.classList.remove('open');
+    if (menuBtn) menuBtn.classList.remove('filters-open');
+  }
+  function isFiltersOpen() {
+    return filtersDrawer && filtersDrawer.classList.contains('open');
+  }
 
   // Hamburger toggles filters drawer
   if (menuBtn && filtersDrawer) {
     menuBtn.addEventListener('click', function(e) {
       e.stopPropagation();
-      filtersDrawer.classList.toggle('open');
+      isFiltersOpen() ? closeFilters() : openFilters();
     });
   }
 
   // Close drawer when clicking outside
   document.addEventListener('click', function(e) {
-    const isClickOnBtn = menuBtn && menuBtn.contains(e.target);
-    const isClickOnFilters = filtersDrawer && filtersDrawer.contains(e.target);
-    if (!isClickOnBtn && !isClickOnFilters) {
-      if (filtersDrawer) filtersDrawer.classList.remove('open');
-    }
+    if (!isFiltersOpen()) return;
+    const isBtn = menuBtn && menuBtn.contains(e.target);
+    const isDrawer = filtersDrawer && filtersDrawer.contains(e.target);
+    if (!isBtn && !isDrawer) closeFilters();
   });
 
   // Close filters drawer when switching views
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', function() {
-      setTimeout(() => { if (filtersDrawer) filtersDrawer.classList.remove('open'); }, 100);
+      setTimeout(closeFilters, 80);
     });
   });
-
-  // Auto-close filters drawer when a filter is applied
-  if (filtersDrawer) {
-    const filterInputs = filtersDrawer.querySelectorAll('select, input[type="date"]');
-    filterInputs.forEach(input => {
-      input.addEventListener('change', function() {
-        setTimeout(() => {
-          filtersDrawer.classList.remove('open');
-        }, 100);
-      });
-    });
-  }
 });
 
 </script>
