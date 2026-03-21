@@ -155,8 +155,6 @@ select option{background:var(--bg3)}
 .sli{display:flex;align-items:center;gap:7px;font-size:11px;margin-bottom:4px}
 .slsw{width:24px;height:3px;border-radius:2px;flex-shrink:0}
 #sched-btn-row{display:flex;gap:7px;margin:10px 12px;align-items:center}
-#sched-load-btn{flex:1;padding:5px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text2);font-size:11px;cursor:pointer;text-align:center}
-#sched-load-btn:hover{background:var(--bg4);color:var(--text)}
 /* ── Scheduler auth & status ── */
 #sched-unlock-btn{padding:4px 10px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:10px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:4px}
 #sched-unlock-btn:hover{border-color:var(--accent);color:var(--text)}
@@ -502,7 +500,6 @@ setTimeout(function(){
           <div class="smeta" id="sched-meta">Run the scheduler to load assignments</div>
         </div>
         <div id="sched-btn-row">
-          <label id="sched-load-btn" for="sched-file">&#x1F4C2; Load JSON</label>
           <button id="sched-unlock-btn" title="Enter scheduler PIN to confirm/deny assignments">&#x1F511; Scheduler Mode</button>
         </div>
         <input type="file" id="sched-file" accept=".json" style="display:none">
@@ -1567,12 +1564,6 @@ function bindEvents(){
   });
   document.getElementById('tl-wk-now').addEventListener('click',()=>{
     tlWeekIdx=findCurrentWeekIdx(buildTlWeeks());schedStep=-1;applyScheduleColors();renderSchedulePanel();renderTimelineBar();
-  });
-  document.getElementById('sched-file').addEventListener('change',e=>{
-    const f=e.target.files[0];if(!f)return;
-    const r=new FileReader();
-    r.onload=ev=>{loadScheduleJSON(ev.target.result);e.target.value='';};
-    r.readAsText(f);
   });
   document.getElementById('fseason').addEventListener('change',e=>{filters.season=e.target.value;applyFilters();});
   document.getElementById('ftod').addEventListener('change',e=>{filters.tod=e.target.value;applyFilters();});
