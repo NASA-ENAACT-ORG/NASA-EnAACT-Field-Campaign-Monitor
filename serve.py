@@ -46,6 +46,15 @@ FORECAST_STABILITY    = BASE_DIR / "forecast_stability_analysis.py"
 WALKS_LOG             = BASE_DIR / "Walks_Log.txt"
 SEEN_FILES_PATH       = BASE_DIR / "drive_seen_files.json"
 CONFIRMATIONS_FILE    = BASE_DIR / "schedule_confirmations.json"
+SCHEDULE_OUTPUT       = BASE_DIR / "schedule_output.json"
+FORECAST_DIR          = BASE_DIR / "Forecast"
+AVAILABILITY_FILE     = BASE_DIR / "Collector_Schedule" / "Availability.xlsx"
+
+# ── Drive config ───────────────────────────────────────────────────────────────
+# DRIVE_FORECASTS_FOLDER_ID — Google Drive folder where forecast PDFs are uploaded
+# DRIVE_AVAILABILITY_FOLDER_ID — Google Drive folder where Availability.xlsx lives
+DRIVE_FORECASTS_FOLDER_ID   = os.environ.get("DRIVE_FORECASTS_FOLDER_ID", "")
+DRIVE_AVAILABILITY_FOLDER_ID = os.environ.get("DRIVE_AVAILABILITY_FOLDER_ID", "")
 
 
 # ── Confirmation helpers ───────────────────────────────────────────────────────
@@ -64,6 +73,9 @@ def _load_confirmations() -> dict:
 def _save_confirmations(data: dict) -> None:
     with _CONFIRM_LOCK:
         CONFIRMATIONS_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    # Persist to GCS so confirmations survive container restarts
+    if _gcs_bucket:
+        _upload_to_gcs(CONFIRMATIONS_FILE, "schedule_confirmations.json")
 
 # Files tracked by /api/status
 STATUS_FILES = {
@@ -88,11 +100,14 @@ _GPS_TRAILS = {bp: deque(maxlen=200) for bp in GPS_BACKPACK_IDS}
 
 # ── Drive polling state ────────────────────────────────────────────────────────
 
-DRIVE_FOLDER_ID    = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
-DRIVE_POLL_INTERVAL = int(os.environ.get("DRIVE_POLL_INTERVAL", "60"))
-_DRIVE_LOCK        = threading.Lock()
-_drive_last_poll   = None   # datetime or None
-_drive_new_today   = 0      # count of new files detected today
+DRIVE_FOLDER_ID       = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
+DRIVE_POLL_INTERVAL   = int(os.environ.get("DRIVE_POLL_INTERVAL", "60"))
+FORECAST_POLL_INTERVAL = int(os.environ.get("FORECAST_POLL_INTERVAL", "300"))  # 5 min default
+_DRIVE_LOCK           = threading.Lock()
+_drive_last_poll      = None
+_drive_new_today      = 0
+_forecast_last_poll   = None
+_scheduler_running    = threading.Lock()  # prevents concurrent scheduler runs
 
 
 # ── GCS helpers ───────────────────────────────────────────────────────────────
@@ -142,6 +157,239 @@ def _upload_to_gcs(local_path: Path, gcs_path: str) -> bool:
     except Exception as e:
         print(f"[gcs] Upload error ({gcs_path}): {e}")
         return False
+
+
+# ── Shared Google Drive helpers ────────────────────────────────────────────────
+
+def _get_drive_service():
+    """Return an authenticated Drive v3 service, or None if not configured."""
+    svc_json_str = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+    if not svc_json_str:
+        return None
+    try:
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build as gdrive_build
+        svc_info = json.loads(svc_json_str)
+        creds = service_account.Credentials.from_service_account_info(
+            svc_info, scopes=["https://www.googleapis.com/auth/drive.readonly"]
+        )
+        return gdrive_build("drive", "v3", credentials=creds, cache_discovery=False)
+    except Exception as e:
+        print(f"[drive] Auth error: {e}")
+        return None
+
+
+def _drive_find_folder(service, parent_id: str, name: str) -> str | None:
+    """Return the ID of a named subfolder, or None."""
+    try:
+        q = (f"name='{name}' and mimeType='application/vnd.google-apps.folder'"
+             f" and '{parent_id}' in parents and trashed=false")
+        r = service.files().list(q=q, fields="files(id)", pageSize=1).execute()
+        files = r.get("files", [])
+        return files[0]["id"] if files else None
+    except Exception as e:
+        print(f"[drive] Find folder '{name}' error: {e}")
+        return None
+
+
+def _drive_list_files(service, folder_id: str, mime: str = "application/pdf") -> list:
+    """List files in a Drive folder. Returns list of file dicts."""
+    try:
+        q = f"mimeType='{mime}' and '{folder_id}' in parents and trashed=false"
+        r = service.files().list(
+            q=q, fields="files(id,name,modifiedTime)", pageSize=200,
+            orderBy="modifiedTime desc"
+        ).execute()
+        return r.get("files", [])
+    except Exception as e:
+        print(f"[drive] List files error: {e}")
+        return []
+
+
+def _drive_download_file(service, file_id: str, dest: Path) -> bool:
+    """Download a Drive file to a local path. Returns True on success."""
+    try:
+        from googleapiclient.http import MediaIoBaseDownload
+        import io
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        req = service.files().get_media(fileId=file_id)
+        fh = io.BytesIO()
+        dl = MediaIoBaseDownload(fh, req)
+        done = False
+        while not done:
+            _, done = dl.next_chunk()
+        fh.seek(0)
+        dest.write_bytes(fh.read())
+        return True
+    except Exception as e:
+        print(f"[drive] Download {file_id} → {dest.name} error: {e}")
+        return False
+
+
+# ── Forecast state (persisted in GCS so it survives container restarts) ────────
+
+_FORECAST_STATE_GCS = "forecast_state.json"
+_FORECAST_STATE_LOCAL = BASE_DIR / ".forecast_state.json"
+
+
+def _load_forecast_state() -> dict:
+    """Load dict of {file_id: modifiedTime} for already-processed forecast PDFs."""
+    if _gcs_bucket:
+        _download_from_gcs(_FORECAST_STATE_GCS, _FORECAST_STATE_LOCAL)
+    try:
+        return json.loads(_FORECAST_STATE_LOCAL.read_text())
+    except Exception:
+        return {}
+
+
+def _save_forecast_state(state: dict):
+    _FORECAST_STATE_LOCAL.write_text(json.dumps(state, indent=2))
+    if _gcs_bucket:
+        _upload_to_gcs(_FORECAST_STATE_LOCAL, _FORECAST_STATE_GCS)
+
+
+# ── Availability.xlsx — downloaded from Drive before every scheduler run ───────
+
+def _download_availability(service=None) -> bool:
+    """Download Availability.xlsx from Google Drive (DRIVE_AVAILABILITY_FOLDER_ID).
+    Falls back to the version committed in the Docker image if unavailable.
+    Returns True if a fresh copy was obtained from Drive."""
+    folder_id = DRIVE_AVAILABILITY_FOLDER_ID
+    if not folder_id:
+        print("[forecast] DRIVE_AVAILABILITY_FOLDER_ID not set — using baked Availability.xlsx")
+        return False
+    if service is None:
+        service = _get_drive_service()
+    if service is None:
+        return False
+    try:
+        q = f"name='Availability.xlsx' and '{folder_id}' in parents and trashed=false"
+        r = service.files().list(q=q, fields="files(id,name,modifiedTime)",
+                                  pageSize=1, orderBy="modifiedTime desc").execute()
+        files = r.get("files", [])
+        if not files:
+            print("[forecast] Availability.xlsx not found in Drive — using baked copy")
+            return False
+        f = files[0]
+        if _drive_download_file(service, f["id"], AVAILABILITY_FILE):
+            print(f"[forecast] Downloaded Availability.xlsx from Drive (modified {f['modifiedTime']})")
+            return True
+    except Exception as e:
+        print(f"[forecast] Availability.xlsx download error: {e}")
+    return False
+
+
+# ── Scheduler + rebuild pipeline ───────────────────────────────────────────────
+
+def _run_scheduler_and_rebuild():
+    """Run walk_scheduler.py → build_dashboard.py, upload results to GCS.
+    Protected by _scheduler_running lock to prevent concurrent runs."""
+    if not _scheduler_running.acquire(blocking=False):
+        print("[forecast] Scheduler already running — skipping this trigger")
+        return
+
+    try:
+        print("[forecast] ▶ Running walk_scheduler.py …")
+        r = subprocess.run(
+            [sys.executable, str(SCHEDULER)],
+            cwd=str(BASE_DIR),
+            capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
+            timeout=360,
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+        )
+        # Print last 3000 chars so Cloud Run logs show what happened
+        out = (r.stdout or "") + (r.stderr or "")
+        if out:
+            print(out[-3000:])
+        print(f"[forecast] Scheduler exit={r.returncode}")
+
+        if SCHEDULE_OUTPUT.exists() and _gcs_bucket:
+            _upload_to_gcs(SCHEDULE_OUTPUT, "schedule_output.json")
+            print("[forecast] Uploaded schedule_output.json → GCS")
+
+        print("[forecast] ▶ Rebuilding dashboard …")
+        r2 = subprocess.run(
+            [sys.executable, str(BUILD_DASHBOARD)],
+            cwd=str(BASE_DIR),
+            capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
+            timeout=120,
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+        )
+        print(f"[forecast] Dashboard rebuild exit={r2.returncode}")
+        if r2.stdout:
+            print(r2.stdout[-500:])
+    except subprocess.TimeoutExpired:
+        print("[forecast] Scheduler timed out (6 min limit)")
+    except Exception as e:
+        print(f"[forecast] Pipeline error: {e}")
+    finally:
+        _scheduler_running.release()
+
+
+# ── Forecast monitor — polls Drive for new forecast PDFs ──────────────────────
+
+def _poll_forecast_pdfs() -> tuple[int, str | None]:
+    """Check DRIVE_FORECASTS_FOLDER_ID for new/updated forecast PDFs.
+    Downloads any new ones and triggers the scheduler+rebuild pipeline.
+    Returns (new_count, error_msg)."""
+    global _forecast_last_poll
+
+    if not DRIVE_FORECASTS_FOLDER_ID:
+        return 0, "DRIVE_FORECASTS_FOLDER_ID not set"
+
+    service = _get_drive_service()
+    if service is None:
+        return 0, "Drive auth failed (GOOGLE_SERVICE_ACCOUNT_JSON missing or invalid)"
+
+    state = _load_forecast_state()  # {file_id: modifiedTime}
+    pdfs = _drive_list_files(service, DRIVE_FORECASTS_FOLDER_ID, mime="application/pdf")
+
+    new_pdfs = [f for f in pdfs if state.get(f["id"]) != f.get("modifiedTime")]
+    if not new_pdfs:
+        with _DRIVE_LOCK:
+            _forecast_last_poll = _now_iso()
+        return 0, None
+
+    FORECAST_DIR.mkdir(exist_ok=True)
+    downloaded = 0
+    for f in new_pdfs:
+        dest = FORECAST_DIR / f["name"]
+        print(f"[forecast] New PDF: {f['name']} — downloading …")
+        if _drive_download_file(service, f["id"], dest):
+            state[f["id"]] = f["modifiedTime"]
+            downloaded += 1
+            print(f"[forecast] ✓ {f['name']} saved to Forecast/")
+
+    if downloaded:
+        _save_forecast_state(state)
+        # Pull latest Availability.xlsx before running scheduler
+        _download_availability(service)
+        # Run scheduler pipeline in a background thread so poll returns quickly
+        t = threading.Thread(target=_run_scheduler_and_rebuild, daemon=True)
+        t.start()
+
+    with _DRIVE_LOCK:
+        _forecast_last_poll = _now_iso()
+
+    return downloaded, None
+
+
+def _forecast_monitor_thread():
+    """Daemon thread: polls Drive for new forecast PDFs on a fixed interval."""
+    print(f"[forecast] Monitor started (interval: {FORECAST_POLL_INTERVAL}s,"
+          f" folder: {DRIVE_FORECASTS_FOLDER_ID or 'NOT SET'})")
+    while True:
+        try:
+            count, err = _poll_forecast_pdfs()
+            if err:
+                print(f"[forecast] Poll skipped: {err}")
+            elif count:
+                print(f"[forecast] {count} new forecast PDF(s) detected — scheduler triggered")
+        except Exception as e:
+            print(f"[forecast] Unexpected error: {e}")
+        time.sleep(FORECAST_POLL_INTERVAL)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -233,6 +481,9 @@ def _parse_filename_to_log_entry(name: str) -> str | None:
 
 
 def _load_seen_ids() -> set:
+    # Try GCS first so seen-IDs survive container restarts
+    if _gcs_bucket:
+        _download_from_gcs("drive_seen_files.json", SEEN_FILES_PATH)
     try:
         return set(json.loads(SEEN_FILES_PATH.read_text()))
     except Exception:
@@ -242,6 +493,8 @@ def _load_seen_ids() -> set:
 def _save_seen_ids(ids: set):
     try:
         SEEN_FILES_PATH.write_text(json.dumps(sorted(ids), indent=2))
+        if _gcs_bucket:
+            _upload_to_gcs(SEEN_FILES_PATH, "drive_seen_files.json")
     except Exception as e:
         print(f"[drive] Warning: could not save seen IDs: {e}")
 
@@ -267,33 +520,16 @@ def _trigger_rebuild():
 
 
 def _run_drive_poll(source: str = "background"):
-    """Run one Drive poll cycle. Returns (new_count, error_msg).
-    source: 'background' (polling thread) or 'gas' (GAS push trigger)
-    """
+    """Poll walk-log Drive folder for new completed-walk files. Returns (new_count, error_msg)."""
     global _drive_last_poll, _drive_new_today
-    print(f"[drive] Poll triggered by: {source}")
+    print(f"[drive] Walk-log poll triggered by: {source}")
 
     if not DRIVE_FOLDER_ID:
         return 0, "GOOGLE_DRIVE_FOLDER_ID not set"
 
-    svc_json_str = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
-    if not svc_json_str:
-        return 0, "GOOGLE_SERVICE_ACCOUNT_JSON not set"
-
-    try:
-        from google.oauth2 import service_account
-        from googleapiclient.discovery import build as gdrive_build
-    except ImportError:
-        return 0, "google-api-python-client not installed"
-
-    try:
-        svc_info = json.loads(svc_json_str)
-        creds = service_account.Credentials.from_service_account_info(
-            svc_info, scopes=["https://www.googleapis.com/auth/drive.readonly"]
-        )
-        service = gdrive_build("drive", "v3", credentials=creds, cache_discovery=False)
-    except Exception as e:
-        return 0, f"Drive auth failed: {e}"
+    service = _get_drive_service()
+    if service is None:
+        return 0, "Drive auth failed (GOOGLE_SERVICE_ACCOUNT_JSON missing or invalid)"
 
     seen_ids = _load_seen_ids()
     new_count = 0
@@ -406,6 +642,9 @@ class Handler(BaseHTTPRequestHandler):
             payload["gps_bp_b"] = gps_snap.get("BP_B")
             payload["drive_last_poll"] = drive_last
             payload["drive_new_files_today"] = drive_today
+            payload["forecast_last_poll"] = _forecast_last_poll
+            payload["forecast_folder_configured"] = bool(DRIVE_FORECASTS_FOLDER_ID)
+            payload["availability_folder_configured"] = bool(DRIVE_AVAILABILITY_FOLDER_ID)
             body = json.dumps(payload, indent=2).encode()
             self._send(200, "application/json", body)
             return
@@ -634,18 +873,48 @@ def main():
     # Initialize GCS (optional)
     _init_gcs()
 
-    # Download Walks_Log.txt from GCS on startup if it doesn't exist locally
-    if _gcs_bucket and not WALKS_LOG.exists():
-        _download_from_gcs("Walks_Log.txt", WALKS_LOG)
+    # ── Restore persistent state from GCS on startup ───────────────────────────
+    if _gcs_bucket:
+        # Walks_Log.txt — source of truth for walk history
+        if not WALKS_LOG.exists():
+            _download_from_gcs("Walks_Log.txt", WALKS_LOG)
+        else:
+            # Always refresh — GCS copy may be newer than the baked image copy
+            _download_from_gcs("Walks_Log.txt", WALKS_LOG)
 
-    # Start Drive polling background thread.
-    # Set DRIVE_POLL_INTERVAL=0 to disable (use when GAS push triggers are active).
+        # schedule_output.json — last scheduler run results
+        _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
+
+        # schedule_confirmations.json — confirm/deny state
+        _download_from_gcs("schedule_confirmations.json", CONFIRMATIONS_FILE)
+
+        print("[startup] GCS state restored")
+
+    # ── Download Availability.xlsx from Drive (overrides baked copy) ───────────
+    # Do this in a background thread so it doesn't delay server startup
+    def _startup_avail():
+        try:
+            _download_availability()
+        except Exception as e:
+            print(f"[startup] Availability.xlsx download error: {e}")
+    threading.Thread(target=_startup_avail, daemon=True).start()
+
+    # ── Start Drive walk-log polling thread ────────────────────────────────────
     if DRIVE_POLL_INTERVAL > 0:
         t = threading.Thread(target=_drive_poll_thread, daemon=True)
         t.start()
-        print(f"  Drive poll : active (every {DRIVE_POLL_INTERVAL}s)")
+        print(f"  Walk-log poll : active (every {DRIVE_POLL_INTERVAL}s)")
     else:
-        print(f"  Drive poll : DISABLED — relying on GAS push triggers")
+        print(f"  Walk-log poll : DISABLED — relying on GAS push triggers")
+
+    # ── Start forecast monitor thread ──────────────────────────────────────────
+    if DRIVE_FORECASTS_FOLDER_ID and FORECAST_POLL_INTERVAL > 0:
+        ft = threading.Thread(target=_forecast_monitor_thread, daemon=True)
+        ft.start()
+        print(f"  Forecast monitor : active (every {FORECAST_POLL_INTERVAL}s)")
+    else:
+        print(f"  Forecast monitor : DISABLED"
+              f" (set DRIVE_FORECASTS_FOLDER_ID + FORECAST_POLL_INTERVAL in GCP env)")
 
     server = ThreadingHTTPServer(("0.0.0.0", args.port), Handler)
     url = f"http://localhost:{args.port}"
