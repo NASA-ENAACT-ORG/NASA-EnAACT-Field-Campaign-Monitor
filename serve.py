@@ -13,6 +13,7 @@ Endpoints:
   POST /api/rerun/a             → run scheduler for Backpack A (CCNY) only + rebuild dashboards
   POST /api/rerun/b             → run scheduler for Backpack B (LaGCC) only + rebuild dashboards
   POST /api/rebuild             → rebuild dashboards only, stream output
+  POST /api/forecast-stability  → run forecast stability analysis, stream output
   GET  /api/gps                 → Traccar Client GPS push (id, lat, lon, speed, batt, token)
   GET  /api/gps/status          → current positions for both backpacks as JSON
   GET  /api/gps/trail           → recent position history for one backpack (?id=BP_A)
@@ -37,12 +38,13 @@ from pathlib import Path
 _gcs_client = None
 _gcs_bucket = None
 
-BASE_DIR        = Path(__file__).parent.resolve()
-SCHEDULER       = BASE_DIR / "walk_scheduler.py"
-BUILD_DASHBOARD = BASE_DIR / "build_dashboard.py"
-BUILD_MAP       = BASE_DIR / "build_collector_map.py"
-WALKS_LOG       = BASE_DIR / "Walks_Log.txt"
-SEEN_FILES_PATH = BASE_DIR / "drive_seen_files.json"
+BASE_DIR              = Path(__file__).parent.resolve()
+SCHEDULER             = BASE_DIR / "walk_scheduler.py"
+BUILD_DASHBOARD       = BASE_DIR / "build_dashboard.py"
+BUILD_MAP             = BASE_DIR / "build_collector_map.py"
+FORECAST_STABILITY    = BASE_DIR / "forecast_stability_analysis.py"
+WALKS_LOG             = BASE_DIR / "Walks_Log.txt"
+SEEN_FILES_PATH       = BASE_DIR / "drive_seen_files.json"
 
 # Files tracked by /api/status
 STATUS_FILES = {
@@ -484,6 +486,8 @@ class Handler(BaseHTTPRequestHandler):
             self._stream_response(run_scheduler=True, backpack="B")
         elif endpoint == "/api/rebuild":
             self._stream_response(run_scheduler=False)
+        elif endpoint == "/api/forecast-stability":
+            self._stream_forecast_stability()
         elif endpoint == "/api/drive/poll":
             count, err = _run_drive_poll(source="gas")
             if err:
@@ -516,6 +520,25 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:
             err = f"\n[Server error: {e}]\n".encode("utf-8")
             _write_chunk(self.wfile, err)
+        finally:
+            try:
+                self.wfile.write(b"0\r\n\r\n")
+                self.wfile.flush()
+            except Exception:
+                pass
+
+    def _stream_forecast_stability(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Transfer-Encoding", "chunked")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        try:
+            _stream_script(self.wfile, FORECAST_STABILITY, "forecast_stability_analysis.py")
+            _write_chunk(self.wfile, b"\n[Analysis complete]\n")
+        except Exception as e:
+            _write_chunk(self.wfile, f"\n[Server error: {e}]\n".encode("utf-8"))
         finally:
             try:
                 self.wfile.write(b"0\r\n\r\n")

@@ -149,7 +149,7 @@ select option{background:var(--bg3)}
 .tb-pm{background:rgba(192,132,252,.2);color:var(--tod-pm)}
 .bb{font-size:9px;padding:1px 4px;border-radius:3px;background:var(--bg4);color:var(--text2)}
 /* MAP OVERLAYS */
-#mlegend{position:absolute;bottom:22px;left:10px;z-index:1000;background:rgba(13,17,23,.9);border:1px solid var(--border);border-radius:7px;padding:9px 11px;pointer-events:none}
+#mlegend{position:absolute;bottom:calc(22px + env(safe-area-inset-bottom));left:10px;z-index:1000;background:rgba(13,17,23,.9);border:1px solid var(--border);border-radius:7px;padding:9px 11px;pointer-events:none}
 #mlegend h4{font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}
 .li{display:flex;align-items:center;gap:7px;margin-bottom:4px;font-size:11px;color:var(--text2)}
 .li:last-child{margin-bottom:0}
@@ -232,7 +232,7 @@ select option{background:var(--bg3)}
 #rerun-bp-b{background:rgba(0,98,207,.12);border-color:#0062CF;color:#0062CF}
 #rerun-bp-b:hover:not(:disabled){background:rgba(0,98,207,.22)}
 #rerun-log{margin:0 12px 10px;padding:8px 10px;background:var(--bg1);border:1px solid var(--border);border-radius:5px;font-size:10px;color:var(--text2);font-family:monospace;white-space:pre-wrap;max-height:140px;overflow-y:auto;display:none}
-#sched-timeline{position:absolute;bottom:0;left:0;right:0;background:rgba(13,17,23,.95);border-top:1px solid var(--border);padding:5px 12px 10px;z-index:401;display:flex;flex-direction:column;gap:3px}
+#sched-timeline{position:absolute;bottom:0;left:0;right:0;background:rgba(13,17,23,.95);border-top:1px solid var(--border);padding:5px 12px calc(10px + env(safe-area-inset-bottom));z-index:401;display:flex;flex-direction:column;gap:3px}
 #sched-map-wrap .leaflet-control-attribution{margin-bottom:88px!important}
 #sched-tl-top{display:flex;align-items:center;gap:6px}
 #sched-tl-controls{display:flex;gap:3px;flex-shrink:0}
@@ -253,14 +253,14 @@ select option{background:var(--bg3)}
 .tl-dot.tl-past{opacity:.38}.tl-dot.tl-current{opacity:1;box-shadow:0 0 0 2px #fff4}.tl-dot.tl-future{opacity:.75}
 .tl-day-recal{font-size:8px;color:#f0a500;letter-spacing:.3px}
 .tl-day-sep{width:1px;background:var(--border);align-self:stretch;flex-shrink:0}
-#cselector{display:flex;gap:7px;flex-wrap:wrap}
-.cc{padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;cursor:pointer;transition:all .15s;min-width:88px;text-align:center}
+#cselector{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:7px;width:100%}
+.cc{aspect-ratio:1;padding:6px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;cursor:pointer;transition:all .15s;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
 .cc:hover{border-color:var(--accent);background:var(--bg3)}
 .cc.active{border-color:var(--accent);background:rgba(56,139,253,.12)}
-.cc .cn{font-size:12px;font-weight:700}
+.cc .cn{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .cc .ci{font-size:9px;color:var(--text2);margin-top:1px}
 .cc .cw{font-size:18px;font-weight:700;color:var(--accent);line-height:1.1;margin-top:3px}
-.cc .cwl{font-size:9px;color:var(--text3)}
+.cc .cwl{font-size:8px;color:var(--text3)}
 #cdetail{display:flex;gap:12px;flex-wrap:wrap}
 .dcard{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:13px}
 #dstats{flex:0 0 auto;min-width:240px}
@@ -324,18 +324,14 @@ select option{background:var(--bg3)}
 /* ── MOBILE RESPONSIVENESS ── */
 .mobile-menu-btn{display:none;background:transparent;border:1px solid var(--border);color:var(--text);font-size:20px;width:32px;height:32px;border-radius:6px;cursor:pointer;padding:0;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
 .mobile-menu-btn:hover{background:var(--bg3);border-color:var(--accent)}
-.filter-toggle-btn{display:none;background:transparent;border:1px solid var(--border);color:var(--text);font-size:18px;width:32px;height:32px;border-radius:6px;cursor:pointer;padding:0;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
-.filter-toggle-btn:hover{background:var(--bg3);border-color:var(--accent)}
 .filters-drawer{display:none;position:fixed;left:-100%;top:40px;width:280px;max-width:100%;height:calc(100vh-40px);background:var(--bg);border-right:1px solid var(--border);overflow-y:auto;z-index:580;padding:12px;gap:8px;flex-direction:column;transition:left .3s ease}
 .filters-drawer.open{display:flex;left:0}
 @media(max-width:768px){
   .mobile-menu-btn{display:flex}
-  .filter-toggle-btn{display:flex}
   #header{flex-wrap:wrap;height:auto;padding:8px 12px;gap:8px}
   #header h1{font-size:13px;order:1;flex-basis:100%}
-  #filter-toggle-btn{order:2}
-  #mobile-menu-btn{order:3}
-  #tabs{order:4;flex-basis:100%;margin-left:0;gap:4px;margin-top:4px}
+  #mobile-menu-btn{order:2}
+  #tabs{order:3;flex-basis:100%;margin-left:0;gap:4px;margin-top:4px}
   .tab-btn{padding:5px 10px;font-size:11px;flex:1}
   #filters{position:fixed;left:-100%;top:44px;width:280px;max-width:calc(100% - 24px);height:calc(100vh-44px);padding:12px;flex-direction:column;gap:5px}
   #filters .fg{width:100%;gap:5px;flex-direction:column}
@@ -345,9 +341,9 @@ select option{background:var(--bg3)}
   #live-badges{width:100%;flex-wrap:wrap;gap:4px;margin-left:0}
   .live-badge{flex:1;text-align:center;font-size:9px;padding:3px 5px}
   .drive-sync-btn{flex:1;height:32px}
-  #route-panel{width:100%;position:fixed;transform:translateX(100%);transition:transform .3s ease;z-index:600}
+  #route-panel{width:100%;position:fixed;transform:translateX(100%);transition:transform .3s ease;z-index:1100}
   #route-panel.open{transform:translateX(0);width:100%;max-width:85vw}
-  #sched-panel{width:100%;position:fixed;transform:translateX(100%);transition:transform .3s ease;z-index:600;height:100%}
+  #sched-panel{width:100%;position:fixed;transform:translateX(100%);transition:transform .3s ease;z-index:1100;height:100%}
   #sched-panel.open{transform:translateX(0);width:100%;max-width:85vw}
   #map-view{flex-direction:column}
   #map-wrap{flex:1;position:relative}
@@ -416,8 +412,7 @@ setTimeout(function(){
 <div id="app">
   <div id="header">
     <h1>NASA EnAACT Field Campaign Monitor</h1>
-    <button id="filter-toggle-btn" class="filter-toggle-btn" title="Toggle filters">⚙️</button>
-    <button id="mobile-menu-btn" class="mobile-menu-btn" title="Toggle menu">☰</button>
+    <button id="mobile-menu-btn" class="mobile-menu-btn" title="Toggle filters">&#x2630;</button>
     <div id="tabs">
       <button class="tab-btn active" data-view="map-view">&#x1F5FA;&#xFE0F; Map View</button>
       <button class="tab-btn" data-view="collector-view">&#x1F465; Collector View</button>
@@ -720,7 +715,7 @@ function makeHomeIcon(cid,count){
          '</div>'});
 }
 function initMap(){
-  map=L.map('map',{center:[40.72,-73.96],zoom:11});
+  map=L.map('map',{center:[40.72,-73.96],zoom:11,zoomControl:false});
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
     attribution:'&copy; OSM &copy; CARTO',maxZoom:20,subdomains:'abcd'
   }).addTo(map);
@@ -1062,7 +1057,7 @@ function getSortedAssignments(){
 
 function initSchedMap(){
   if(schedMap)return;
-  schedMap=L.map('sched-map',{center:[40.72,-73.96],zoom:11});
+  schedMap=L.map('sched-map',{center:[40.72,-73.96],zoom:11,zoomControl:false});
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
     attribution:'&copy; OSM &copy; CARTO',maxZoom:20,subdomains:'abcd'
   }).addTo(schedMap);
@@ -1706,66 +1701,31 @@ document.addEventListener('DOMContentLoaded',init);
 // Mobile menu and filters toggle functionality
 document.addEventListener('DOMContentLoaded', function() {
   const menuBtn = document.getElementById('mobile-menu-btn');
-  const filterBtn = document.getElementById('filter-toggle-btn');
   const routePanel = document.getElementById('route-panel');
   const schedPanel = document.getElementById('sched-panel');
   const filtersDrawer = document.getElementById('filters');
 
-  // Menu button
-  if (menuBtn) {
+  // Hamburger toggles filters drawer
+  if (menuBtn && filtersDrawer) {
     menuBtn.addEventListener('click', function(e) {
       e.stopPropagation();
-      // Toggle panels - show/hide both
-      const isOpen = routePanel.classList.contains('open') || schedPanel.classList.contains('open');
-      if (isOpen) {
-        routePanel.classList.remove('open');
-        schedPanel.classList.remove('open');
-      } else {
-        // Show the panel for the current view
-        const activeView = document.querySelector('.view.active');
-        if (activeView && activeView.id === 'map-view') {
-          routePanel.classList.add('open');
-        } else if (activeView && activeView.id === 'schedule-view') {
-          schedPanel.classList.add('open');
-        }
-      }
-      if (filtersDrawer) filtersDrawer.classList.remove('open');
-    });
-  }
-
-  // Filter button
-  if (filterBtn && filtersDrawer) {
-    filterBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
       filtersDrawer.classList.toggle('open');
-      routePanel.classList.remove('open');
-      schedPanel.classList.remove('open');
     });
   }
 
-  // Close menus when clicking outside
+  // Close drawer when clicking outside
   document.addEventListener('click', function(e) {
-    const isClickOnPanel = routePanel.contains(e.target) || schedPanel.contains(e.target);
     const isClickOnBtn = menuBtn && menuBtn.contains(e.target);
-    const isClickOnFilterBtn = filterBtn && filterBtn.contains(e.target);
     const isClickOnFilters = filtersDrawer && filtersDrawer.contains(e.target);
-
-    if (!isClickOnPanel && !isClickOnBtn && !isClickOnFilters && !isClickOnFilterBtn) {
-      routePanel.classList.remove('open');
-      schedPanel.classList.remove('open');
+    if (!isClickOnBtn && !isClickOnFilters) {
       if (filtersDrawer) filtersDrawer.classList.remove('open');
     }
   });
 
-  // Close menus when switching views
-  const tabBtns = document.querySelectorAll('.tab-btn');
-  tabBtns.forEach(btn => {
+  // Close filters drawer when switching views
+  document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', function() {
-      setTimeout(() => {
-        routePanel.classList.remove('open');
-        schedPanel.classList.remove('open');
-        if (filtersDrawer) filtersDrawer.classList.remove('open');
-      }, 100);
+      setTimeout(() => { if (filtersDrawer) filtersDrawer.classList.remove('open'); }, 100);
     });
   });
 

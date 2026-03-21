@@ -1,19 +1,20 @@
-name: Deploy to Fly.io
-
+# Fly.io deployment disabled — project now deploys to GCP Cloud Run only.
+# Kept for reference. Re-enable by restoring the push trigger below.
+name: Deploy to Fly.io (disabled)
 on:
-  push:
-    branches: [main]
-
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "fly" to confirm manual Fly.io deploy'
+        required: true
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          lfs: true   # Required to pull Subway_gtfs LFS files into the Fly.io image
-
+          lfs: true
       - uses: superfly/flyctl-actions/setup-flyctl@master
-
       - run: flyctl deploy --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

@@ -1,15 +1,17 @@
-# See https://fly.io/docs/app-guides/continuous-deployment-with-github-actions/
-
-name: Fly Deploy
+# Fly.io deployment disabled — project now deploys to GCP Cloud Run only.
+# Kept for reference. Re-enable by restoring the push trigger below.
+name: Fly Deploy (disabled)
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "fly" to confirm manual Fly.io deploy'
+        required: true
 jobs:
   deploy:
     name: Deploy app
     runs-on: ubuntu-latest
-    concurrency: deploy-group    # optional: ensure only one action runs at a time
+    concurrency: deploy-group
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
