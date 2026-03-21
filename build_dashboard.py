@@ -323,27 +323,27 @@ body.scheduler-mode .cal-event .ce-actions{display:flex}
 .cgroup.staff .cg-dot{background:#6b7280}
 .cgroup.staff .cg-title{color:#9ca3af}
 /* Campus pair: CCNY + LaGCC side by side */
-.campus-pair{display:flex;gap:14px;width:100%}
+.campus-pair{display:flex;gap:8px;width:100%}
 .campus-pair .cgroup{flex:1;min-width:0}
 .campus-pair .cgroup-tiles{grid-template-columns:repeat(2,1fr)!important}
 /* Professors row sits below */
 .prof-row{width:100%}
 .prof-row .cgroup-tiles{grid-template-columns:repeat(auto-fit,minmax(0,1fr))!important}
-.cgroup-tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:10px}
-.cc{height:120px;padding:10px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:all .15s;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:visible}
+.cgroup-tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:4px;padding:6px}
+.cc{height:40px;padding:2px 3px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:all .15s;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
 .cc:hover{border-color:var(--accent);background:var(--bg4)}
 .cc.active{border-color:var(--accent);background:rgba(56,139,253,.12)}
 .cgroup.ccny .cc.active{border-color:#7c3aed;background:rgba(124,58,237,.15)}
 .cgroup.lagcc .cc.active{border-color:#dc2626;background:rgba(220,38,38,.12)}
 .cgroup.staff .cc.active{border-color:var(--text3);background:rgba(107,114,128,.12)}
-.cc .cn{font-size:12px;font-weight:700;white-space:normal;overflow:visible;line-height:1.2;max-width:100%;word-break:break-word}
-.cc .ci{font-size:9px;color:var(--text3);margin-top:2px;font-family:'Space Grotesk',sans-serif;letter-spacing:.5px}
-.cc .cw{font-size:26px;font-weight:700;line-height:1.1;margin-top:4px}
+.cc .cn{font-size:8px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.1;max-width:100%}
+.cc .ci{font-size:7px;color:var(--text3);margin-top:0;font-family:'Space Grotesk',sans-serif;letter-spacing:.3px}
+.cc .cw{font-size:14px;font-weight:700;line-height:1;margin-top:1px}
 .cgroup.ccny .cc .cw{color:#a78bfa}
 .cgroup.lagcc .cc .cw{color:#f87171}
 .cgroup.staff .cc .cw{color:var(--text2)}
 .cc.active .cw{color:var(--accent)!important}
-.cc .cwl{font-size:9px;color:var(--text3);margin-top:2px}
+.cc .cwl{font-size:7px;color:var(--text3);margin-top:0}
 #cdetail{display:flex;gap:12px;flex-wrap:wrap}
 .dcard{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:13px}
 #dstats{flex:0 0 auto;min-width:240px}
@@ -451,11 +451,11 @@ body.scheduler-mode .cal-event .ce-actions{display:flex}
   .cal-day-head{padding:4px 2px}
   .cal-dname{font-size:9px}
   #collector-view{padding:10px 10px;gap:10px}
-  .campus-pair{flex-direction:column}
-  .cgroup-tiles{gap:6px;padding:8px}
-  .cc{height:100px;padding:8px 6px}
-  .cc .cw{font-size:26px}
-  .cc .cn{font-size:13px}
+  .campus-pair{flex-direction:row}
+  .cgroup-tiles{gap:4px;padding:5px}
+  .cc{height:40px;padding:2px 3px}
+  .cc .cw{font-size:14px}
+  .cc .cn{font-size:8px}
   #cdetail{flex-direction:column}
   #dstats{min-width:auto;width:100%}
   #dcharts{min-width:auto;width:100%}

@@ -851,10 +851,31 @@ class Handler(BaseHTTPRequestHandler):
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
+def _restore_gcs_state():
+    """Download persistent state from GCS. Called both at container start
+    (before build_dashboard.py via --restore-only) and again when serve starts."""
+    _init_gcs()
+    if not _gcs_bucket:
+        return
+    # Walks_Log.txt — always refresh from GCS (may be newer than baked copy)
+    _download_from_gcs("Walks_Log.txt", WALKS_LOG)
+    # schedule_output.json — last scheduler run results
+    _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
+    # schedule_confirmations.json — confirm/deny state
+    _download_from_gcs("schedule_confirmations.json", CONFIRMATIONS_FILE)
+    print("[gcs-restore] State restored from GCS")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Walk Scheduler server")
     parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8765")))
+    parser.add_argument("--restore-only", action="store_true",
+                        help="Download GCS state then exit (run before build_dashboard.py)")
     args = parser.parse_args()
+
+    if args.restore_only:
+        _restore_gcs_state()
+        return
 
     # Initialize GCS (optional)
     _init_gcs()
