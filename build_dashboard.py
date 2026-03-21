@@ -1633,7 +1633,7 @@ function renderCalendar(){
         const bpLabel=w.backpack==='A'?'Backpack A':w.backpack==='B'?'Backpack B':'Legacy X';
         const routeLbl=ROUTE_LABELS[w.route]||w.route;
         const colLbl=CNAMES[w.collector]||w.collector||'—';
-        const aid=w.source==='schedule'?assignId(w):'';
+        const aid=w.source==='scheduled'?assignId(w):'';
         const badge=aid?statusBadgeHTML(aid):'';
         const actions=aid?`<div class="ce-actions">${actionBtns(aid)}</div>`:'';
         cellContent+=`<div class="cal-event ${bpCls}${compCls}">
