@@ -1,6 +1,6 @@
 {
   "generated": "2026-03-21",
-  "generated_at": "2026-03-21T15:26:14.265803",
+  "generated_at": "2026-03-21T15:39:19.679136",
   "week_start": "2026-03-19",
   "week_end": "2026-03-25",
   "recal_day": null,
@@ -12,19 +12,8 @@
       "neigh": "MT",
       "tod": "MD",
       "backpack": "B",
-      "collector": "AYA",
+      "collector": "SCT",
       "date": "2026-03-22",
-      "preserved": false
-    },
-    {
-      "route": "MN_MT",
-      "label": "Manhattan \u2013 Midtown",
-      "boro": "MN",
-      "neigh": "MT",
-      "tod": "PM",
-      "backpack": "B",
-      "collector": "JEN",
-      "date": "2026-03-24",
       "preserved": false
     },
     {
@@ -36,17 +25,6 @@
       "backpack": "B",
       "collector": "SCT",
       "date": "2026-03-24",
-      "preserved": false
-    },
-    {
-      "route": "MN_LE",
-      "label": "Manhattan \u2013 Union Sq/LES",
-      "boro": "MN",
-      "neigh": "LE",
-      "tod": "PM",
-      "backpack": "B",
-      "collector": "JEN",
-      "date": "2026-03-25",
       "preserved": false
     },
     {
@@ -56,7 +34,7 @@
       "neigh": "LI",
       "tod": "AM",
       "backpack": "B",
-      "collector": "TAH",
+      "collector": "SCT",
       "date": "2026-03-25",
       "preserved": false
     },
@@ -78,8 +56,19 @@
       "neigh": "UE",
       "tod": "MD",
       "backpack": "A",
-      "collector": "JAM",
+      "collector": "AYA",
       "date": "2026-03-22",
+      "preserved": false
+    },
+    {
+      "route": "MN_UE",
+      "label": "Manhattan \u2013 Upper East Side",
+      "boro": "MN",
+      "neigh": "UE",
+      "tod": "PM",
+      "backpack": "A",
+      "collector": "JEN",
+      "date": "2026-03-24",
       "preserved": false
     },
     {
@@ -89,12 +78,19 @@
       "neigh": "HT",
       "tod": "AM",
       "backpack": "A",
-      "collector": "SCT",
+      "collector": "TAH",
       "date": "2026-03-25",
       "preserved": false
     }
   ],
   "unassigned": [
+    {
+      "route": "MN_MT",
+      "label": "Manhattan \u2013 Midtown",
+      "tod": "PM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
     {
       "route": "MN_LE",
       "label": "Manhattan \u2013 Union Sq/LES",
@@ -103,17 +99,17 @@
       "reason": "no_open_slot"
     },
     {
-      "route": "QN_LI",
-      "label": "Queens \u2013 Astoria/LIC",
-      "tod": "MD",
+      "route": "MN_LE",
+      "label": "Manhattan \u2013 Union Sq/LES",
+      "tod": "PM",
       "backpack": "B",
       "reason": "no_open_slot"
     },
     {
-      "route": "MN_UE",
-      "label": "Manhattan \u2013 Upper East Side",
-      "tod": "PM",
-      "backpack": "A",
+      "route": "QN_LI",
+      "label": "Queens \u2013 Astoria/LIC",
+      "tod": "MD",
+      "backpack": "B",
       "reason": "no_open_slot"
     },
     {

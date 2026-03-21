@@ -1836,11 +1836,14 @@ def build_weekly_calendar(
             #   score = (season_walks, affinity_penalty, continuity_cost_min, cid)
             #   Priority: load balance > affinity score (higher = better) > transit continuity > alpha
             sc = season_counts or {}
+            bp_team = BACKPACK_COLLECTORS.get(bp, set())
             eligible = []
             for cid in combo["comfortable_collectors"] + [
                 c for c in combo["available_collectors"]
                 if c not in combo["comfortable_collectors"]
             ]:
+                if cid not in bp_team:
+                    continue  # enforce: BP-A → CCNY only, BP-B → LaGCC only
                 if not availability.get(cid, {}).get((d, tod), True):
                     continue
                 if d in collector_used_on[cid]:
