@@ -5,11 +5,9 @@ drive_seen_files.json
 *.env
 .env
 
-# Generated HTML/JSON outputs (rebuilt by serve.py)
-dashboard.html
-collector_map.html
+# Generated outputs — dashboard/schedule committed so Docker has them at startup
+# schedule_map.html is large/ephemeral, skip it
 schedule_map.html
-schedule_output.json
 
 # Personal collector schedule files (privacy — named individuals)
 Collector_Schedule/
