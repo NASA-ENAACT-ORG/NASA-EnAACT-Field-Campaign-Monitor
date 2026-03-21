@@ -48,13 +48,10 @@ SEEN_FILES_PATH       = BASE_DIR / "drive_seen_files.json"
 CONFIRMATIONS_FILE    = BASE_DIR / "schedule_confirmations.json"
 SCHEDULE_OUTPUT       = BASE_DIR / "schedule_output.json"
 FORECAST_DIR          = BASE_DIR / "Forecast"
-AVAILABILITY_FILE     = BASE_DIR / "Collector_Schedule" / "Availability.xlsx"
 
 # ── Drive config ───────────────────────────────────────────────────────────────
 # DRIVE_FORECASTS_FOLDER_ID — Google Drive folder where forecast PDFs are uploaded
-# DRIVE_AVAILABILITY_FOLDER_ID — Google Drive folder where Availability.xlsx lives
 DRIVE_FORECASTS_FOLDER_ID   = os.environ.get("DRIVE_FORECASTS_FOLDER_ID", "")
-DRIVE_AVAILABILITY_FOLDER_ID = os.environ.get("DRIVE_AVAILABILITY_FOLDER_ID", "")
 
 
 # ── Confirmation helpers ───────────────────────────────────────────────────────
@@ -248,37 +245,6 @@ def _save_forecast_state(state: dict):
         _upload_to_gcs(_FORECAST_STATE_LOCAL, _FORECAST_STATE_GCS)
 
 
-# ── Availability.xlsx — downloaded from Drive before every scheduler run ───────
-
-def _download_availability(service=None) -> bool:
-    """Download Availability.xlsx from Google Drive (DRIVE_AVAILABILITY_FOLDER_ID).
-    Falls back to the version committed in the Docker image if unavailable.
-    Returns True if a fresh copy was obtained from Drive."""
-    folder_id = DRIVE_AVAILABILITY_FOLDER_ID
-    if not folder_id:
-        print("[forecast] DRIVE_AVAILABILITY_FOLDER_ID not set — using baked Availability.xlsx")
-        return False
-    if service is None:
-        service = _get_drive_service()
-    if service is None:
-        return False
-    try:
-        q = f"name='Availability.xlsx' and '{folder_id}' in parents and trashed=false"
-        r = service.files().list(q=q, fields="files(id,name,modifiedTime)",
-                                  pageSize=1, orderBy="modifiedTime desc").execute()
-        files = r.get("files", [])
-        if not files:
-            print("[forecast] Availability.xlsx not found in Drive — using baked copy")
-            return False
-        f = files[0]
-        if _drive_download_file(service, f["id"], AVAILABILITY_FILE):
-            print(f"[forecast] Downloaded Availability.xlsx from Drive (modified {f['modifiedTime']})")
-            return True
-    except Exception as e:
-        print(f"[forecast] Availability.xlsx download error: {e}")
-    return False
-
-
 # ── Scheduler + rebuild pipeline ───────────────────────────────────────────────
 
 def _run_scheduler_and_rebuild():
@@ -364,8 +330,6 @@ def _poll_forecast_pdfs() -> tuple[int, str | None]:
 
     if downloaded:
         _save_forecast_state(state)
-        # Pull latest Availability.xlsx before running scheduler
-        _download_availability(service)
         # Run scheduler pipeline in a background thread so poll returns quickly
         t = threading.Thread(target=_run_scheduler_and_rebuild, daemon=True)
         t.start()
@@ -644,7 +608,6 @@ class Handler(BaseHTTPRequestHandler):
             payload["drive_new_files_today"] = drive_today
             payload["forecast_last_poll"] = _forecast_last_poll
             payload["forecast_folder_configured"] = bool(DRIVE_FORECASTS_FOLDER_ID)
-            payload["availability_folder_configured"] = bool(DRIVE_AVAILABILITY_FOLDER_ID)
             body = json.dumps(payload, indent=2).encode()
             self._send(200, "application/json", body)
             return
@@ -889,15 +852,6 @@ def main():
         _download_from_gcs("schedule_confirmations.json", CONFIRMATIONS_FILE)
 
         print("[startup] GCS state restored")
-
-    # ── Download Availability.xlsx from Drive (overrides baked copy) ───────────
-    # Do this in a background thread so it doesn't delay server startup
-    def _startup_avail():
-        try:
-            _download_availability()
-        except Exception as e:
-            print(f"[startup] Availability.xlsx download error: {e}")
-    threading.Thread(target=_startup_avail, daemon=True).start()
 
     # ── Start Drive walk-log polling thread ────────────────────────────────────
     if DRIVE_POLL_INTERVAL > 0:
