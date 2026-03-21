@@ -243,12 +243,12 @@ select option{background:var(--bg3)}
 .status-badge.pending{background:rgba(201,209,217,.12);color:#8b949e}
 .status-badge.confirmed{background:rgba(63,185,80,.15);color:#3fb950}
 .status-badge.denied{background:rgba(248,81,73,.15);color:#f85149}
-.sched-row .sr-actions{display:none;gap:4px;margin-left:auto;flex-shrink:0}
+.sched-row .sr-actions{display:flex;gap:4px;margin-left:auto;flex-shrink:0;min-width:112px;visibility:hidden}
 .sched-row .sr-actions button{padding:2px 7px;border-radius:4px;font-size:9px;font-weight:600;cursor:pointer;border:1px solid}
 .sr-confirm-btn{background:rgba(63,185,80,.15);border-color:#3fb950!important;color:#3fb950!important}
 .sr-deny-btn{background:rgba(248,81,73,.15);border-color:#f85149!important;color:#f85149!important}
 .sr-reset-btn{background:var(--bg3);border-color:var(--border)!important;color:var(--text2)!important}
-body.scheduler-mode .sched-row .sr-actions{display:flex}
+body.scheduler-mode .sched-row .sr-actions{visibility:visible}
 .cal-event .ce-actions{display:none;margin-top:4px;gap:3px}
 .cal-event .ce-actions button{flex:1;padding:2px 4px;border-radius:3px;font-size:9px;font-weight:600;cursor:pointer;border:1px solid}
 body.scheduler-mode .cal-event .ce-actions{display:flex}
@@ -1062,15 +1062,19 @@ let tlWeekIdx=0;   // index into tlWeeks array (0 = most recent)
 
 const TOD_ORDER={AM:0,MD:1,PM:2};
 
-// ── Build sorted list of distinct ISO weeks across completed+scheduled walks ──
+// ── Helper: snap any date to the Sunday that starts its week ──────────────────
+function toWeekSunday(d){
+  const s=new Date(d); s.setDate(d.getDate()-d.getDay()); s.setHours(0,0,0,0); return s;
+}
+
+// ── Build sorted list of distinct Sun-Sat weeks across completed+scheduled walks ──
 function buildTlWeeks(){
   const byWeek={};
-  // Completed walks from log
+  // Completed walks from log — key by the Sunday of the walk's week
   for(const w of allWalks){
     const d=new Date(w.date.getFullYear(),w.date.getMonth(),w.date.getDate());
-    const dow=d.getDay();  // 0=Sun
-    const mon=new Date(d); mon.setDate(d.getDate()-(dow===0?6:dow-1));
-    const key=mon.toISOString().slice(0,10);
+    const sun=toWeekSunday(d);
+    const key=sun.toISOString().slice(0,10);
     if(!byWeek[key])byWeek[key]={weekStart:key,walks:[],source:'log'};
     byWeek[key].walks.push({
       date:w.date.toISOString().slice(0,10),
@@ -1078,46 +1082,39 @@ function buildTlWeeks(){
       collector:w.collector, source:'completed'
     });
   }
-  // Scheduled assignments
-  if(schedData&&schedData.assignments){
-    const key=schedData.week_start;
-    if(!byWeek[key])byWeek[key]={weekStart:key,walks:[],source:'schedule'};
-    byWeek[key].source='schedule';
+  // Scheduled assignments — each assignment keyed to the Sunday of ITS OWN date
+  // (schedule week_start may span multiple Sun-Sat weeks)
+  if(schedData&&schedData.assignments&&schedData.assignments.length){
     for(const a of schedData.assignments){
-      const existing=byWeek[key].walks.find(w=>w.date===a.date&&w.tod===a.tod&&w.route===a.route);
-      if(!existing)byWeek[key].walks.push({...a,source:'scheduled'});
+      const ad=new Date(a.date+'T00:00:00');
+      const sun=toWeekSunday(ad);
+      const key=sun.toISOString().slice(0,10);
+      if(!byWeek[key])byWeek[key]={weekStart:key,walks:[],source:'schedule'};
+      else if(byWeek[key].source==='log')byWeek[key].source='schedule';
+      if(!byWeek[key].walks.find(w=>w.date===a.date&&w.tod===a.tod&&w.route===a.route))
+        byWeek[key].walks.push({...a,source:'scheduled'});
     }
-    if(schedData.recal_day)byWeek[key].recal_day=schedData.recal_day;
+    // Tag recal_day to the week it falls in
+    if(schedData.recal_day){
+      const rd=new Date(schedData.recal_day+'T00:00:00');
+      const key=toWeekSunday(rd).toISOString().slice(0,10);
+      if(byWeek[key])byWeek[key].recal_day=schedData.recal_day;
+    }
   }
-  // Sort descending (most recent first)
-  const sorted=Object.values(byWeek).sort((a,b)=>b.weekStart.localeCompare(a.weekStart));
-  // Prepend up to 4 future placeholder weeks (weeks with no data yet)
-  const today=new Date();
-  const dow0=today.getDay();
-  const thisMonday=new Date(today);
-  thisMonday.setDate(today.getDate()-(dow0===0?6:dow0-1));
-  thisMonday.setHours(0,0,0,0);
-  const future=[];
-  for(let i=4;i>=1;i--){
-    const wk=new Date(thisMonday);
-    wk.setDate(thisMonday.getDate()+i*7);
-    const key=wk.toISOString().slice(0,10);
-    if(!byWeek[key])future.push({weekStart:key,walks:[],source:'future'});
-  }
-  return [...future,...sorted];
+  // Sort descending (index 0 = most recent / furthest future)
+  // Future weeks only appear if they have assignment data — no blank placeholders
+  return Object.values(byWeek).sort((a,b)=>b.weekStart.localeCompare(a.weekStart));
 }
-// Returns the index of the current (this week's Monday) entry in a weeks array
+
+// Returns the index of the current (this week's Sunday) entry in a weeks array
 function findCurrentWeekIdx(weeks){
-  const today=new Date();
-  const dow=today.getDay();
-  const mon=new Date(today);
-  mon.setDate(today.getDate()-(dow===0?6:dow-1));
-  mon.setHours(0,0,0,0);
-  const key=mon.toISOString().slice(0,10);
+  const today=new Date(); today.setHours(0,0,0,0);
+  const sun=toWeekSunday(today);
+  const key=sun.toISOString().slice(0,10);
   const exact=weeks.findIndex(w=>w.weekStart===key);
   if(exact>=0)return exact;
-  // Fallback: first week not in the future
-  return weeks.findIndex(w=>w.weekStart<=today.toISOString().slice(0,10));
+  // Fallback: most-recent week that isn't strictly in the future
+  return Math.max(0,weeks.findIndex(w=>w.weekStart<=today.toISOString().slice(0,10)));
 }
 
 function getTlWeek(){
