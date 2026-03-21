@@ -225,9 +225,12 @@ select option{background:var(--bg3)}
 #sched-btn-row{display:flex;gap:7px;margin:10px 12px}
 #sched-load-btn{flex:1;padding:5px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text2);font-size:11px;cursor:pointer;text-align:center}
 #sched-load-btn:hover{background:var(--bg4);color:var(--text)}
-#sched-rerun-btn{flex:1;padding:5px 10px;background:rgba(56,139,253,.12);border:1px solid var(--accent);border-radius:5px;color:var(--accent);font-size:11px;cursor:pointer;text-align:center;font-weight:600}
-#sched-rerun-btn:hover{background:rgba(56,139,253,.22)}
-#sched-rerun-btn:disabled{opacity:.4;cursor:default}
+.rerun-bp-btn{flex:1;padding:5px 10px;border-radius:5px;font-size:11px;cursor:pointer;text-align:center;font-weight:600;border:1px solid}
+.rerun-bp-btn:disabled{opacity:.4;cursor:default}
+#rerun-bp-a{background:rgba(216,34,51,.12);border-color:#D82233;color:#D82233}
+#rerun-bp-a:hover:not(:disabled){background:rgba(216,34,51,.22)}
+#rerun-bp-b{background:rgba(0,98,207,.12);border-color:#0062CF;color:#0062CF}
+#rerun-bp-b:hover:not(:disabled){background:rgba(0,98,207,.22)}
 #rerun-log{margin:0 12px 10px;padding:8px 10px;background:var(--bg1);border:1px solid var(--border);border-radius:5px;font-size:10px;color:var(--text2);font-family:monospace;white-space:pre-wrap;max-height:140px;overflow-y:auto;display:none}
 #sched-timeline{position:absolute;bottom:0;left:0;right:0;background:rgba(13,17,23,.95);border-top:1px solid var(--border);padding:5px 12px 10px;z-index:401;display:flex;flex-direction:column;gap:3px}
 #sched-map-wrap .leaflet-control-attribution{margin-bottom:88px!important}
@@ -451,7 +454,7 @@ setTimeout(function(){
       <div id="map-wrap">
         <div id="map"></div>
         <div id="mstats"></div>
-        <button id="collector-homes-btn" title="Toggle collector home locations">&#x1F3E0; Collector Homes</button>
+        <button id="collector-homes-btn" title="Toggle collector areas">&#x1F3E0; Collector Areas</button>
         <div id="mlegend">
           <h4>Completion Progress</h4>
           <div style="width:100%;height:7px;border-radius:4px;background:linear-gradient(to right,#f85149 0%,#d29922 30%,#4ade80 60%,#15803d 100%);margin-bottom:6px"></div>
@@ -553,12 +556,13 @@ setTimeout(function(){
         </div>
         <div id="sched-btn-row">
           <label id="sched-load-btn" for="sched-file">&#x1F4C2; Load JSON</label>
-          <button id="sched-rerun-btn">&#x25B6; Rerun Scheduler</button>
+          <button id="rerun-bp-a" class="rerun-bp-btn">&#x25B6; Run BP-A &nbsp;<span style="opacity:.7;font-weight:400">CCNY</span></button>
+          <button id="rerun-bp-b" class="rerun-bp-btn">&#x25B6; Run BP-B &nbsp;<span style="opacity:.7;font-weight:400">LaGCC</span></button>
         </div>
         <input type="file" id="sched-file" accept=".json" style="display:none">
         <div id="rerun-log"></div>
         <div id="sched-panel-body">
-          <div id="sched-no-data">No schedule loaded.<br>Click Rerun Scheduler or load schedule_output.json.</div>
+          <div id="sched-no-data">No schedule loaded.<br>Click Run BP-A or Run BP-B, or load schedule_output.json.</div>
         </div>
       </div>
     </div>
@@ -583,6 +587,11 @@ setTimeout(function(){
 // ─── DATA ───
 const ROUTES_GEO = __ROUTES_JSON__;
 const COLLECTOR_HOMES = __COLLECTOR_HOMES__;
+// Campus affiliation → pin color  (purple = CCNY, red = LaGCC, amber = staff)
+const COLLECTOR_PIN_COLOR = {
+  'SOT':'#7c3aed','AYA':'#7c3aed','JEN':'#7c3aed','TAH':'#7c3aed','ANG':'#7c3aed',
+  'TER':'#dc2626','ALX':'#dc2626','SCT':'#dc2626','JAM':'#dc2626',
+};
 const ROUTE_LABELS = {
   "MN_HT":"Manhattan – Harlem","MN_WH":"Manhattan – Washington Hts",
   "MN_UE":"Manhattan – Upper East Side","MN_MT":"Manhattan – Midtown",
@@ -681,6 +690,7 @@ function applyFilters(){
 function makeHomeIcon(cid,count){
   const h=COLLECTOR_HOMES[cid];
   const lbl=h?(h.name.startsWith('Prof.')?h.name.split(' ')[1]:h.name.split(' ')[0]):cid;
+  const pinColor=COLLECTOR_PIN_COLOR[cid]||'#fbbf24';
   if(h&&h.non_collector){
     // Non-collector: name inside the pin, no count, no label below
     const fontSize=lbl.length>5?9:11;
@@ -688,7 +698,7 @@ function makeHomeIcon(cid,count){
       html:'<div style="display:flex;flex-direction:column;align-items:center;width:44px">'+
            '<svg width="36" height="46" viewBox="0 0 36 46" xmlns="http://www.w3.org/2000/svg">'+
            '<path d="M18 2C9.2 2 2 9.2 2 18C2 28.5 18 44 18 44S34 28.5 34 18C34 9.2 26.8 2 18 2Z"'+
-           ' fill="#fbbf24" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>'+
+           ' fill="'+pinColor+'" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>'+
            '<circle cx="18" cy="18" r="11" fill="rgba(0,0,0,.2)"/>'+
            '<text x="18" y="22" text-anchor="middle" dominant-baseline="middle" fill="white"'+
            ' font-family="-apple-system,BlinkMacSystemFont,sans-serif" font-weight="800" font-size="'+fontSize+'">'+lbl+'</text>'+
@@ -699,7 +709,7 @@ function makeHomeIcon(cid,count){
     html:'<div style="display:flex;flex-direction:column;align-items:center;width:52px">'+
          '<svg width="36" height="46" viewBox="0 0 36 46" xmlns="http://www.w3.org/2000/svg">'+
          '<path d="M18 2C9.2 2 2 9.2 2 18C2 28.5 18 44 18 44S34 28.5 34 18C34 9.2 26.8 2 18 2Z"'+
-         ' fill="#fbbf24" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>'+
+         ' fill="'+pinColor+'" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>'+
          '<circle cx="18" cy="18" r="11" fill="rgba(0,0,0,.2)"/>'+
          '<text x="18" y="23" text-anchor="middle" fill="white"'+
          ' font-family="-apple-system,BlinkMacSystemFont,sans-serif" font-weight="800" font-size="13">'+count+'</text>'+
@@ -1459,13 +1469,14 @@ function bindEvents(){
   document.getElementById('tl-wk-now').addEventListener('click',()=>{
     tlWeekIdx=findCurrentWeekIdx(buildTlWeeks());schedStep=-1;applyScheduleColors();renderSchedulePanel();renderTimelineBar();
   });
-  document.getElementById('sched-rerun-btn').addEventListener('click',async()=>{
-    const btn=document.getElementById('sched-rerun-btn');
+  async function _runScheduler(btn, endpoint, label){
     const logEl=document.getElementById('rerun-log');
-    btn.disabled=true; btn.textContent='⏳ Running…';
+    const otherBtn=document.getElementById(btn.id==='rerun-bp-a'?'rerun-bp-b':'rerun-bp-a');
+    btn.disabled=true; otherBtn.disabled=true;
+    btn.innerHTML='⏳ Running…';
     logEl.style.display='block'; logEl.textContent='';
     try{
-      const resp=await fetch('/api/rerun',{method:'POST'});
+      const resp=await fetch(endpoint,{method:'POST'});
       if(!resp.ok){logEl.textContent='Server error: '+resp.status+' — is serve.py running?';return;}
       const reader=resp.body.getReader();
       const dec=new TextDecoder();
@@ -1475,7 +1486,6 @@ function bindEvents(){
         done=d;
         if(value){logEl.textContent+=dec.decode(value);logEl.scrollTop=logEl.scrollHeight;}
       }
-      // Reload schedule_output.json and refresh dashboard
       const jr=await fetch('schedule_output.json?t='+Date.now());
       if(jr.ok){const jt=await jr.text();loadScheduleJSON(jt);}
       const lr=await fetch('Walks_Log.txt?t='+Date.now());
@@ -1485,8 +1495,15 @@ function bindEvents(){
       logEl.textContent+='\\nConnection error: '+e.message+'\\nMake sure serve.py is running (python serve.py)';
       toast('Could not reach server','');
     }finally{
-      btn.disabled=false; btn.innerHTML='&#x25B6; Rerun Scheduler';
+      btn.disabled=false; otherBtn.disabled=false;
+      btn.innerHTML=label;
     }
+  }
+  document.getElementById('rerun-bp-a').addEventListener('click',function(){
+    _runScheduler(this,'/api/rerun/a','&#x25B6; Run BP-A &nbsp;<span style="opacity:.7;font-weight:400">CCNY</span>');
+  });
+  document.getElementById('rerun-bp-b').addEventListener('click',function(){
+    _runScheduler(this,'/api/rerun/b','&#x25B6; Run BP-B &nbsp;<span style="opacity:.7;font-weight:400">LaGCC</span>');
   });
   document.getElementById('sched-file').addEventListener('change',e=>{
     const f=e.target.files[0];if(!f)return;

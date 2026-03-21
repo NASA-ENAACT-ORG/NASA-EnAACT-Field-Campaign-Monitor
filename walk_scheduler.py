@@ -67,6 +67,7 @@ UPDATING WEEKLY DATA
   parse it automatically via Claude vision.
 """
 
+import argparse
 import os
 import re
 import sys
@@ -136,9 +137,20 @@ FORCED_CCNY_TOD       = "MD"
 FORCED_CCNY_BP        = "A"                 # Backpack A goes to CCNY; B continues field work
 FORCED_CCNY_COLLECTOR = "SOT"               # SOT is responsible for this run
 
-# All valid collector IDs
-COLLECTORS = ["SOT", "AYA", "ALX", "TAH", "JAM", "JEN", "SCT", "TER", "PRA", "NAT", "NRS", "ANG"]
-LAST_RESORT_COLLECTORS = ["ANG"]  # Only use if no other collectors available
+# Student collectors per backpack (drive scheduling)
+BACKPACK_COLLECTORS: Dict[str, set] = {
+    "A": {"JEN", "AYA", "SOT", "TAH"},   # CCNY team
+    "B": {"TER", "ALX", "SCT", "JAM"},   # LaGCC team
+}
+# ANG is CCNY-affiliated staff; only used as a last resort for Backpack A
+LAST_RESORT_COLLECTORS = ["ANG"]
+LAST_RESORT_BACKPACK   = "A"
+
+# Professors / support staff — excluded from regular scheduling
+STAFF_COLLECTORS = ["NRS", "PRA", "NAT"]
+
+# Full collector list (students + ANG; excludes staff)
+COLLECTORS = ["SOT", "AYA", "ALX", "TAH", "JAM", "JEN", "SCT", "TER", "ANG"]
 
 # Map collector IDs to the first-name used in Collector_Locs.kml
 COLLECTOR_KML_NAMES = {
@@ -1420,9 +1432,13 @@ def print_ranked_table(
     scored:       List[Dict],
     route_coords: Dict[str, Tuple[float, float]],
     top_n:        int = 8,
+    bp_filter:    Optional[str] = None,
 ) -> None:
     top = scored[:top_n]
-    bp_map = assign_backpacks_by_campus(top, route_coords)
+    if bp_filter:
+        bp_map = {i: bp_filter for i in range(len(top))}
+    else:
+        bp_map = assign_backpacks_by_campus(top, route_coords)
 
     W = 112
     print()
@@ -1639,6 +1655,7 @@ def build_weekly_calendar(
     recal_day:     Optional[date] = None,
     top_n:         int = 8,
     season_counts: Optional[Dict[str, int]] = None,
+    bp_filter:     Optional[str] = None,
 ) -> None:
     """
     Assign each top-N combo to a day + TOD respecting:
@@ -1657,8 +1674,11 @@ def build_weekly_calendar(
     top   = scored[:top_n]
     today = date.today()
 
-    # Campus-based backpack assignment: A = CCNY, B = LAGCC (nearest campus by transit)
-    bp_map = assign_backpacks_by_campus(top, route_coords)
+    # Backpack assignment: by team (bp_filter) or campus proximity (unfiltered run)
+    if bp_filter:
+        bp_map = {i: bp_filter for i in range(len(top))}
+    else:
+        bp_map = assign_backpacks_by_campus(top, route_coords)
 
     all_week_days = [
         week_start + timedelta(days=i)
@@ -1858,8 +1878,11 @@ def build_weekly_calendar(
             )
         print()
 
-    _print_cal("A")
-    _print_cal("B")
+    if bp_filter:
+        _print_cal(bp_filter)
+    else:
+        _print_cal("A")
+        _print_cal("B")
 
     # ── Unassigned ───────────────────────────────────────────────────────────
     if unassigned:
@@ -1921,6 +1944,12 @@ def build_weekly_calendar(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def main() -> None:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--backpack", choices=["A", "B"], default=None,
+                        help="Limit output to one backpack (A=CCNY, B=LaGCC). Default: both.")
+    args, _ = parser.parse_known_args()
+    bp_filter = args.backpack
+
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         print("[ERROR] ANTHROPIC_API_KEY environment variable is not set.")
@@ -1933,6 +1962,9 @@ def main() -> None:
     print("╔══════════════════════════════════════════════════╗")
     print("║   NYC Walk Scheduler — Field Data Campaign       ║")
     print(f"║   Run date: {date.today().strftime('%B %d, %Y'):<38}║")
+    if bp_filter:
+        campus = "CCNY" if bp_filter == "A" else "LaGCC"
+        print(f"║   Backpack filter: {bp_filter} ({campus}){' ' * (28 - len(campus))}║")
     print("╚══════════════════════════════════════════════════╝")
     print()
 
@@ -2018,6 +2050,17 @@ def main() -> None:
                 availability["TER"][(d, "PM")] = False
                 print(f"  [Override] TER Monday PM blocked (4th Monday): {d}")
 
+    # ── Backpack filter: restrict collectors to the active team ─────────────
+    if bp_filter:
+        allowed = set(BACKPACK_COLLECTORS[bp_filter])
+        if bp_filter == LAST_RESORT_BACKPACK:
+            allowed.update(LAST_RESORT_COLLECTORS)
+        campus = "CCNY" if bp_filter == "A" else "LaGCC"
+        print(f"  [BP-{bp_filter} / {campus}] Restricting to collectors: {sorted(allowed)}\n")
+        for cid in availability:
+            if cid not in allowed:
+                availability[cid] = {k: False for k in availability[cid]}
+
     # ── Step 5 ──────────────────────────────────────────────────────────────
     print("▶ Step 5  Parsing route and collector coordinates …")
     route_coords   = parse_route_coords()
@@ -2034,7 +2077,7 @@ def main() -> None:
 
     # ── Step 7a ─────────────────────────────────────────────────────────────
     print("▶ Step 7a Ranked recommendations …")
-    print_ranked_table(scored, route_coords, top_n=8)
+    print_ranked_table(scored, route_coords, top_n=8, bp_filter=bp_filter)
 
     # ── Recalibration day ───────────────────────────────────────────────────
     today_                       = date.today()
@@ -2091,6 +2134,7 @@ def main() -> None:
         recal_day=recal_day,
         top_n=8,
         season_counts=season_counts,
+        bp_filter=bp_filter,
     )
 
 

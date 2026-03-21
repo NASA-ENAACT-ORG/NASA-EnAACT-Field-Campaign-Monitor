@@ -17,25 +17,26 @@ BASE = Path(__file__).parent
 OUT  = BASE / "collector_map.html"
 
 # ── Collector registry ─────────────────────────────────────────────────────────
+# Backpack A = CCNY (purple pins), Backpack B = LaGCC (red pins)
+# ANG is CCNY last-resort staff (purple).  PRA/NAT/NRS are professors — not scheduled.
 COLLECTORS = {
     "SOT": "Soteri",
     "AYA": "Aya Nasri",
-    "ALX": "Alex",
     "TAH": "Taha",
-    "JAM": "James",
     "JEN": "Jennifer",
-    "SCT": "Scott",
+    "ANG": "Angy",
     "TER": "Terra",
-    "PRA": "Prathap",
-    "NAT": "Nathan",
-    "NRS": "Naresh",
+    "ALX": "Alex",
+    "SCT": "Scott",
+    "JAM": "James",
 }
 
-PALETTE = [
-    "#4f8ef7", "#f472b6", "#34d399", "#fb923c", "#a78bfa",
-    "#f87171", "#38bdf8", "#fbbf24", "#6ee7b7", "#c084fc", "#94a3b8",
-]
-C_COLOR = {cid: PALETTE[i] for i, cid in enumerate(COLLECTORS)}
+# Pin colors: purple = CCNY team, red = LaGCC team
+C_COLOR = {
+    "SOT": "#7c3aed", "AYA": "#7c3aed", "TAH": "#7c3aed",
+    "JEN": "#7c3aed", "ANG": "#7c3aed",
+    "TER": "#dc2626", "ALX": "#dc2626", "SCT": "#dc2626", "JAM": "#dc2626",
+}
 
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 TODS = ["AM", "MD", "PM"]
@@ -63,7 +64,7 @@ neigh_to_route = {k.split("_")[1]: k for k in routes_raw}
 _KML_NAME_TO_CID = {
     "Terra": "TER", "Aya": "AYA", "Scott": "SCT", "Alex": "ALX",
     "Jennifer": "JEN", "James": "JAM", "Unknown": "TAH", "Soteri": "SOT",
-    "Prof. Naresh Devineni": "NRS", "Prof. Prathap Ramamurthy": "PRA",
+    "Angy": "ANG",
 }
 kml_homes: dict[str, tuple[float, float]] = {}   # cid → (lat, lng)
 _kml_path = BASE / "Route_KMLs" / "Collector_Locs.kml"

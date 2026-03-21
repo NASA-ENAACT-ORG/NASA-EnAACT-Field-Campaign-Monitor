@@ -9,7 +9,9 @@ Endpoints:
   GET  /                        → redirect to /dashboard.html
   GET  /<filename>              → serve static file
   GET  /api/status              → JSON with file mod times, GPS positions, Drive status
-  POST /api/rerun               → run scheduler + rebuild dashboards, stream output
+  POST /api/rerun               → run scheduler (both backpacks) + rebuild dashboards, stream output
+  POST /api/rerun/a             → run scheduler for Backpack A (CCNY) only + rebuild dashboards
+  POST /api/rerun/b             → run scheduler for Backpack B (LaGCC) only + rebuild dashboards
   POST /api/rebuild             → rebuild dashboards only, stream output
   GET  /api/gps                 → Traccar Client GPS push (id, lat, lon, speed, batt, token)
   GET  /api/gps/status          → current positions for both backpacks as JSON
@@ -134,12 +136,12 @@ def _now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
-def _stream_script(wfile, script: Path, label: str) -> int:
+def _stream_script(wfile, script: Path, label: str, extra_args: list = None) -> int:
     header = f"\n── {label} ──\n"
     _write_chunk(wfile, header.encode())
 
     proc = subprocess.Popen(
-        [sys.executable, str(script)],
+        [sys.executable, str(script)] + (extra_args or []),
         cwd=str(BASE_DIR),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -467,7 +469,7 @@ class Handler(BaseHTTPRequestHandler):
         # If GAS_SECRET is not set, these endpoints remain open (local dev compatible).
         # /api/rebuild is not gated — it is only triggered by the browser UI.
         _gas_secret = os.environ.get("GAS_SECRET", "")
-        if _gas_secret and endpoint in ("/api/drive/poll", "/api/rerun"):
+        if _gas_secret and endpoint in ("/api/drive/poll", "/api/rerun", "/api/rerun/a", "/api/rerun/b"):
             auth_header = self.headers.get("Authorization", "")
             if auth_header != f"Bearer {_gas_secret}":
                 self._send(401, "application/json",
@@ -476,6 +478,10 @@ class Handler(BaseHTTPRequestHandler):
 
         if endpoint == "/api/rerun":
             self._stream_response(run_scheduler=True)
+        elif endpoint == "/api/rerun/a":
+            self._stream_response(run_scheduler=True, backpack="A")
+        elif endpoint == "/api/rerun/b":
+            self._stream_response(run_scheduler=True, backpack="B")
         elif endpoint == "/api/rebuild":
             self._stream_response(run_scheduler=False)
         elif endpoint == "/api/drive/poll":
@@ -489,7 +495,7 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self._send(404, "text/plain", b"Unknown endpoint")
 
-    def _stream_response(self, run_scheduler: bool):
+    def _stream_response(self, run_scheduler: bool, backpack: str = None):
         self.send_response(200)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.send_header("Transfer-Encoding", "chunked")
@@ -499,7 +505,8 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             if run_scheduler:
-                _stream_script(self.wfile, SCHEDULER, "walk_scheduler.py")
+                extra = ["--backpack", backpack] if backpack else []
+                _stream_script(self.wfile, SCHEDULER, "walk_scheduler.py", extra)
 
             _stream_script(self.wfile, BUILD_DASHBOARD, "build_dashboard.py")
             _stream_script(self.wfile, BUILD_MAP,       "build_collector_map.py")
