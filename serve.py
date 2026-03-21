@@ -859,8 +859,20 @@ def _restore_gcs_state():
         return
     # Walks_Log.txt — always refresh from GCS (may be newer than baked copy)
     _download_from_gcs("Walks_Log.txt", WALKS_LOG)
-    # schedule_output.json — last scheduler run results
-    _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
+    # schedule_output.json — only overwrite if GCS has a non-empty valid JSON
+    tmp = SCHEDULE_OUTPUT.with_suffix(".gcs_tmp")
+    if _download_from_gcs("schedule_output.json", tmp):
+        try:
+            data = json.loads(tmp.read_text(encoding="utf-8"))
+            if data.get("assignments") is not None:
+                tmp.replace(SCHEDULE_OUTPUT)
+                print("[gcs-restore] schedule_output.json refreshed from GCS")
+            else:
+                tmp.unlink(missing_ok=True)
+                print("[gcs-restore] GCS schedule_output.json empty — keeping baked copy")
+        except Exception:
+            tmp.unlink(missing_ok=True)
+            print("[gcs-restore] GCS schedule_output.json invalid — keeping baked copy")
     # schedule_confirmations.json — confirm/deny state
     _download_from_gcs("schedule_confirmations.json", CONFIRMATIONS_FILE)
     print("[gcs-restore] State restored from GCS")
