@@ -471,7 +471,7 @@ class Handler(BaseHTTPRequestHandler):
         # If GAS_SECRET is not set, these endpoints remain open (local dev compatible).
         # /api/rebuild is not gated — it is only triggered by the browser UI.
         _gas_secret = os.environ.get("GAS_SECRET", "")
-        if _gas_secret and endpoint in ("/api/drive/poll", "/api/rerun", "/api/rerun/a", "/api/rerun/b"):
+        if _gas_secret and endpoint in ("/api/drive/poll", "/api/rerun"):
             auth_header = self.headers.get("Authorization", "")
             if auth_header != f"Bearer {_gas_secret}":
                 self._send(401, "application/json",

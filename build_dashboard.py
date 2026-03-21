@@ -51,7 +51,7 @@ _COLLECTOR_FULL = {
 }
 _NON_COLLECTORS = {"ANG"}
 _collector_homes = {}
-_kml_path = BASE.parent / "Route_KMLs" / "Collector_Locs.kml"
+_kml_path = BASE / "Route_KMLs" / "Collector_Locs.kml"
 if _kml_path.exists():
     _ns = {"k": "http://www.opengis.net/kml/2.2"}
     for _pm in ET.parse(_kml_path).findall(".//k:Placemark", _ns):
