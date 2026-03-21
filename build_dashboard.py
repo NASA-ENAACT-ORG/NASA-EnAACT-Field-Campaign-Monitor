@@ -99,9 +99,15 @@ HTML_TEMPLATE = """\
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;height:100vh;overflow:hidden}
-#header{display:flex;align-items:center;gap:12px;padding:0 14px;height:52px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;z-index:100}
-#header h1{font-size:14px;font-weight:700;white-space:nowrap;letter-spacing:-.3px;font-family:'Space Grotesk',sans-serif}
+#header{display:flex;align-items:center;gap:10px;padding:0 14px;height:56px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;z-index:100}
+#header h1{font-size:13px;font-weight:700;white-space:nowrap;letter-spacing:-.2px;font-family:'Space Grotesk',sans-serif;line-height:1.25}
 #header h1 em{font-style:normal;color:var(--accent);font-size:10px;font-weight:600;background:rgba(56,139,253,.15);border:1px solid rgba(56,139,253,.3);border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle}
+#header-logos{display:flex;align-items:center;gap:10px;flex-shrink:0}
+#nasa-worm-logo{height:26px;width:auto;flex-shrink:0;display:block}
+#tempo-logo{height:38px;width:auto;flex-shrink:0;display:block}
+#header-divider{width:1px;height:32px;background:var(--border);flex-shrink:0}
+#header-title{display:flex;flex-direction:column;gap:1px}
+#header-title h1{margin:0}
 #tabs{display:flex;gap:6px;margin-left:8px;align-items:flex-end}
 .tab-group{display:flex;flex-direction:column;gap:2px}
 .tab-group-label{font-family:'Space Grotesk',sans-serif;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1.4px;padding:0 5px;color:var(--text3);white-space:nowrap}
@@ -367,10 +373,15 @@ body.scheduler-mode .cal-event .ce-actions{display:flex}
 .filters-drawer.open{display:flex;left:0}
 @media(max-width:768px){
   .mobile-menu-btn{display:flex}
-  #header{flex-wrap:wrap;height:auto;padding:8px 12px;gap:8px}
-  #header h1{font-size:13px;order:1;flex-basis:100%}
-  #mobile-menu-btn{order:2}
-  #tabs{order:3;flex-basis:100%;margin-left:0;gap:3px;margin-top:4px;align-items:stretch}
+  #header{flex-wrap:wrap;height:auto;padding:8px 10px;gap:6px}
+  #header-logos{order:1;flex-basis:100%;justify-content:flex-start}
+  #nasa-worm-logo{height:20px}
+  #tempo-logo{height:30px}
+  #header-divider{display:none}
+  #header-title{order:2;flex-basis:100%}
+  #header h1{font-size:12px}
+  #mobile-menu-btn{order:3}
+  #tabs{order:4;flex-basis:100%;margin-left:0;gap:3px;margin-top:4px;align-items:stretch}
   .tab-group{flex-direction:row;flex:1}
   .tab-group-label{display:none}
   .tab-group-btns{flex:1;gap:3px}
@@ -454,7 +465,66 @@ setTimeout(function(){
 
 <div id="app">
   <div id="header">
-    <h1>NASA EnAACT Field Campaign Monitor</h1>
+    <div id="header-logos">
+      <!-- NASA Worm logo -->
+      <svg id="nasa-worm-logo" xmlns="http://www.w3.org/2000/svg" viewBox="130 215 545 165" role="img" aria-label="NASA">
+        <path d="M237.89,332.33c1.57,6,4.12,8.27,8.61,8.27,4.66,0,7.1-2.8,7.1-8.27V230.83h29.19v101.5c0,14.31-1.86,20.51-9.11,27.77-5.23,5.22-14.87,9.27-27.05,9.27-9.84,0-19.25-3.26-25.25-9.27-5.27-5.28-8.16-10.69-12.67-27.77L190.8,264.67c-1.58-6-4.12-8.27-8.62-8.27-4.66,0-7.1,2.8-7.1,8.27v101.5H145.9V264.67c0-14.31,1.85-20.51,9.11-27.76,5.22-5.23,14.87-9.28,27.05-9.28,9.83,0,19.25,3.26,25.25,9.27,5.26,5.28,8.15,10.69,12.67,27.77Z" fill="#fc3d21"/>
+        <path d="M372.23,236.5c-6-5.82-13-8.87-24.11-8.87S330,230.68,324,236.5c-3.48,3.4-6.22,8.49-8.13,14.49L279.06,366.17h30.17l33.7-105.44a8.78,8.78,0,0,1,1.26-2.81,5.35,5.35,0,0,1,7.86,0,8.67,8.67,0,0,1,1.27,2.81L387,366.17h30.23L380.37,251C378.45,245,375.71,239.9,372.23,236.5Z" fill="#fc3d21"/>
+        <path d="M511.84,295.55c-8.53-8.48-19.12-11.15-36.38-11.15H451.27c-9.24,0-12.93-1.11-15.84-4-2-2-2.94-4.88-2.94-8.32s.86-7.08,3.3-9.48c2.17-2.13,5.13-3.11,10.82-3.11h69.9V230.83H452c-19.12,0-28.45,4.07-35.82,11.39-8.15,8.11-12.05,17-12.05,30.21,0,11.71,4.28,22.54,10.8,29,8.53,8.48,19.12,11.16,36.39,11.16h24.19c9.24,0,12.92,1.11,15.84,4,2,2,2.93,4.88,2.93,8.32s-.85,7.08-3.3,9.48c-2.17,2.13-5.13,3.11-10.81,3.11H406.25v28.67h68.53c19.12,0,28.44-4.07,35.81-11.39,8.15-8.11,12.05-17,12.05-30.21C522.64,312.87,518.36,302,511.84,295.55Z" fill="#fc3d21"/>
+        <path d="M623.94,366.17,590.23,260.73a8.78,8.78,0,0,0-1.26-2.81,5.35,5.35,0,0,0-7.86,0,8.78,8.78,0,0,0-1.26,2.81L546.14,366.17H516L552.79,251c1.92-6,4.66-11.09,8.14-14.49,6-5.82,13-8.87,24.11-8.87s18.14,3.05,24.11,8.87c3.48,3.4,6.22,8.49,8.14,14.49L654.1,366.17Z" fill="#fc3d21"/>
+      </svg>
+      <div id="header-divider"></div>
+      <!-- TEMPO mission patch -->
+      <svg id="tempo-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 220" role="img" aria-label="TEMPO Mission">
+        <!-- Shield/badge outer border -->
+        <path d="M100,8 L185,35 L195,105 Q195,165 100,212 Q5,165 5,105 L15,35 Z" fill="#1a2a5e" stroke="#c0c8d8" stroke-width="3"/>
+        <!-- Inner ring -->
+        <path d="M100,16 L178,40 L187,105 Q187,158 100,200 Q13,158 13,105 L22,40 Z" fill="none" stroke="#ffffff" stroke-width="1.5" opacity="0.5"/>
+        <!-- Compass spoke points -->
+        <line x1="100" y1="8" x2="100" y2="2" stroke="#c0c8d8" stroke-width="2"/>
+        <line x1="185" y1="35" x2="190" y2="31" stroke="#c0c8d8" stroke-width="2"/>
+        <line x1="195" y1="105" x2="201" y2="105" stroke="#c0c8d8" stroke-width="2"/>
+        <line x1="5" y1="105" x2="-1" y2="105" stroke="#c0c8d8" stroke-width="2"/>
+        <line x1="15" y1="35" x2="10" y2="31" stroke="#c0c8d8" stroke-width="2"/>
+        <!-- Satellite solar panels at top -->
+        <rect x="62" y="14" width="28" height="7" rx="1.5" fill="#8090a8" opacity="0.9"/>
+        <rect x="110" y="14" width="28" height="7" rx="1.5" fill="#8090a8" opacity="0.9"/>
+        <!-- Satellite body -->
+        <rect x="88" y="11" width="24" height="13" rx="2" fill="#9aabbc"/>
+        <!-- TEMPO text bar -->
+        <rect x="22" y="30" width="156" height="26" rx="4" fill="#0d1f5c"/>
+        <text x="100" y="48" font-family="'Space Grotesk',Arial,sans-serif" font-size="20" font-weight="700" fill="white" text-anchor="middle" letter-spacing="3">TEMPO</text>
+        <!-- Globe with grid -->
+        <!-- Globe base circle -->
+        <clipPath id="globeClip"><path d="M100,16 L178,40 L187,105 Q187,158 100,200 Q13,158 13,105 L22,40 Z"/></clipPath>
+        <ellipse cx="100" cy="130" rx="78" ry="60" fill="#1a3a6e" clip-path="url(#globeClip)"/>
+        <!-- Grid squares representing air quality data cells -->
+        <!-- Row 1 (top) -->
+        <rect x="32" y="72" width="18" height="14" fill="#4ade80" opacity="0.85"/><rect x="52" y="72" width="18" height="14" fill="#86efac" opacity="0.85"/><rect x="72" y="72" width="18" height="14" fill="#4ade80" opacity="0.85"/><rect x="92" y="72" width="18" height="14" fill="#facc15" opacity="0.85"/><rect x="112" y="72" width="18" height="14" fill="#4ade80" opacity="0.85"/><rect x="132" y="72" width="18" height="14" fill="#86efac" opacity="0.85"/><rect x="152" y="72" width="14" height="14" fill="#4ade80" opacity="0.85"/>
+        <!-- Row 2 -->
+        <rect x="28" y="88" width="18" height="14" fill="#86efac" opacity="0.85"/><rect x="48" y="88" width="18" height="14" fill="#facc15" opacity="0.85"/><rect x="68" y="88" width="18" height="14" fill="#4ade80" opacity="0.85"/><rect x="88" y="88" width="18" height="14" fill="#4ade80" opacity="0.85"/><rect x="108" y="88" width="18" height="14" fill="#991b1b" opacity="0.85"/><rect x="128" y="88" width="18" height="14" fill="#facc15" opacity="0.85"/><rect x="148" y="88" width="18" height="14" fill="#4ade80" opacity="0.85"/>
+        <!-- Row 3 -->
+        <rect x="26" y="104" width="18" height="14" fill="#4ade80" opacity="0.85"/><rect x="46" y="104" width="18" height="14" fill="#991b1b" opacity="0.85"/><rect x="66" y="104" width="18" height="14" fill="#facc15" opacity="0.85"/><rect x="86" y="104" width="18" height="14" fill="#4ade80" opacity="0.85"/><rect x="106" y="104" width="18" height="14" fill="#86efac" opacity="0.85"/><rect x="126" y="104" width="18" height="14" fill="#4ade80" opacity="0.85"/><rect x="146" y="104" width="18" height="14" fill="#991b1b" opacity="0.85"/>
+        <!-- Row 4 -->
+        <rect x="28" y="120" width="18" height="14" fill="#facc15" opacity="0.85"/><rect x="48" y="120" width="18" height="14" fill="#4ade80" opacity="0.85"/><rect x="68" y="120" width="18" height="14" fill="#86efac" opacity="0.85"/><rect x="88" y="120" width="18" height="14" fill="#991b1b" opacity="0.85"/><rect x="108" y="120" width="18" height="14" fill="#4ade80" opacity="0.85"/><rect x="128" y="120" width="18" height="14" fill="#facc15" opacity="0.85"/><rect x="148" y="120" width="14" height="14" fill="#4ade80" opacity="0.85"/>
+        <!-- Row 5 -->
+        <rect x="34" y="136" width="18" height="14" fill="#4ade80" opacity="0.85"/><rect x="54" y="136" width="18" height="14" fill="#86efac" opacity="0.85"/><rect x="74" y="136" width="18" height="14" fill="#facc15" opacity="0.85"/><rect x="94" y="136" width="18" height="14" fill="#4ade80" opacity="0.85"/><rect x="114" y="136" width="18" height="14" fill="#4ade80" opacity="0.85"/><rect x="134" y="136" width="18" height="14" fill="#991b1b" opacity="0.85"/>
+        <!-- Row 6 (bottom, truncated) -->
+        <rect x="44" y="152" width="18" height="12" fill="#4ade80" opacity="0.85"/><rect x="64" y="152" width="18" height="12" fill="#facc15" opacity="0.85"/><rect x="84" y="152" width="18" height="12" fill="#4ade80" opacity="0.85"/><rect x="104" y="152" width="18" height="12" fill="#86efac" opacity="0.85"/>
+        <!-- Grid lines overlay -->
+        <line x1="26" y1="72" x2="166" y2="72" stroke="#1a2a5e" stroke-width="1.5" opacity="0.7"/>
+        <line x1="26" y1="86" x2="168" y2="86" stroke="#1a2a5e" stroke-width="1.5" opacity="0.7"/>
+        <line x1="24" y1="102" x2="166" y2="102" stroke="#1a2a5e" stroke-width="1.5" opacity="0.7"/>
+        <line x1="24" y1="118" x2="166" y2="118" stroke="#1a2a5e" stroke-width="1.5" opacity="0.7"/>
+        <line x1="26" y1="134" x2="154" y2="134" stroke="#1a2a5e" stroke-width="1.5" opacity="0.7"/>
+        <line x1="32" y1="150" x2="124" y2="150" stroke="#1a2a5e" stroke-width="1.5" opacity="0.7"/>
+        <!-- Outer badge border redraw on top -->
+        <path d="M100,8 L185,35 L195,105 Q195,165 100,212 Q5,165 5,105 L15,35 Z" fill="none" stroke="#c0c8d8" stroke-width="3"/>
+      </svg>
+    </div>
+    <div id="header-title">
+      <h1>NASA EnAACT Field Campaign Monitor</h1>
+    </div>
     <button id="mobile-menu-btn" class="mobile-menu-btn" title="Toggle filters">&#x2630;</button>
     <div id="tabs">
       <div class="tab-group">
