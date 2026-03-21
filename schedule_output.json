@@ -6,36 +6,6 @@
   "recal_day": null,
   "assignments": [
     {
-      "route": "MN_MT",
-      "label": "Manhattan \u2013 Midtown",
-      "boro": "MN",
-      "neigh": "MT",
-      "tod": "MD",
-      "backpack": "B",
-      "collector": "AYA",
-      "date": "2026-03-20"
-    },
-    {
-      "route": "MN_MT",
-      "label": "Manhattan \u2013 Midtown",
-      "boro": "MN",
-      "neigh": "MT",
-      "tod": "PM",
-      "backpack": "B",
-      "collector": "AYA",
-      "date": "2026-03-21"
-    },
-    {
-      "route": "MN_LE",
-      "label": "Manhattan \u2013 Union Sq/LES",
-      "boro": "MN",
-      "neigh": "LE",
-      "tod": "AM",
-      "backpack": "B",
-      "collector": "SCT",
-      "date": "2026-03-20"
-    },
-    {
       "route": "MN_LE",
       "label": "Manhattan \u2013 Union Sq/LES",
       "boro": "MN",
@@ -54,26 +24,6 @@
       "backpack": "B",
       "collector": "JEN",
       "date": "2026-03-24"
-    },
-    {
-      "route": "QN_LI",
-      "label": "Queens \u2013 Astoria/LIC",
-      "boro": "QN",
-      "neigh": "LI",
-      "tod": "AM",
-      "backpack": "B",
-      "collector": "SCT",
-      "date": "2026-03-21"
-    },
-    {
-      "route": "MN_UE",
-      "label": "Manhattan \u2013 Upper East Side",
-      "boro": "MN",
-      "neigh": "UE",
-      "tod": "AM",
-      "backpack": "A",
-      "collector": "TAH",
-      "date": "2026-03-20"
     }
   ],
   "unassigned": [

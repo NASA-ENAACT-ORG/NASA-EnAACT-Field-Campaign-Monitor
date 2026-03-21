@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NASA EnAACT Field Campaign Monitor</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
@@ -19,12 +22,20 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;height:100vh;overflow:hidden}
 #header{display:flex;align-items:center;gap:12px;padding:0 14px;height:52px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;z-index:100}
-#header h1{font-size:14px;font-weight:700;white-space:nowrap;letter-spacing:-.3px}
+#header h1{font-size:14px;font-weight:700;white-space:nowrap;letter-spacing:-.3px;font-family:'Space Grotesk',sans-serif}
 #header h1 em{font-style:normal;color:var(--accent);font-size:10px;font-weight:600;background:rgba(56,139,253,.15);border:1px solid rgba(56,139,253,.3);border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle}
-#tabs{display:flex;gap:2px;margin-left:6px}
-.tab-btn{padding:4px 13px;background:transparent;border:1px solid transparent;border-radius:6px;color:var(--text2);cursor:pointer;font-size:12px;font-weight:500;transition:all .15s}
+#tabs{display:flex;gap:6px;margin-left:8px;align-items:flex-end}
+.tab-group{display:flex;flex-direction:column;gap:2px}
+.tab-group-label{font-family:'Space Grotesk',sans-serif;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1.4px;padding:0 5px;color:var(--text3);white-space:nowrap}
+.tab-group-label.monitor{color:#60a5fa;opacity:.75}
+.tab-group-label.scheduling{color:#a78bfa;opacity:.75}
+.tab-group-btns{display:flex;gap:2px}
+.tab-sep{width:1px;height:38px;background:var(--border);align-self:center;margin:0 2px;flex-shrink:0}
+.tab-btn{padding:4px 13px;background:transparent;border:1px solid transparent;border-radius:6px;color:var(--text2);cursor:pointer;font-size:12px;font-weight:500;transition:all .15s;font-family:'Space Grotesk',sans-serif}
 .tab-btn:hover{background:var(--bg3);color:var(--text)}
 .tab-btn.active{background:var(--bg3);border-color:var(--border);color:var(--text)}
+.tab-group:first-child .tab-btn.active{border-color:rgba(96,165,250,.5);color:#60a5fa}
+.tab-group:last-child .tab-btn.active{border-color:rgba(167,139,250,.5);color:#a78bfa}
 #filters{display:flex;align-items:center;gap:7px;margin-left:auto;flex-wrap:nowrap}
 select,input[type=date]{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:3px 7px;font-size:11px;height:28px;cursor:pointer;outline:none}
 select:hover,input[type=date]:hover{border-color:var(--accent)}
@@ -203,14 +214,14 @@ body.scheduler-mode .cal-event .ce-actions{display:flex}
 .tl-dot.tl-past{opacity:.38}.tl-dot.tl-current{opacity:1;box-shadow:0 0 0 2px #fff4}.tl-dot.tl-future{opacity:.75}
 .tl-day-recal{font-size:8px;color:#f0a500;letter-spacing:.3px}
 .tl-day-sep{width:1px;background:var(--border);align-self:stretch;flex-shrink:0}
-#cselector{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:7px;width:100%}
-.cc{aspect-ratio:1;padding:6px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;cursor:pointer;transition:all .15s;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
+#cselector{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;width:100%}
+.cc{aspect-ratio:1;padding:12px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:all .15s;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
 .cc:hover{border-color:var(--accent);background:var(--bg3)}
 .cc.active{border-color:var(--accent);background:rgba(56,139,253,.12)}
-.cc .cn{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.cc .ci{font-size:9px;color:var(--text2);margin-top:1px}
-.cc .cw{font-size:18px;font-weight:700;color:var(--accent);line-height:1.1;margin-top:3px}
-.cc .cwl{font-size:8px;color:var(--text3)}
+.cc .cn{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.cc .ci{font-size:10px;color:var(--text2);margin-top:2px}
+.cc .cw{font-size:24px;font-weight:700;color:var(--accent);line-height:1.1;margin-top:5px}
+.cc .cwl{font-size:9px;color:var(--text3);margin-top:1px}
 #cdetail{display:flex;gap:12px;flex-wrap:wrap}
 .dcard{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:13px}
 #dstats{flex:0 0 auto;min-width:240px}
@@ -281,8 +292,12 @@ body.scheduler-mode .cal-event .ce-actions{display:flex}
   #header{flex-wrap:wrap;height:auto;padding:8px 12px;gap:8px}
   #header h1{font-size:13px;order:1;flex-basis:100%}
   #mobile-menu-btn{order:2}
-  #tabs{order:3;flex-basis:100%;margin-left:0;gap:4px;margin-top:4px}
-  .tab-btn{padding:5px 10px;font-size:11px;flex:1}
+  #tabs{order:3;flex-basis:100%;margin-left:0;gap:3px;margin-top:4px;align-items:stretch}
+  .tab-group{flex-direction:row;flex:1}
+  .tab-group-label{display:none}
+  .tab-group-btns{flex:1;gap:3px}
+  .tab-sep{display:none}
+  .tab-btn{padding:5px 6px;font-size:11px;flex:1;text-align:center}
   #filters{position:fixed;left:-100%;top:44px;width:280px;max-width:calc(100% - 24px);height:calc(100vh-44px);padding:12px;flex-direction:column;gap:5px}
   #filters .fg{width:100%;gap:5px;flex-direction:column}
   #filters .fg select,#filters .fg input{width:100%;height:32px;padding:4px 8px;font-size:12px}
@@ -364,10 +379,21 @@ setTimeout(function(){
     <h1>NASA EnAACT Field Campaign Monitor</h1>
     <button id="mobile-menu-btn" class="mobile-menu-btn" title="Toggle filters">&#x2630;</button>
     <div id="tabs">
-      <button class="tab-btn active" data-view="map-view">&#x1F5FA;&#xFE0F; Map View</button>
-      <button class="tab-btn" data-view="collector-view">&#x1F465; Collector View</button>
-      <button class="tab-btn" data-view="schedule-view">&#x1F4C5; Schedule</button>
-      <button class="tab-btn" data-view="calendar-view">&#x1F4C6; Calendar</button>
+      <div class="tab-group">
+        <span class="tab-group-label monitor">Campaign Monitor</span>
+        <div class="tab-group-btns">
+          <button class="tab-btn active" data-view="map-view">&#x1F5FA;&#xFE0F; Map</button>
+          <button class="tab-btn" data-view="collector-view">&#x1F465; Collectors</button>
+        </div>
+      </div>
+      <div class="tab-sep"></div>
+      <div class="tab-group">
+        <span class="tab-group-label scheduling">Scheduling</span>
+        <div class="tab-group-btns">
+          <button class="tab-btn" data-view="schedule-view">&#x1F5FA;&#xFE0F; Map</button>
+          <button class="tab-btn" data-view="calendar-view">&#x1F4C6; Calendar</button>
+        </div>
+      </div>
     </div>
     <div id="filters" class="filters-drawer">
       <div class="fg"><span class="fl">Season</span>
@@ -541,36 +567,6 @@ const BAKED_SCHEDULE = {
   "recal_day": null,
   "assignments": [
     {
-      "route": "MN_MT",
-      "label": "Manhattan \u2013 Midtown",
-      "boro": "MN",
-      "neigh": "MT",
-      "tod": "MD",
-      "backpack": "B",
-      "collector": "AYA",
-      "date": "2026-03-20"
-    },
-    {
-      "route": "MN_MT",
-      "label": "Manhattan \u2013 Midtown",
-      "boro": "MN",
-      "neigh": "MT",
-      "tod": "PM",
-      "backpack": "B",
-      "collector": "AYA",
-      "date": "2026-03-21"
-    },
-    {
-      "route": "MN_LE",
-      "label": "Manhattan \u2013 Union Sq/LES",
-      "boro": "MN",
-      "neigh": "LE",
-      "tod": "AM",
-      "backpack": "B",
-      "collector": "SCT",
-      "date": "2026-03-20"
-    },
-    {
       "route": "MN_LE",
       "label": "Manhattan \u2013 Union Sq/LES",
       "boro": "MN",
@@ -589,26 +585,6 @@ const BAKED_SCHEDULE = {
       "backpack": "B",
       "collector": "JEN",
       "date": "2026-03-24"
-    },
-    {
-      "route": "QN_LI",
-      "label": "Queens \u2013 Astoria/LIC",
-      "boro": "QN",
-      "neigh": "LI",
-      "tod": "AM",
-      "backpack": "B",
-      "collector": "SCT",
-      "date": "2026-03-21"
-    },
-    {
-      "route": "MN_UE",
-      "label": "Manhattan \u2013 Upper East Side",
-      "boro": "MN",
-      "neigh": "UE",
-      "tod": "AM",
-      "backpack": "A",
-      "collector": "TAH",
-      "date": "2026-03-20"
     }
   ],
   "unassigned": [
@@ -620,7 +596,8 @@ const BAKED_SCHEDULE = {
       "reason": "no_open_slot"
     }
   ]
-};
+}
+;
 // Campus affiliation → pin color  (purple = CCNY, red = LaGCC, amber = staff)
 const COLLECTOR_PIN_COLOR = {
   'SOT':'#7c3aed','AYA':'#7c3aed','JEN':'#7c3aed','TAH':'#7c3aed','ANG':'#7c3aed',
