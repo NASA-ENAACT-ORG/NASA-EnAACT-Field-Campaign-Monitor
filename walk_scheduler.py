@@ -432,76 +432,114 @@ def find_current_week_forecast() -> Tuple[Path, date, date]:
     return best_pdf, start, end
 
 
-def parse_forecast_pdf(pdf_path: Path) -> Dict[Tuple[date, str], bool]:
+def parse_forecast_pdf(pdf_path: Path) -> Dict[Tuple[date, str, str], bool]:
     """
     Extract cloud-coverage data from the forecast PDF.
-    Table row format (13 cols):
-      [DayName\\nDate, 7am%, 8am%, 9am%, AM_avg%, 12pm%, 1pm%, 2pm%, MD_avg%,
-       5pm%, 6pm%, 7pm%, PM_avg%]
-    Returns {(date, tod): True if avg ≤ 33% (good weather)}
-    """
-    tmp = safe_copy(pdf_path, "forecast.pdf")
-    weather: Dict[Tuple[date, str], bool] = {}
 
-    MONTHS = {
-        "1":1,"2":2,"3":3,"4":4,"5":5,"6":6,
-        "7":7,"8":8,"9":9,"10":10,"11":11,"12":12
+    Supports two PDF formats:
+      • City-wide (13 cols): [DayName\\nDate, 7am, 8am, 9am, AM_avg, 12pm, 1pm, 2pm,
+                               MD_avg, 5pm, 6pm, 7pm, PM_avg]
+        → stored with boro key ""
+      • Per-borough (14 cols): [Borough, DayName\\nDate, 7am, 8am, 9am, AM_avg, 12pm,
+                                 1pm, 2pm, MD_avg, 5pm, 6pm, 7pm, PM_avg]
+        → stored with boro key BX / MN / QN / BK; borough cell may be None (merged)
+
+    Returns {(date, tod, boro): True if avg ≤ CLOUD_THRESHOLD}
+    Boro is "" when the PDF has no per-borough breakdown.
+    """
+    BORO_KEYWORDS = {
+        "bronx": "BX", "manhattan": "MN", "queens": "QN", "brooklyn": "BK",
     }
+
+    tmp = safe_copy(pdf_path, "forecast.pdf")
+    weather: Dict[Tuple[date, str, str], bool] = {}
+    current_boro = ""   # updated as we scan rows
+
+    def pct(cell) -> Optional[int]:
+        if cell is None:
+            return None
+        m = re.search(r"(\d+)", str(cell))
+        return int(m.group(1)) if m else None
 
     with pdfplumber.open(tmp) as pdf:
         for page in pdf.pages:
             for table in page.extract_tables():
                 for row in table:
-                    if not row or row[0] is None:
-                        continue
-                    # Rows containing date info look like "Sunday\n3/8/26"
-                    cell0 = str(row[0])
-                    date_match = re.search(r"(\d+)/(\d+)/(\d{2,4})", cell0)
-                    if not date_match:
-                        continue
-                    mo  = int(date_match.group(1))
-                    dy  = int(date_match.group(2))
-                    yr_ = int(date_match.group(3))
-                    yr  = (2000 + yr_) if yr_ < 100 else yr_
-                    try:
-                        d = date(yr, mo, dy)
-                    except ValueError:
+                    if not row:
                         continue
 
-                    # Need at least 13 columns
-                    if len(row) < 13:
-                        continue
-
-                    def pct(cell) -> Optional[int]:
+                    # ── Detect borough header in any non-None cell ──────────
+                    for cell in row:
                         if cell is None:
-                            return None
-                        m = re.search(r"(\d+)", str(cell))
-                        return int(m.group(1)) if m else None
+                            continue
+                        lower = str(cell).strip().lower()
+                        for kw, code in BORO_KEYWORDS.items():
+                            if kw in lower:
+                                current_boro = code
+                                break
 
-                    am_avg = pct(row[4])
-                    md_avg = pct(row[8])
-                    pm_avg = pct(row[12])
+                    # ── Find which cell holds the date ──────────────────────
+                    date_col = None
+                    d = None
+                    for ci, cell in enumerate(row):
+                        if cell is None:
+                            continue
+                        dm = re.search(r"(\d+)/(\d+)/(\d{2,4})", str(cell))
+                        if dm:
+                            try:
+                                mo_ = int(dm.group(1))
+                                dy_ = int(dm.group(2))
+                                yr_ = int(dm.group(3))
+                                yr_ = (2000 + yr_) if yr_ < 100 else yr_
+                                d = date(yr_, mo_, dy_)
+                                date_col = ci
+                            except ValueError:
+                                pass
+                            break
+                    if d is None or date_col is None:
+                        continue
 
+                    # ── Column offsets depend on format width ───────────────
+                    # 13-col: date at 0 → avgs at 4, 8, 12
+                    # 14-col: date at 1 → avgs at 5, 9, 13
+                    offset = date_col  # 0 → city-wide, 1 → per-borough
+                    need = 13 + offset
+                    if len(row) < need:
+                        continue
+
+                    am_avg = pct(row[4  + offset])
+                    md_avg = pct(row[8  + offset])
+                    pm_avg = pct(row[12 + offset])
+
+                    boro_key = current_boro if offset > 0 else ""
                     if am_avg is not None:
-                        weather[(d, "AM")] = am_avg <= CLOUD_THRESHOLD
+                        weather[(d, "AM", boro_key)] = am_avg <= CLOUD_THRESHOLD
                     if md_avg is not None:
-                        weather[(d, "MD")] = md_avg <= CLOUD_THRESHOLD
+                        weather[(d, "MD", boro_key)] = md_avg <= CLOUD_THRESHOLD
                     if pm_avg is not None:
-                        weather[(d, "PM")] = pm_avg <= CLOUD_THRESHOLD
+                        weather[(d, "PM", boro_key)] = pm_avg <= CLOUD_THRESHOLD
 
     if not weather:
         print("  [WARN] Table parsing failed; falling back to raw-text extraction.")
         weather = _parse_forecast_text_fallback(tmp)
 
+    # Log detected boroughs
+    boros_found = sorted({b for (_, _, b) in weather if b})
+    if boros_found:
+        print(f"  [forecast] Per-borough weather loaded: {', '.join(boros_found)}")
+    else:
+        print("  [forecast] City-wide (no per-borough breakdown) weather loaded.")
+
     return weather
 
 
-def _parse_forecast_text_fallback(pdf_path: Path) -> Dict[Tuple[date, str], bool]:
+def _parse_forecast_text_fallback(pdf_path: Path) -> Dict[Tuple[date, str, str], bool]:
     """
     Regex-based fallback: match lines like
     'Sunday\\n3/8/26  98% 99% 99% 99%  85% 80% 86% 84%  40% 16% 11% 22%'
+    Returns city-wide (boro="") entries.
     """
-    weather: Dict[Tuple[date, str], bool] = {}
+    weather: Dict[Tuple[date, str, str], bool] = {}
     with pdfplumber.open(pdf_path) as pdf:
         text = "\n".join(p.extract_text() or "" for p in pdf.pages)
 
@@ -521,9 +559,9 @@ def _parse_forecast_text_fallback(pdf_path: Path) -> Dict[Tuple[date, str], bool
             d = date(yr, mo, dy)
         except ValueError:
             continue
-        weather[(d, "AM")] = int(m.group(5)) <= CLOUD_THRESHOLD
-        weather[(d, "MD")] = int(m.group(6)) <= CLOUD_THRESHOLD
-        weather[(d, "PM")] = int(m.group(7)) <= CLOUD_THRESHOLD
+        weather[(d, "AM", "")] = int(m.group(5)) <= CLOUD_THRESHOLD
+        weather[(d, "MD", "")] = int(m.group(6)) <= CLOUD_THRESHOLD
+        weather[(d, "PM", "")] = int(m.group(7)) <= CLOUD_THRESHOLD
     return weather
 
 
@@ -1026,7 +1064,7 @@ def parse_collector_locs() -> Dict[str, Tuple[float, float]]:
 
 def score_combos(
     completions:   Dict[Tuple[str, str, str], int],
-    weather:       Dict[Tuple[date, str], bool],
+    weather:       Dict[Tuple[date, str, str], bool],
     affinity:      Dict[str, Dict[str, int]],
     availability:  Dict[str, Dict[Tuple[date, str], bool]],
     route_coords:  Dict[str, Tuple[float, float]],
@@ -1035,6 +1073,10 @@ def score_combos(
     """
     Score every (route, tod) combo for CURRENT_SEASON that is still below target.
 
+    Weather dict is keyed by (date, tod, boro) where boro is one of
+    BX/MN/QN/BK (per-borough PDF) or "" (city-wide PDF).
+    Routes use their own boro's weather; city-wide "" is the fallback.
+
     Priority order:
       1. PRIMARY   – at least one good-weather day for that TOD this week (filter)
       2. SECONDARY – combos below minimum (< 6) rank above those at/above minimum
@@ -1042,19 +1084,31 @@ def score_combos(
       3. TERTIARY  – has at least one available+comfortable collector
       4. TIEBREAKER – minimum distance from any available collector to route centroid
     """
-    # Pre-compute: for each tod, which dates have good weather?
-    good_weather_by_tod: Dict[str, List[date]] = defaultdict(list)
-    for (d, tod), is_good in weather.items():
+    # Pre-compute: for each (tod, boro), which dates have good weather?
+    # Also build a union across all boros so collector availability (boro-agnostic)
+    # can still be pre-filtered.
+    good_weather_by_tod_boro: Dict[Tuple[str, str], List[date]] = defaultdict(list)
+    good_weather_by_tod_any:  Dict[str, set] = defaultdict(set)
+    for (d, tod, boro), is_good in weather.items():
         if is_good:
-            good_weather_by_tod[tod].append(d)
+            good_weather_by_tod_boro[(tod, boro)].append(d)
+            good_weather_by_tod_any[tod].add(d)
+
+    def good_days_for(tod: str, boro: str) -> List[date]:
+        """Return good-weather days for this tod+boro; fall back to city-wide."""
+        specific = good_weather_by_tod_boro.get((tod, boro), [])
+        if specific:
+            return specific
+        return good_weather_by_tod_boro.get((tod, ""), [])
 
     # Pre-compute: which (collector, tod) combinations have available days?
-    #   collector_available_days[(cid, tod)] = list of good-weather dates
+    # Use the union of good-weather days across all boroughs so we don't miss
+    # any day a collector could theoretically be sent out.
     collector_avail_days: Dict[Tuple[str, str], List[date]] = defaultdict(list)
     for cid in COLLECTORS:
         cid_avail = availability.get(cid, {})
         for tod in TODS:
-            for d in good_weather_by_tod.get(tod, []):
+            for d in good_weather_by_tod_any.get(tod, set()):
                 if cid_avail.get((d, tod), True):
                     collector_avail_days[(cid, tod)].append(d)
 
@@ -1069,8 +1123,8 @@ def score_combos(
             if count >= TARGET_COMPLETIONS:
                 continue
 
-            # Good-weather days for this TOD
-            gw_days = sorted(good_weather_by_tod.get(tod, []))
+            # Good-weather days for this TOD, using this route's borough
+            gw_days = sorted(good_days_for(tod, boro))
             # PRIMARY filter: must have at least one good-weather day
             if not gw_days:
                 continue
@@ -2042,7 +2096,9 @@ def main() -> None:
     forecast_pdf, week_start, week_end = find_current_week_forecast()
     weather = parse_forecast_pdf(forecast_pdf)
     good = sum(1 for v in weather.values() if v)
-    print(f"  {good}/{len(weather)} day+TOD slots have good weather (≤{CLOUD_THRESHOLD}% cloud)\n")
+    boros_in_wx = sorted({b for (_, _, b) in weather if b})
+    wx_scope = f"per-borough ({', '.join(boros_in_wx)})" if boros_in_wx else "city-wide"
+    print(f"  {good}/{len(weather)} day+TOD slots have good weather (≤{CLOUD_THRESHOLD}% cloud, {wx_scope})\n")
 
     # ── Load existing schedule — preserve assignments still in good weather ──
     preserved_assignments: List[Dict] = []

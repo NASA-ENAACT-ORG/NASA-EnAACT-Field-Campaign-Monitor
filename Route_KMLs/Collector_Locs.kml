@@ -1,10 +1,75 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2" xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">
-<Placemark>
-	<name>Soteri</name>
-	<Point>
-		<coordinates>-73.97189583295153,40.75713671879234,0</coordinates>
-	</Point>
-	<atom:link rel="app" href="https://www.google.com/earth/about/versions/#earth-pro" title="Google Earth Pro 7.3.7.1094"></atom:link><n>Soteri</n>
-</Placemark>
+<Document>
+	<name>Student Locs</name>
+	<open>1</open>
+	<atom:link rel="app" href="https://www.google.com/earth/about/versions/#earth-pro" title="Google Earth Pro 7.3.7.1094"></atom:link>
+	<Placemark>
+		<name>Terra</name>
+		<Point>
+			<coordinates>-73.94158873948936,40.68730931106391,0</coordinates>
+		</Point>
+	</Placemark>
+	<Placemark>
+		<name>Aya</name>
+		<Point>
+			<coordinates>-73.94192577765597,40.66930034587911,0</coordinates>
+		</Point>
+	</Placemark>
+	<Placemark>
+		<name>Scott</name>
+		<Point>
+			<coordinates>-73.87785643239424,40.73952188698049,0</coordinates>
+		</Point>
+	</Placemark>
+	<Placemark>
+		<name>Alex</name>
+		<Point>
+			<coordinates>-73.81391283332957,40.67643032828321,0</coordinates>
+		</Point>
+	</Placemark>
+	<Placemark>
+		<name>Jennifer</name>
+		<Point>
+			<coordinates>-73.92405870938673,40.76428588598034,0</coordinates>
+		</Point>
+	</Placemark>
+	<Placemark>
+		<name>James</name>
+		<Point>
+			<coordinates>-73.87286416038589,40.73587681883092,0</coordinates>
+		</Point>
+	</Placemark>
+	<Placemark>
+		<name>Angy</name>
+		<Point>
+			<coordinates>-73.83070114064479,40.76492811485884,0</coordinates>
+		</Point>
+	</Placemark>
+	<Placemark>
+		<name>Taha</name>
+		<Point>
+			<coordinates>-73.90665196092611,40.75338380481738,0</coordinates>
+		</Point>
+	</Placemark>
+	<Placemark>
+		<name>Soteri</name>
+		<Point>
+			<coordinates>-73.97189583295153,40.75713671879234,0</coordinates>
+		</Point>
+		<n>Soteri</n>
+	</Placemark>
+	<Placemark>
+		<name>Prof. Naresh Devineni</name>
+		<Point>
+			<coordinates>-73.94349947553702,40.81845636470543,0</coordinates>
+		</Point>
+	</Placemark>
+	<Placemark>
+		<name>Prof. Prathap Ramamurthy</name>
+		<Point>
+			<coordinates>-73.97272578963553,40.85188163624076,0</coordinates>
+		</Point>
+	</Placemark>
+</Document>
 </kml>
