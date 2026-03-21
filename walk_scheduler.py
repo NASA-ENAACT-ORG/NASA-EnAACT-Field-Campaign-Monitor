@@ -1646,16 +1646,17 @@ def _generate_schedule_map(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build_weekly_calendar(
-    scored:        List[Dict],
-    availability:  Dict[str, Dict[Tuple[date, str], bool]],
-    weather:       Dict[Tuple[date, str], bool],
-    route_coords:  Dict[str, Tuple[float, float]],
-    week_start:    date,
-    week_end:      date,
-    recal_day:     Optional[date] = None,
-    top_n:         int = 8,
-    season_counts: Optional[Dict[str, int]] = None,
-    bp_filter:     Optional[str] = None,
+    scored:              List[Dict],
+    availability:        Dict[str, Dict[Tuple[date, str], bool]],
+    weather:             Dict[Tuple[date, str], bool],
+    route_coords:        Dict[str, Tuple[float, float]],
+    week_start:          date,
+    week_end:            date,
+    recal_day:           Optional[date] = None,
+    top_n:               int = 8,
+    season_counts:       Optional[Dict[str, int]] = None,
+    bp_filter:           Optional[str] = None,
+    preserved_assignments: Optional[List[Dict]] = None,
 ) -> None:
     """
     Assign each top-N combo to a day + TOD respecting:
@@ -1709,6 +1710,42 @@ def build_weekly_calendar(
 
     assignments: List[Dict] = []
     unassigned:  List[Dict] = []
+
+    # ── Preserve existing assignments where weather is still good ────────────
+    preserved_keys: set = set()   # (route, tod) pairs already locked in
+    for a in (preserved_assignments or []):
+        try:
+            d   = date.fromisoformat(a["date"])
+            tod = a["tod"]
+            bp  = a["backpack"]
+        except (KeyError, ValueError):
+            continue
+        if d not in cal.get(bp, {}):
+            continue                     # day not in this week's grid
+        if cal[bp][d][tod] is not None:
+            continue                     # slot already taken (e.g. forced CCNY)
+        entry = {
+            "route":              a["route"],
+            "boro":               a.get("boro", a["route"].split("_")[0]),
+            "neigh":              a.get("neigh", a["route"].split("_")[-1]),
+            "tod":                tod,
+            "backpack":           bp,
+            "assigned_date":      d,
+            "assigned_collector": a["collector"],
+            "below_min":          False,
+            "count":              0,
+            "continuity_min":     0,
+            "preserved":          True,
+        }
+        cal[bp][d][tod] = entry
+        collector_used_on[a["collector"]].add(d)
+        collector_week_routes[a["collector"]].append(a["route"])
+        assignments.append(entry)
+        preserved_keys.add((a["route"], tod))
+        print(f"  ↩  Preserved: [{bp}] {a['route']} {tod} on {d} → {a['collector']}")
+
+    # Filter top combos — skip any (route, tod) already preserved
+    top = [c for c in top if (c["route"], c["tod"]) not in preserved_keys]
 
     # ── MRV pre-computation ─────────────────────────────────────────────────
     # For each (day, tod) slot, count how many top combos have that slot as a
@@ -1919,6 +1956,7 @@ def build_weekly_calendar(
                 "backpack":  e["backpack"],
                 "collector": e["assigned_collector"],
                 "date":      str(e["assigned_date"]),
+                "preserved": e.get("preserved", False),
             }
             for e in assignments
         ],
@@ -2005,6 +2043,25 @@ def main() -> None:
     weather = parse_forecast_pdf(forecast_pdf)
     good = sum(1 for v in weather.values() if v)
     print(f"  {good}/{len(weather)} day+TOD slots have good weather (≤{CLOUD_THRESHOLD}% cloud)\n")
+
+    # ── Load existing schedule — preserve assignments still in good weather ──
+    preserved_assignments: List[Dict] = []
+    existing_path = Path(__file__).parent / "schedule_output.json"
+    if existing_path.exists():
+        try:
+            with open(existing_path, encoding="utf-8") as _f:
+                _existing = json.load(_f)
+            for _a in _existing.get("assignments", []):
+                _d   = date.fromisoformat(_a["date"])
+                _tod = _a["tod"]
+                # Keep if: within this week AND still good weather in new forecast
+                if week_start <= _d <= week_end and weather.get((_d, _tod), False):
+                    preserved_assignments.append(_a)
+            if preserved_assignments:
+                print(f"  ↩  {len(preserved_assignments)} existing assignment(s) still have "
+                      f"good weather — will preserve them\n")
+        except Exception as _e:
+            print(f"  [Note] Could not read existing schedule for preservation: {_e}\n")
 
     # Week days
     week_days = [
@@ -2135,6 +2192,7 @@ def main() -> None:
         top_n=8,
         season_counts=season_counts,
         bp_filter=bp_filter,
+        preserved_assignments=preserved_assignments,
     )
 
 

@@ -67,6 +67,14 @@ if _kml_path.exists():
             }
 collector_homes_json = json.dumps(_collector_homes)
 
+# ── Bake schedule_output.json into the dashboard ─────────────────────────────
+_sched_path = BASE / "schedule_output.json"
+if _sched_path.exists():
+    with open(_sched_path, encoding="utf-8") as _sf:
+        baked_schedule_json = _sf.read()
+else:
+    baked_schedule_json = "null"
+
 HTML_TEMPLATE = """\
 <!DOCTYPE html>
 <html lang="en">
@@ -183,6 +191,8 @@ select option{background:var(--bg3)}
 .cal-cell.cal-today-col{background:rgba(56,139,253,.05)}
 .cal-cell.cal-past-col{background:rgba(0,0,0,.12)}
 .cal-cell.cal-weekend{background:rgba(255,255,255,.012)}
+.cal-cell.cal-reliable-col{background:rgba(56,189,248,.06)}
+.cal-day-head.cal-reliable-head{background:rgba(56,189,248,.18);border-bottom:2px solid #38bdf8}
 .cal-event{border-radius:5px;padding:5px 8px 6px;font-size:11px;cursor:default;transition:filter .12s}
 .cal-event:hover{filter:brightness(1.2)}
 .cal-event.bpa{background:rgba(248,81,73,.18);border-left:3px solid #f85149}
@@ -225,13 +235,6 @@ select option{background:var(--bg3)}
 #sched-btn-row{display:flex;gap:7px;margin:10px 12px}
 #sched-load-btn{flex:1;padding:5px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text2);font-size:11px;cursor:pointer;text-align:center}
 #sched-load-btn:hover{background:var(--bg4);color:var(--text)}
-.rerun-bp-btn{flex:1;padding:5px 10px;border-radius:5px;font-size:11px;cursor:pointer;text-align:center;font-weight:600;border:1px solid}
-.rerun-bp-btn:disabled{opacity:.4;cursor:default}
-#rerun-bp-a{background:rgba(216,34,51,.12);border-color:#D82233;color:#D82233}
-#rerun-bp-a:hover:not(:disabled){background:rgba(216,34,51,.22)}
-#rerun-bp-b{background:rgba(0,98,207,.12);border-color:#0062CF;color:#0062CF}
-#rerun-bp-b:hover:not(:disabled){background:rgba(0,98,207,.22)}
-#rerun-log{margin:0 12px 10px;padding:8px 10px;background:var(--bg1);border:1px solid var(--border);border-radius:5px;font-size:10px;color:var(--text2);font-family:monospace;white-space:pre-wrap;max-height:140px;overflow-y:auto;display:none}
 #sched-timeline{position:absolute;bottom:0;left:0;right:0;background:rgba(13,17,23,.95);border-top:1px solid var(--border);padding:5px 12px calc(10px + env(safe-area-inset-bottom));z-index:401;display:flex;flex-direction:column;gap:3px}
 #sched-map-wrap .leaflet-control-attribution{margin-bottom:88px!important}
 #sched-tl-top{display:flex;align-items:center;gap:6px}
@@ -551,13 +554,10 @@ setTimeout(function(){
         </div>
         <div id="sched-btn-row">
           <label id="sched-load-btn" for="sched-file">&#x1F4C2; Load JSON</label>
-          <button id="rerun-bp-a" class="rerun-bp-btn">&#x25B6; Run BP-A &nbsp;<span style="opacity:.7;font-weight:400">CCNY</span></button>
-          <button id="rerun-bp-b" class="rerun-bp-btn">&#x25B6; Run BP-B &nbsp;<span style="opacity:.7;font-weight:400">LaGCC</span></button>
         </div>
         <input type="file" id="sched-file" accept=".json" style="display:none">
-        <div id="rerun-log"></div>
         <div id="sched-panel-body">
-          <div id="sched-no-data">No schedule loaded.<br>Click Run BP-A or Run BP-B, or load schedule_output.json.</div>
+          <div id="sched-no-data">No schedule loaded — schedule is auto-generated when new forecast data arrives.</div>
         </div>
       </div>
     </div>
@@ -572,6 +572,9 @@ setTimeout(function(){
       </div>
       <div id="cal-body">
         <div id="cal-grid"></div>
+        <div id="cal-legend" style="padding:6px 12px;font-size:10px;color:var(--text2);border-top:1px solid var(--border);display:flex;gap:16px;flex-wrap:wrap">
+          <span style="display:flex;align-items:center;gap:5px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgba(56,189,248,.35);border:1px solid #38bdf8"></span>Reliable forecast window (next 2 days)</span>
+        </div>
       </div>
     </div>
     </div>
@@ -582,6 +585,7 @@ setTimeout(function(){
 // ─── DATA ───
 const ROUTES_GEO = __ROUTES_JSON__;
 const COLLECTOR_HOMES = __COLLECTOR_HOMES__;
+const BAKED_SCHEDULE = __BAKED_SCHEDULE__;
 // Campus affiliation → pin color  (purple = CCNY, red = LaGCC, amber = staff)
 const COLLECTOR_PIN_COLOR = {
   'SOT':'#7c3aed','AYA':'#7c3aed','JEN':'#7c3aed','TAH':'#7c3aed','ANG':'#7c3aed',
@@ -1336,6 +1340,7 @@ function renderCalendar(){
   const ws=new Date(wk.weekStart+'T00:00:00');
   const we=new Date(ws); we.setDate(ws.getDate()+6);
   const tod=new Date(); tod.setHours(0,0,0,0);
+  const reliableCutoff=new Date(tod); reliableCutoff.setDate(tod.getDate()+2);
 
   if(title)title.textContent=
     ws.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' – '+
@@ -1366,7 +1371,8 @@ function renderCalendar(){
   for(let d=0;d<7;d++){
     const dd=new Date(ws); dd.setDate(ws.getDate()+d);
     const isToday=dd.getTime()===tod.getTime();
-    html+=`<div class="cal-day-head${isToday?' cal-today-head':''}">
+    const isReliable=dd>tod&&dd<=reliableCutoff;
+    html+=`<div class="cal-day-head${isToday?' cal-today-head':''}${isReliable?' cal-reliable-head':''}">
       <div class="cal-dname">${DAY_NAMES[dd.getDay()]}</div>
       <div class="cal-dnum">${dd.getDate()}</div>
     </div>`;
@@ -1381,6 +1387,7 @@ function renderCalendar(){
       const isToday=dd.getTime()===tod.getTime();
       const isPast=dd<tod;
       const isWeekend=dd.getDay()===0||dd.getDay()===6;
+      const isReliableCell=dd>tod&&dd<=reliableCutoff;
       const isRecal=wk.recal_day===dateStr;
       const walks=(byDayTod[dateStr]||{})[ctod]||[];
 
@@ -1406,7 +1413,8 @@ function renderCalendar(){
       const cls=['cal-cell',
         isToday?'cal-today-col':'',
         isPast?'cal-past-col':'',
-        isWeekend?'cal-weekend':''
+        isWeekend?'cal-weekend':'',
+        isReliableCell?'cal-reliable-col':''
       ].filter(Boolean).join(' ');
       html+=`<div class="${cls}">${cellContent}</div>`;
     }
@@ -1430,8 +1438,8 @@ function bindEvents(){
         applyScheduleColors();
         renderSchedulePanel();
         renderTimelineBar();
-        if(!schedData){
-          fetch('schedule_output.json').then(r=>r.json()).then(d=>{loadScheduleJSON(JSON.stringify(d));}).catch(()=>{});
+        if(!schedData&&BAKED_SCHEDULE&&BAKED_SCHEDULE.assignments){
+          loadScheduleJSON(JSON.stringify(BAKED_SCHEDULE));
         }
       },50);
     } else if(b.dataset.view==='calendar-view'){
@@ -1463,42 +1471,6 @@ function bindEvents(){
   });
   document.getElementById('tl-wk-now').addEventListener('click',()=>{
     tlWeekIdx=findCurrentWeekIdx(buildTlWeeks());schedStep=-1;applyScheduleColors();renderSchedulePanel();renderTimelineBar();
-  });
-  async function _runScheduler(btn, endpoint, label){
-    const logEl=document.getElementById('rerun-log');
-    const otherBtn=document.getElementById(btn.id==='rerun-bp-a'?'rerun-bp-b':'rerun-bp-a');
-    btn.disabled=true; otherBtn.disabled=true;
-    btn.innerHTML='⏳ Running…';
-    logEl.style.display='block'; logEl.textContent='';
-    try{
-      const resp=await fetch(endpoint,{method:'POST'});
-      if(!resp.ok){logEl.textContent='Server error: '+resp.status+' — is serve.py running?';return;}
-      const reader=resp.body.getReader();
-      const dec=new TextDecoder();
-      let done=false;
-      while(!done){
-        const{value,done:d}=await reader.read();
-        done=d;
-        if(value){logEl.textContent+=dec.decode(value);logEl.scrollTop=logEl.scrollHeight;}
-      }
-      const jr=await fetch('schedule_output.json?t='+Date.now());
-      if(jr.ok){const jt=await jr.text();loadScheduleJSON(jt);}
-      const lr=await fetch('Walks_Log.txt?t='+Date.now());
-      if(lr.ok){logText=await lr.text();allWalks=parseLog(logText);applyFilters();updateStatus('Walks_Log.txt');}
-      toast('Scheduler complete — dashboard refreshed','success');
-    }catch(e){
-      logEl.textContent+='\\nConnection error: '+e.message+'\\nMake sure serve.py is running (python serve.py)';
-      toast('Could not reach server','');
-    }finally{
-      btn.disabled=false; otherBtn.disabled=false;
-      btn.innerHTML=label;
-    }
-  }
-  document.getElementById('rerun-bp-a').addEventListener('click',function(){
-    _runScheduler(this,'/api/rerun/a','&#x25B6; Run BP-A &nbsp;<span style="opacity:.7;font-weight:400">CCNY</span>');
-  });
-  document.getElementById('rerun-bp-b').addEventListener('click',function(){
-    _runScheduler(this,'/api/rerun/b','&#x25B6; Run BP-B &nbsp;<span style="opacity:.7;font-weight:400">LaGCC</span>');
   });
   document.getElementById('sched-file').addEventListener('change',e=>{
     const f=e.target.files[0];if(!f)return;
@@ -1552,10 +1524,9 @@ async function init(){
     if(r.ok){logText=await r.text();src='Walks_Log.txt';}
   }catch(e){}
   let schedLoaded=false;
-  try{
-    const sr=await fetch('schedule_output.json?t='+Date.now()).catch(()=>null);
-    if(sr&&sr.ok){try{const sd=await sr.json();schedData=sd;schedLoaded=true;loadScheduleJSON(JSON.stringify(sd));}catch(e){}}
-  }catch(e){}
+  if(BAKED_SCHEDULE&&BAKED_SCHEDULE.assignments){
+    schedData=BAKED_SCHEDULE;schedLoaded=true;loadScheduleJSON(JSON.stringify(BAKED_SCHEDULE));
+  }
   try{
     allWalks=parseLog(logText);
     applyFilters();
@@ -1752,6 +1723,7 @@ HTML_TEMPLATE = HTML_TEMPLATE.replace('__ROUTES_JSON__', routes_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__AFFINITY_JSON__', affinity_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__SAMPLE_LOG__', sample_log_js)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__COLLECTOR_HOMES__', collector_homes_json)
+HTML_TEMPLATE = HTML_TEMPLATE.replace('__BAKED_SCHEDULE__', baked_schedule_json)
 
 # Fix double file reader issue
 HTML_TEMPLATE = HTML_TEMPLATE.replace(
