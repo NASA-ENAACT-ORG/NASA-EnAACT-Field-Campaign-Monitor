@@ -300,14 +300,40 @@ body.scheduler-mode .cal-event .ce-actions{display:flex}
 .tl-dot.tl-past{opacity:.38}.tl-dot.tl-current{opacity:1;box-shadow:0 0 0 2px #fff4}.tl-dot.tl-future{opacity:.75}
 .tl-day-recal{font-size:8px;color:#f0a500;letter-spacing:.3px}
 .tl-day-sep{width:1px;background:var(--border);align-self:stretch;flex-shrink:0}
-#cselector{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:12px;width:100%}
-.cc{aspect-ratio:1;padding:18px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;cursor:pointer;transition:all .15s;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
-.cc:hover{border-color:var(--accent);background:var(--bg3)}
+/* Collector groups */
+#cselector{display:flex;flex-direction:column;gap:14px;width:100%}
+.cgroup{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.cgroup-head{display:flex;align-items:center;gap:9px;padding:9px 14px;border-bottom:1px solid var(--border)}
+.cgroup-head .cg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.cgroup-head .cg-title{font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px}
+.cgroup-head .cg-sub{font-size:10px;color:var(--text3);margin-left:auto}
+.cgroup.ccny{border-color:rgba(124,58,237,.35)}
+.cgroup.ccny .cgroup-head{background:rgba(124,58,237,.08);border-bottom-color:rgba(124,58,237,.25)}
+.cgroup.ccny .cg-dot{background:#7c3aed}
+.cgroup.ccny .cg-title{color:#a78bfa}
+.cgroup.lagcc{border-color:rgba(220,38,38,.35)}
+.cgroup.lagcc .cgroup-head{background:rgba(220,38,38,.08);border-bottom-color:rgba(220,38,38,.25)}
+.cgroup.lagcc .cg-dot{background:#dc2626}
+.cgroup.lagcc .cg-title{color:#f87171}
+.cgroup.staff{border-color:rgba(107,114,128,.3)}
+.cgroup.staff .cgroup-head{background:rgba(107,114,128,.07);border-bottom-color:rgba(107,114,128,.2)}
+.cgroup.staff .cg-dot{background:#6b7280}
+.cgroup.staff .cg-title{color:#9ca3af}
+.cgroup-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;padding:12px}
+.cc{aspect-ratio:1;padding:16px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:all .15s;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
+.cc:hover{border-color:var(--accent);background:var(--bg4)}
 .cc.active{border-color:var(--accent);background:rgba(56,139,253,.12)}
-.cc .cn{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.cc .ci{font-size:11px;color:var(--text2);margin-top:3px}
-.cc .cw{font-size:30px;font-weight:700;color:var(--accent);line-height:1.1;margin-top:7px}
-.cc .cwl{font-size:10px;color:var(--text3);margin-top:2px}
+.cgroup.ccny .cc.active{border-color:#7c3aed;background:rgba(124,58,237,.15)}
+.cgroup.lagcc .cc.active{border-color:#dc2626;background:rgba(220,38,38,.12)}
+.cgroup.staff .cc.active{border-color:var(--text3);background:rgba(107,114,128,.12)}
+.cc .cn{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.cc .ci{font-size:10px;color:var(--text3);margin-top:3px;font-family:'Space Grotesk',sans-serif;letter-spacing:.5px}
+.cc .cw{font-size:32px;font-weight:700;line-height:1.1;margin-top:6px}
+.cgroup.ccny .cc .cw{color:#a78bfa}
+.cgroup.lagcc .cc .cw{color:#f87171}
+.cgroup.staff .cc .cw{color:var(--text2)}
+.cc.active .cw{color:var(--accent)!important}
+.cc .cwl{font-size:9px;color:var(--text3);margin-top:2px}
 #cdetail{display:flex;gap:12px;flex-wrap:wrap}
 .dcard{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:13px}
 #dstats{flex:0 0 auto;min-width:240px}
@@ -414,8 +440,11 @@ body.scheduler-mode .cal-event .ce-actions{display:flex}
   .cal-dnum{font-size:16px}
   .cal-day-head{padding:4px 2px}
   .cal-dname{font-size:9px}
-  #collector-view{padding:10px 12px;gap:10px}
-  .cw{height:100px}
+  #collector-view{padding:10px 10px;gap:10px}
+  .cgroup-tiles{grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;padding:9px}
+  .cc{padding:12px 8px}
+  .cc .cw{font-size:26px}
+  .cc .cn{font-size:13px}
   #cdetail{flex-direction:column}
   #dstats{min-width:auto;width:100%}
   #dcharts{min-width:auto;width:100%}
@@ -980,14 +1009,29 @@ function getWinsFor(cid,win){
   if(filters.backpack)base=base.filter(w=>w.bp===filters.backpack);
   return base.filter(w=>inWin(w,win));
 }
+const COLLECTOR_GROUPS=[
+  {id:'ccny', cls:'ccny', title:'CCNY', sub:'Backpack A', members:['SOT','AYA','JEN','TAH']},
+  {id:'lagcc',cls:'lagcc',title:'LaGCC',sub:'Backpack B', members:['TER','ALX','SCT','JAM']},
+  {id:'staff',cls:'staff',title:'Staff',sub:'Non-scheduled',members:['NRS','PRA','NAT']},
+];
 function renderCollectorSelector(){
   const el=document.getElementById('cselector');
-  el.innerHTML=COLLECTORS.map(cid=>{
-    const tot=filteredWalks.filter(w=>w.collector===cid).length;
-    return`<div class="cc${cid===currentCollector?' active':''}" data-cid="${cid}">
-      <div class="cn">${CNAMES[cid]}</div>
-      <div class="cw">${tot}</div>
-      <div class="ci">${cid}</div>
+  el.innerHTML=COLLECTOR_GROUPS.map(g=>{
+    const tiles=g.members.map(cid=>{
+      const tot=filteredWalks.filter(w=>w.collector===cid).length;
+      return`<div class="cc${cid===currentCollector?' active':''}" data-cid="${cid}">
+        <div class="cn">${CNAMES[cid]}</div>
+        <div class="cw">${tot}</div>
+        <div class="ci">${cid}</div>
+      </div>`;
+    }).join('');
+    return`<div class="cgroup ${g.cls}">
+      <div class="cgroup-head">
+        <div class="cg-dot"></div>
+        <span class="cg-title">${g.title}</span>
+        <span class="cg-sub">${g.sub}</span>
+      </div>
+      <div class="cgroup-tiles">${tiles}</div>
     </div>`;
   }).join('');
   el.querySelectorAll('.cc').forEach(c=>c.addEventListener('click',()=>{
@@ -1023,8 +1067,6 @@ function renderCollectorDetail(cid){
         <div style="font-size:10px;color:var(--text2)">${t}</div>
       </div>`).join('')}
     </div>
-    <div class="stl">Route Affinity</div>
-    <div class="apills">${afHtml||'<span class="ap none">None assigned</span>'}</div>
   `;
   // Charts
   const routeWalks={};
