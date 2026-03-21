@@ -162,8 +162,11 @@ COLLECTOR_KML_NAMES = {
     "SCT": "Scott",
     "TER": "Terra",
     "ANG": "Angy",
-    # TAH, PRA, NAT, NRS have no KML entry
+    "TAH": "Taha",
+    "NRS": "Prof. Naresh Devineni",
+    "PRA": "Prof. Prathap Ramamurthy",
 }
+COLLECTOR_ID_TO_NAME = COLLECTOR_KML_NAMES
 
 # Route definitions: boro code → neighbourhood codes
 ROUTES: Dict[str, List[str]] = {
@@ -1579,6 +1582,74 @@ def _generate_schedule_map(
         tiles="CartoDB positron",
     )
 
+    # ── Collector area polylines from borough KMLs ───────────────────────────
+    _boro_kml_files = {
+        "bronx":     KML_DIR / "aq routes - bronx.kml",
+        "brooklyn":  KML_DIR / "aq routes - brooklyn.kml",
+        "manhattan": KML_DIR / "aq routes - manhattan.kml",
+        "queens":    KML_DIR / "aq routes - queens.kml",
+    }
+    _boro_route_colors = {"MN": "#a78bfa", "BX": "#fb923c", "BK": "#34d399", "QN": "#60a5fa"}
+    _ns_kml = {"k": "http://www.opengis.net/kml/2.2"}
+    areas_group = folium.FeatureGroup(name="Collection Areas", show=True)
+    for _boro, _kml_file in _boro_kml_files.items():
+        try:
+            _tree = ET.parse(_kml_file)
+        except (ET.ParseError, OSError):
+            continue
+        for _pm in _tree.getroot().findall(".//k:Placemark", _ns_kml):
+            _nm_el = _pm.find("k:name", _ns_kml)
+            _nm    = (_nm_el.text or "").strip() if _nm_el is not None else ""
+            _rc    = KML_NAME_TO_ROUTE.get(_nm)
+            if not _rc:
+                continue
+            _boro_prefix = _rc.split("_")[0]
+            _color = _boro_route_colors.get(_boro_prefix, "#94a3b8")
+            for _ls in _pm.findall(".//k:LineString/k:coordinates", _ns_kml):
+                _pts = []
+                for _tok in (_ls.text or "").split():
+                    _p = _tok.split(",")
+                    if len(_p) >= 2:
+                        try:
+                            _pts.append([float(_p[1]), float(_p[0])])
+                        except ValueError:
+                            pass
+                if len(_pts) >= 2:
+                    folium.PolyLine(
+                        locations=_pts,
+                        color=_color,
+                        weight=3,
+                        opacity=0.55,
+                        tooltip=ROUTE_LABELS.get(_rc, _nm),
+                    ).add_to(areas_group)
+    areas_group.add_to(m)
+
+    # ── Collector home pins ──────────────────────────────────────────────────
+    _collector_homes = parse_collector_locs()
+    _bp_for_cid = {cid: bp for bp, members in BACKPACK_COLLECTORS.items() for cid in members}
+    homes_group = folium.FeatureGroup(name="Collector Homes", show=True)
+    for cid, (lat, lon) in _collector_homes.items():
+        bp   = _bp_for_cid.get(cid, "A")
+        col  = BP_COLORS[bp]
+        name = COLLECTOR_ID_TO_NAME.get(cid, cid)
+        folium.Marker(
+            location=[lat, lon],
+            tooltip=f"{name} ({cid}) — BP {bp}",
+            popup=folium.Popup(f"<b>{name}</b><br>Backpack {bp}", max_width=160),
+            icon=folium.DivIcon(
+                html=(
+                    f'<div style="background:{col};color:#fff;border:2px solid #fff;'
+                    f'border-radius:50%;width:22px;height:22px;display:flex;'
+                    f'align-items:center;justify-content:center;font-size:9px;'
+                    f'font-weight:700;box-shadow:0 0 4px rgba(0,0,0,.5);">'
+                    f'{cid}</div>'
+                ),
+                icon_size=(22, 22),
+                icon_anchor=(11, 11),
+            ),
+        ).add_to(homes_group)
+    homes_group.add_to(m)
+
     # Group assignments by backpack, sorted chronologically
     for bp in ("A", "B"):
         bp_entries = sorted(
@@ -1689,6 +1760,7 @@ def _generate_schedule_map(
         f"{week_start.strftime('%b %d')} - {week_end.strftime('%b %d, %Y')}",
     )
     m.get_root().html.add_child(folium.Element(legend_html))
+    folium.LayerControl(collapsed=False).add_to(m)
 
     map_path = BASE_DIR / "schedule_map.html"
     m.save(str(map_path))

@@ -1,6 +1,6 @@
 {
   "generated": "2026-03-21",
-  "generated_at": "2026-03-21T15:39:19.679136",
+  "generated_at": "2026-03-21T15:45:59.474064",
   "week_start": "2026-03-19",
   "week_end": "2026-03-25",
   "recal_day": null,
@@ -17,10 +17,10 @@
       "preserved": false
     },
     {
-      "route": "MN_LE",
-      "label": "Manhattan \u2013 Union Sq/LES",
-      "boro": "MN",
-      "neigh": "LE",
+      "route": "QN_LA",
+      "label": "Queens \u2013 LaGuardia CC",
+      "boro": "QN",
+      "neigh": "LA",
       "tod": "AM",
       "backpack": "B",
       "collector": "SCT",
@@ -92,6 +92,20 @@
       "reason": "no_open_slot"
     },
     {
+      "route": "QN_JH",
+      "label": "Queens \u2013 Jackson Heights",
+      "tod": "AM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "MN_LE",
+      "label": "Manhattan \u2013 Union Sq/LES",
+      "tod": "AM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
       "route": "MN_LE",
       "label": "Manhattan \u2013 Union Sq/LES",
       "tod": "MD",
@@ -113,8 +127,8 @@
       "reason": "no_open_slot"
     },
     {
-      "route": "QN_LA",
-      "label": "Queens \u2013 LaGuardia CC",
+      "route": "QN_EE",
+      "label": "Queens \u2013 East Elmhurst",
       "tod": "AM",
       "backpack": "B",
       "reason": "no_open_slot"
@@ -186,6 +200,13 @@
       "route": "BK_DT",
       "label": "Brooklyn \u2013 Downtown BK",
       "tod": "PM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_FU",
+      "label": "Queens \u2013 Flushing",
+      "tod": "AM",
       "backpack": "B",
       "reason": "no_open_slot"
     },
@@ -213,13 +234,6 @@
     {
       "route": "QN_JH",
       "label": "Queens \u2013 Jackson Heights",
-      "tod": "AM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_JH",
-      "label": "Queens \u2013 Jackson Heights",
       "tod": "MD",
       "backpack": "B",
       "reason": "no_open_slot"
@@ -228,20 +242,6 @@
       "route": "QN_JH",
       "label": "Queens \u2013 Jackson Heights",
       "tod": "PM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_EE",
-      "label": "Queens \u2013 East Elmhurst",
-      "tod": "AM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_EE",
-      "label": "Queens \u2013 East Elmhurst",
-      "tod": "MD",
       "backpack": "B",
       "reason": "no_open_slot"
     }
