@@ -310,7 +310,30 @@ def _poll_forecast_pdfs() -> tuple[int, str | None]:
         return 0, "Drive auth failed (GOOGLE_SERVICE_ACCOUNT_JSON missing or invalid)"
 
     state = _load_forecast_state()  # {file_id: modifiedTime}
-    pdfs = _drive_list_files(service, DRIVE_FORECASTS_FOLDER_ID, mime="application/pdf")
+
+    # Collect PDFs: top-level + one level of month subfolders (e.g. "March 2026/")
+    def _list_all_forecast_pdfs() -> list:
+        results: list = []
+        try:
+            resp = service.files().list(
+                q=f"'{DRIVE_FORECASTS_FOLDER_ID}' in parents and trashed=false",
+                fields="files(id,name,mimeType,modifiedTime)",
+                pageSize=200,
+            ).execute()
+            items = resp.get("files", [])
+        except Exception as e:
+            print(f"[forecast] Error listing root folder: {e}")
+            return results
+        for item in items:
+            if item.get("mimeType") == "application/pdf":
+                results.append(item)
+            elif item.get("mimeType") == "application/vnd.google-apps.folder":
+                # Recurse one level into month subfolders
+                sub = _drive_list_files(service, item["id"], mime="application/pdf")
+                results.extend(sub)
+        return results
+
+    pdfs = _list_all_forecast_pdfs()
 
     new_pdfs = [f for f in pdfs if state.get(f["id"]) != f.get("modifiedTime")]
     if not new_pdfs:

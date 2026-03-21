@@ -2149,7 +2149,7 @@ def main() -> None:
 
     # ── Step 7a ─────────────────────────────────────────────────────────────
     print("▶ Step 7a Ranked recommendations …")
-    print_ranked_table(scored, route_coords, top_n=8, bp_filter=bp_filter)
+    print_ranked_table(scored, route_coords, top_n=20, bp_filter=bp_filter)
 
     # ── Recalibration day ───────────────────────────────────────────────────
     today_                       = date.today()
@@ -2204,7 +2204,7 @@ def main() -> None:
         scored, availability, weather, route_coords,
         week_start, week_end,
         recal_day=recal_day,
-        top_n=8,
+        top_n=30,
         season_counts=season_counts,
         bp_filter=bp_filter,
         preserved_assignments=preserved_assignments,

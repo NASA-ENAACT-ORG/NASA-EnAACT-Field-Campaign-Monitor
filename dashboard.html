@@ -182,8 +182,11 @@ select option{background:var(--bg3)}
 .status-badge.pending{background:rgba(201,209,217,.12);color:#8b949e}
 .status-badge.confirmed{background:rgba(63,185,80,.15);color:#3fb950}
 .status-badge.denied{background:rgba(248,81,73,.15);color:#f85149}
-.sched-row .sr-actions{display:flex;gap:4px;margin-left:auto;flex-shrink:0;min-width:112px;visibility:hidden}
-.sched-row .sr-actions button{padding:2px 7px;border-radius:4px;font-size:9px;font-weight:600;cursor:pointer;border:1px solid}
+.sched-row .sr-actions{display:flex;gap:4px;flex-shrink:0;visibility:hidden}
+.sched-row .sr-actions button{padding:2px 6px;border-radius:4px;font-size:9px;font-weight:600;cursor:pointer;border:1px solid}
+body.scheduler-mode .sched-row{flex-wrap:wrap}
+body.scheduler-mode .sched-row .sr-route{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body.scheduler-mode .sched-row .sr-actions{width:100%;margin-left:0;justify-content:flex-end;margin-top:3px;padding-left:70px}
 .sr-confirm-btn{background:rgba(63,185,80,.15);border-color:#3fb950!important;color:#3fb950!important}
 .sr-deny-btn{background:rgba(248,81,73,.15);border-color:#f85149!important;color:#f85149!important}
 .sr-reset-btn{background:var(--bg3);border-color:var(--border)!important;color:var(--text2)!important}
@@ -241,14 +244,14 @@ body.scheduler-mode .cal-event .ce-actions{display:flex}
 .cgroup.staff .cgroup-head{background:rgba(107,114,128,.07);border-bottom-color:rgba(107,114,128,.2)}
 .cgroup.staff .cg-dot{background:#6b7280}
 .cgroup.staff .cg-title{color:#9ca3af}
-.cgroup-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;padding:12px}
-.cc{aspect-ratio:1;padding:16px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:all .15s;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
+.cgroup-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:10px;padding:12px}
+.cc{aspect-ratio:1;padding:20px 10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:all .15s;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:visible}
 .cc:hover{border-color:var(--accent);background:var(--bg4)}
 .cc.active{border-color:var(--accent);background:rgba(56,139,253,.12)}
 .cgroup.ccny .cc.active{border-color:#7c3aed;background:rgba(124,58,237,.15)}
 .cgroup.lagcc .cc.active{border-color:#dc2626;background:rgba(220,38,38,.12)}
 .cgroup.staff .cc.active{border-color:var(--text3);background:rgba(107,114,128,.12)}
-.cc .cn{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.cc .cn{font-size:13px;font-weight:700;white-space:normal;overflow:visible;line-height:1.25;max-width:100%;word-break:break-word}
 .cc .ci{font-size:10px;color:var(--text3);margin-top:3px;font-family:'Space Grotesk',sans-serif;letter-spacing:.5px}
 .cc .cw{font-size:32px;font-weight:700;line-height:1.1;margin-top:6px}
 .cgroup.ccny .cc .cw{color:#a78bfa}
@@ -363,8 +366,8 @@ body.scheduler-mode .cal-event .ce-actions{display:flex}
   .cal-day-head{padding:4px 2px}
   .cal-dname{font-size:9px}
   #collector-view{padding:10px 10px;gap:10px}
-  .cgroup-tiles{grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;padding:9px}
-  .cc{padding:12px 8px}
+  .cgroup-tiles{grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:8px;padding:9px}
+  .cc{padding:14px 6px 10px}
   .cc .cw{font-size:26px}
   .cc .cn{font-size:13px}
   #cdetail{flex-direction:column}
