@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>NASA EnAACT – Collector Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f1117;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* ── Header ── */
+#app-header{
+  background:#13151f;border-bottom:1px solid #2a2d3e;
+  padding:10px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0;
+  z-index:2000;
+}
+#app-header .logo{font-size:11px;font-weight:700;letter-spacing:.08em;color:#4f8ef7;text-transform:uppercase}
+#app-header .title{font-size:13px;font-weight:600;color:#c8cfe8}
+#app-header .sep{color:#3a3d52;font-size:16px}
+#app-header .subtitle{font-size:12px;color:#6b7099}
+
+/* ── Layout ── */
+#stage{flex:1;position:relative;overflow:hidden}
+
+/* ── Map ── */
+#map{position:absolute;inset:0;background:#0d0f18}
+
+/* ── Sidebar ── */
+#sidebar{
+  position:absolute;top:0;right:0;width:360px;height:100%;
+  background:#13151f;border-left:1px solid #2a2d3e;
+  transform:translateX(100%);transition:transform .28s cubic-bezier(.4,0,.2,1);
+  z-index:1000;display:flex;flex-direction:column;overflow:hidden;
+}
+#sidebar.open{transform:translateX(0)}
+
+#sb-close{
+  position:absolute;top:10px;right:12px;
+  width:28px;height:28px;border-radius:50%;
+  background:#1e2135;border:1px solid #2a2d3e;
+  color:#8891b4;cursor:pointer;font-size:14px;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .15s,color .15s;z-index:10;
+}
+#sb-close:hover{background:#2a2d3e;color:#e2e8f0}
+
+#sb-scroll{flex:1;overflow-y:auto;padding-bottom:24px}
+#sb-scroll::-webkit-scrollbar{width:4px}
+#sb-scroll::-webkit-scrollbar-track{background:transparent}
+#sb-scroll::-webkit-scrollbar-thumb{background:#2a2d3e;border-radius:2px}
+
+/* ── Sidebar header ── */
+.sb-head{
+  padding:20px 20px 16px;
+  border-bottom:1px solid #1e2135;
+  display:flex;align-items:center;gap:14px;
+  border-left:4px solid var(--c);
+}
+.sb-avatar{
+  width:46px;height:46px;border-radius:50%;
+  background:var(--c);display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:14px;color:#fff;flex-shrink:0;
+  box-shadow:0 0 0 3px rgba(255,255,255,.1);
+}
+.sb-name{font-size:15px;font-weight:700;color:#e2e8f0}
+.sb-id{font-size:11px;color:#6b7099;margin-top:2px;font-family:monospace;letter-spacing:.06em}
+
+/* ── Stat cards ── */
+.stats-row{display:flex;gap:8px;padding:14px 16px}
+.stat-card{
+  flex:1;background:#1a1d2e;border:1px solid #2a2d3e;border-radius:8px;
+  padding:10px 8px;text-align:center;
+}
+.stat-val{font-size:22px;font-weight:800;color:#e2e8f0;line-height:1}
+.stat-lbl{font-size:10px;color:#6b7099;margin-top:4px;text-transform:uppercase;letter-spacing:.06em}
+
+/* ── Sections ── */
+.section{padding:12px 16px 4px}
+.sec-title{
+  font-size:10px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:#4f8ef7;margin-bottom:10px;
+}
+
+/* ── TOD bars ── */
+.tod-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.tod-lbl{width:24px;font-size:11px;font-weight:600;color:#8891b4;flex-shrink:0}
+.tod-bg{flex:1;height:8px;background:#1e2135;border-radius:4px;overflow:hidden}
+.tod-fill{height:100%;border-radius:4px;transition:width .4s ease}
+.tod-num{width:20px;font-size:11px;color:#8891b4;text-align:right;flex-shrink:0}
+
+/* ── Availability grid ── */
+.avail-grid{display:grid;grid-template-columns:32px repeat(7,1fr);gap:3px;font-size:10px}
+.ag-head{color:#6b7099;text-align:center;font-weight:600;padding:2px 0}
+.ag-tod{color:#8891b4;font-weight:700;display:flex;align-items:center;font-size:10px}
+.ag-cell{
+  height:22px;border-radius:4px;display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:600;
+}
+.ag-yes{background:#1a3a2a;color:#34d399}
+.ag-no{background:#1e2135;color:#3a3d52}
+
+/* ── Walk rows ── */
+.walk-row{
+  display:flex;align-items:center;gap:8px;padding:6px 0;
+  border-bottom:1px solid #1a1d2e;
+}
+.walk-row:last-child{border-bottom:none}
+.tod-badge{
+  font-size:9px;font-weight:800;padding:2px 5px;border-radius:4px;
+  text-transform:uppercase;flex-shrink:0;letter-spacing:.04em;
+}
+.tod-AM{background:#332a00;color:#fbbf24}
+.tod-MD{background:#0d1f3f;color:#60a5fa}
+.tod-PM{background:#1e1035;color:#a78bfa}
+.walk-route{flex:1;font-size:12px;color:#c8cfe8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.walk-date{font-size:10px;color:#6b7099;flex-shrink:0;font-family:monospace}
+.walk-bp{font-size:9px;color:#4f8ef7;background:#0d1f3f;padding:1px 5px;border-radius:3px;flex-shrink:0}
+
+/* ── Preference list ── */
+.pref-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #1a1d2e}
+.pref-row:last-child{border-bottom:none}
+.pref-name{flex:1;font-size:12px;color:#c8cfe8}
+.pref-score{display:flex;gap:3px}
+.pref-dot{width:8px;height:8px;border-radius:50%}
+.dot-on{background:#4f8ef7}
+.dot-off{background:#2a2d3e}
+
+/* ── Legend ── */
+#legend{
+  position:absolute;bottom:24px;left:12px;
+  background:rgba(19,21,31,.92);border:1px solid #2a2d3e;
+  border-radius:10px;padding:10px 12px;z-index:500;
+  backdrop-filter:blur(6px);min-width:130px;
+}
+.leg-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#4f8ef7;margin-bottom:8px}
+.leg-row{display:flex;align-items:center;gap:7px;margin-bottom:5px;cursor:pointer;opacity:.85;transition:opacity .15s}
+.leg-row:hover{opacity:1}
+.leg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.leg-name{font-size:11px;color:#c8cfe8}
+.leg-count{font-size:10px;color:#6b7099;margin-left:auto;padding-left:6px}
+
+/* ── Map pin styling ── */
+.cpin-icon{background:transparent!important;border:none!important}
+</style>
+</head>
+<body>
+
+<div id="app-header">
+  <span class="logo">NASA EnAACT</span>
+  <span class="sep">|</span>
+  <span class="title">Field Campaign Monitor</span>
+  <span class="sep">—</span>
+  <span class="subtitle">Collector Map</span>
+</div>
+
+<div id="stage">
+  <div id="map"></div>
+
+  <div id="sidebar">
+    <button id="sb-close" title="Close">✕</button>
+    <div id="sb-scroll">
+      <div id="sb-content"></div>
+    </div>
+  </div>
+
+  <div id="legend">
+    <div class="leg-title">Collectors</div>
+    <div id="leg-body"></div>
+  </div>
+</div>
+
+<script>
+const COLLECTORS = {"SOT": {"id": "SOT", "name": "Soteri", "color": "#7c3aed", "lat": 40.757137, "lng": -73.971896, "total": 2, "month": 2, "week": 1, "tod": {"AM": 1, "MD": 1, "PM": 0}, "recent": [{"collector": "SOT", "route": "MN_MT", "boro": "MN", "neigh": "MT", "date": "2026-03-18", "tod": "AM"}, {"collector": "SOT", "route": "MN_HT", "boro": "MN", "neigh": "HT", "date": "2026-03-09", "tod": "MD"}], "upcoming": [], "routes": {"MN_HT": 1, "MN_MT": 1}, "avail": {"AM": [false, false, false, false, false, false, false], "MD": [false, false, true, true, true, true, true], "PM": [false, false, false, false, false, true, true]}, "pref": [{"route": "MN_HT", "score": 3, "name": "Harlem"}, {"route": "MN_UE", "score": 3, "name": "Upper East Side"}, {"route": "MN_MT", "score": 3, "name": "Midtown"}, {"route": "MN_LE", "score": 3, "name": "Union Square/LES"}, {"route": "BK_DT", "score": 2, "name": "Downtown Brooklyn"}, {"route": "BK_WB", "score": 2, "name": "Williamsburg"}, {"route": "BK_SP", "score": 2, "name": "Sunset Park"}, {"route": "MN_WH", "score": 2, "name": "Washington Heights"}, {"route": "QN_LI", "score": 2, "name": "Astoria/LIC"}, {"route": "QN_LA", "score": 2, "name": "LaGuardia Community College"}, {"route": "BX_NW", "score": 1, "name": "Norwood"}, {"route": "BX_HP", "score": 1, "name": "Hunts Point"}, {"route": "BK_BS", "score": 1, "name": "Bed Sty"}, {"route": "BK_CH", "score": 1, "name": "Crown Heights"}, {"route": "QN_FU", "score": 1, "name": "Flushing"}, {"route": "QN_JH", "score": 1, "name": "Jackson Heights"}, {"route": "QN_FH", "score": 1, "name": "Forest Hills"}, {"route": "QN_EE", "score": 1, "name": "East Elmhurst"}]}, "AYA": {"id": "AYA", "name": "Aya Nasri", "color": "#7c3aed", "lat": 40.6693, "lng": -73.941926, "total": 0, "month": 0, "week": 0, "tod": {"AM": 0, "MD": 0, "PM": 0}, "recent": [], "upcoming": [{"route": "MN_MT", "label": "Manhattan \u2013 Midtown", "boro": "MN", "neigh": "MT", "tod": "MD", "backpack": "B", "collector": "AYA", "date": "2026-03-20"}, {"route": "MN_MT", "label": "Manhattan \u2013 Midtown", "boro": "MN", "neigh": "MT", "tod": "PM", "backpack": "B", "collector": "AYA", "date": "2026-03-21"}], "routes": {}, "avail": {"AM": [false, false, false, false, false, false, false], "MD": [false, true, false, true, false, true, true], "PM": [false, false, false, false, true, true, true]}, "pref": [{"route": "BK_DT", "score": 3, "name": "Downtown Brooklyn"}, {"route": "BK_WB", "score": 3, "name": "Williamsburg"}, {"route": "BK_BS", "score": 3, "name": "Bed Sty"}, {"route": "BK_CH", "score": 3, "name": "Crown Heights"}, {"route": "BK_SP", "score": 3, "name": "Sunset Park"}, {"route": "BK_CI", "score": 3, "name": "Coney Island"}, {"route": "MN_MT", "score": 3, "name": "Midtown"}, {"route": "MN_LE", "score": 3, "name": "Union Square/LES"}, {"route": "MN_UE", "score": 2, "name": "Upper East Side"}, {"route": "QN_LI", "score": 2, "name": "Astoria/LIC"}]}, "TAH": {"id": "TAH", "name": "Taha", "color": "#7c3aed", "lat": 40.753384, "lng": -73.906652, "total": 0, "month": 0, "week": 0, "tod": {"AM": 0, "MD": 0, "PM": 0}, "recent": [], "upcoming": [{"route": "MN_UE", "label": "Manhattan \u2013 Upper East Side", "boro": "MN", "neigh": "UE", "tod": "AM", "backpack": "A", "collector": "TAH", "date": "2026-03-20"}], "routes": {}, "avail": {"AM": [false, false, false, false, false, false, false], "MD": [false, true, true, true, true, true, false], "PM": [false, false, false, true, false, false, false]}, "pref": [{"route": "MN_HT", "score": 3, "name": "Harlem"}, {"route": "QN_FU", "score": 3, "name": "Flushing"}, {"route": "QN_LI", "score": 3, "name": "Astoria/LIC"}, {"route": "QN_JH", "score": 3, "name": "Jackson Heights"}, {"route": "QN_JA", "score": 3, "name": "Jamaica"}, {"route": "QN_FH", "score": 3, "name": "Forest Hills"}, {"route": "QN_LA", "score": 3, "name": "LaGuardia Community College"}, {"route": "QN_EE", "score": 3, "name": "East Elmhurst"}, {"route": "BK_WB", "score": 2, "name": "Williamsburg"}, {"route": "MN_WH", "score": 2, "name": "Washington Heights"}, {"route": "MN_UE", "score": 2, "name": "Upper East Side"}, {"route": "MN_MT", "score": 2, "name": "Midtown"}, {"route": "MN_LE", "score": 2, "name": "Union Square/LES"}, {"route": "BK_DT", "score": 1, "name": "Downtown Brooklyn"}, {"route": "BK_BS", "score": 1, "name": "Bed Sty"}]}, "JEN": {"id": "JEN", "name": "Jennifer", "color": "#7c3aed", "lat": 40.764286, "lng": -73.924059, "total": 2, "month": 2, "week": 0, "tod": {"AM": 0, "MD": 0, "PM": 2}, "recent": [{"collector": "JEN", "route": "QN_LI", "boro": "QN", "neigh": "LI", "date": "2026-03-10", "tod": "PM"}, {"collector": "JEN", "route": "MN_HT", "boro": "MN", "neigh": "HT", "date": "2026-03-02", "tod": "PM"}], "upcoming": [{"route": "MN_LE", "label": "Manhattan \u2013 Union Sq/LES", "boro": "MN", "neigh": "LE", "tod": "PM", "backpack": "B", "collector": "JEN", "date": "2026-03-24"}], "routes": {"QN_LI": 1, "MN_HT": 1}, "avail": {"AM": [false, false, false, false, false, false, false], "MD": [false, false, true, false, false, false, true], "PM": [false, false, false, false, false, false, true]}, "pref": [{"route": "BK_WB", "score": 3, "name": "Williamsburg"}, {"route": "BK_BS", "score": 3, "name": "Bed Sty"}, {"route": "MN_UE", "score": 3, "name": "Upper East Side"}, {"route": "MN_MT", "score": 3, "name": "Midtown"}, {"route": "MN_LE", "score": 3, "name": "Union Square/LES"}, {"route": "QN_LI", "score": 3, "name": "Astoria/LIC"}, {"route": "QN_JH", "score": 3, "name": "Jackson Heights"}, {"route": "QN_FH", "score": 3, "name": "Forest Hills"}, {"route": "QN_EE", "score": 3, "name": "East Elmhurst"}, {"route": "BK_DT", "score": 2, "name": "Downtown Brooklyn"}, {"route": "MN_HT", "score": 2, "name": "Harlem"}, {"route": "QN_FU", "score": 2, "name": "Flushing"}, {"route": "QN_LA", "score": 2, "name": "LaGuardia Community College"}, {"route": "BX_HP", "score": 1, "name": "Hunts Point"}, {"route": "BK_SP", "score": 1, "name": "Sunset Park"}, {"route": "MN_WH", "score": 1, "name": "Washington Heights"}]}, "ANG": {"id": "ANG", "name": "Angy", "color": "#7c3aed", "lat": 40.6666, "lng": -74.086, "total": 0, "month": 0, "week": 0, "tod": {"AM": 0, "MD": 0, "PM": 0}, "recent": [], "upcoming": [], "routes": {}, "avail": {"AM": [false, false, false, false, false, false, false], "MD": [false, true, false, true, false, false, false], "PM": [false, true, false, true, false, false, false]}, "pref": []}, "TER": {"id": "TER", "name": "Terra", "color": "#dc2626", "lat": 40.687309, "lng": -73.941589, "total": 1, "month": 1, "week": 0, "tod": {"AM": 1, "MD": 0, "PM": 0}, "recent": [{"collector": "TER", "route": "BK_BS", "boro": "BK", "neigh": "BS", "date": "2026-03-12", "tod": "AM"}], "upcoming": [], "routes": {"BK_BS": 1}, "avail": {"AM": [false, false, false, false, false, false, false], "MD": [false, false, true, true, true, true, true], "PM": [false, false, false, false, false, true, false]}, "pref": [{"route": "BK_DT", "score": 3, "name": "Downtown Brooklyn"}, {"route": "BK_WB", "score": 3, "name": "Williamsburg"}, {"route": "BK_BS", "score": 3, "name": "Bed Sty"}, {"route": "BK_CH", "score": 3, "name": "Crown Heights"}, {"route": "QN_LA", "score": 3, "name": "LaGuardia Community College"}, {"route": "BK_SP", "score": 2, "name": "Sunset Park"}, {"route": "MN_HT", "score": 2, "name": "Harlem"}, {"route": "MN_UE", "score": 2, "name": "Upper East Side"}, {"route": "MN_MT", "score": 2, "name": "Midtown"}, {"route": "MN_LE", "score": 2, "name": "Union Square/LES"}, {"route": "QN_LI", "score": 2, "name": "Astoria/LIC"}, {"route": "BX_HP", "score": 1, "name": "Hunts Point"}, {"route": "BK_CI", "score": 1, "name": "Coney Island"}, {"route": "MN_WH", "score": 1, "name": "Washington Heights"}, {"route": "QN_FU", "score": 1, "name": "Flushing"}, {"route": "QN_JH", "score": 1, "name": "Jackson Heights"}, {"route": "QN_JA", "score": 1, "name": "Jamaica"}, {"route": "QN_FH", "score": 1, "name": "Forest Hills"}, {"route": "QN_EE", "score": 1, "name": "East Elmhurst"}]}, "ALX": {"id": "ALX", "name": "Alex", "color": "#dc2626", "lat": 40.67643, "lng": -73.813913, "total": 1, "month": 1, "week": 0, "tod": {"AM": 0, "MD": 1, "PM": 0}, "recent": [{"collector": "ALX", "route": "QN_LA", "boro": "QN", "neigh": "LA", "date": "2026-03-09", "tod": "MD"}], "upcoming": [], "routes": {"QN_LA": 1}, "avail": {"AM": [false, false, false, false, false, false, false], "MD": [false, true, true, true, true, true, true], "PM": [false, true, false, false, false, true, true]}, "pref": [{"route": "QN_LI", "score": 3, "name": "Astoria/LIC"}, {"route": "QN_JH", "score": 3, "name": "Jackson Heights"}, {"route": "QN_JA", "score": 3, "name": "Jamaica"}, {"route": "QN_LA", "score": 3, "name": "LaGuardia Community College"}, {"route": "BK_WB", "score": 2, "name": "Williamsburg"}, {"route": "BK_BS", "score": 2, "name": "Bed Sty"}, {"route": "QN_FU", "score": 2, "name": "Flushing"}, {"route": "QN_FH", "score": 2, "name": "Forest Hills"}, {"route": "MN_UE", "score": 1, "name": "Upper East Side"}, {"route": "MN_MT", "score": 1, "name": "Midtown"}, {"route": "MN_LE", "score": 1, "name": "Union Square/LES"}, {"route": "QN_EE", "score": 1, "name": "East Elmhurst"}]}, "SCT": {"id": "SCT", "name": "Scott", "color": "#dc2626", "lat": 40.739522, "lng": -73.877856, "total": 0, "month": 0, "week": 0, "tod": {"AM": 0, "MD": 0, "PM": 0}, "recent": [], "upcoming": [{"route": "MN_LE", "label": "Manhattan \u2013 Union Sq/LES", "boro": "MN", "neigh": "LE", "tod": "AM", "backpack": "B", "collector": "SCT", "date": "2026-03-20"}, {"route": "QN_LI", "label": "Queens \u2013 Astoria/LIC", "boro": "QN", "neigh": "LI", "tod": "AM", "backpack": "B", "collector": "SCT", "date": "2026-03-21"}, {"route": "MN_LE", "label": "Manhattan \u2013 Union Sq/LES", "boro": "MN", "neigh": "LE", "tod": "MD", "backpack": "B", "collector": "SCT", "date": "2026-03-22"}], "routes": {}, "avail": {"AM": [false, false, false, false, false, false, false], "MD": [false, true, true, true, true, true, true], "PM": [false, false, false, false, false, false, false]}, "pref": [{"route": "MN_MT", "score": 3, "name": "Midtown"}, {"route": "MN_LE", "score": 3, "name": "Union Square/LES"}, {"route": "QN_FU", "score": 3, "name": "Flushing"}, {"route": "QN_LI", "score": 3, "name": "Astoria/LIC"}, {"route": "QN_JH", "score": 3, "name": "Jackson Heights"}, {"route": "QN_FH", "score": 3, "name": "Forest Hills"}, {"route": "QN_LA", "score": 3, "name": "LaGuardia Community College"}, {"route": "QN_EE", "score": 3, "name": "East Elmhurst"}, {"route": "MN_UE", "score": 2, "name": "Upper East Side"}, {"route": "QN_JA", "score": 2, "name": "Jamaica"}, {"route": "BK_DT", "score": 1, "name": "Downtown Brooklyn"}, {"route": "BK_WB", "score": 1, "name": "Williamsburg"}, {"route": "BK_BS", "score": 1, "name": "Bed Sty"}, {"route": "BK_CH", "score": 1, "name": "Crown Heights"}, {"route": "BK_SP", "score": 1, "name": "Sunset Park"}, {"route": "BK_CI", "score": 1, "name": "Coney Island"}, {"route": "MN_HT", "score": 1, "name": "Harlem"}, {"route": "MN_WH", "score": 1, "name": "Washington Heights"}]}, "JAM": {"id": "JAM", "name": "James", "color": "#dc2626", "lat": 40.735877, "lng": -73.872864, "total": 1, "month": 0, "week": 0, "tod": {"AM": 0, "MD": 1, "PM": 0}, "recent": [{"collector": "JAM", "route": "QN_JH", "boro": "QN", "neigh": "JH", "date": "2026-02-28", "tod": "MD"}], "upcoming": [], "routes": {"QN_JH": 1}, "avail": {"AM": [false, false, false, false, false, false, false], "MD": [false, false, false, false, false, false, true], "PM": [false, false, false, false, false, false, true]}, "pref": [{"route": "MN_UE", "score": 3, "name": "Upper East Side"}, {"route": "QN_JH", "score": 3, "name": "Jackson Heights"}, {"route": "QN_FH", "score": 3, "name": "Forest Hills"}, {"route": "MN_HT", "score": 2, "name": "Harlem"}, {"route": "MN_MT", "score": 2, "name": "Midtown"}, {"route": "MN_LE", "score": 2, "name": "Union Square/LES"}, {"route": "QN_FU", "score": 2, "name": "Flushing"}, {"route": "QN_LI", "score": 2, "name": "Astoria/LIC"}, {"route": "QN_LA", "score": 2, "name": "LaGuardia Community College"}, {"route": "BK_DT", "score": 1, "name": "Downtown Brooklyn"}, {"route": "BK_WB", "score": 1, "name": "Williamsburg"}, {"route": "MN_WH", "score": 1, "name": "Washington Heights"}, {"route": "QN_JA", "score": 1, "name": "Jamaica"}, {"route": "QN_EE", "score": 1, "name": "East Elmhurst"}]}};
+const ROUTES_META = {"BX_NW": {"boro": "BX", "name": "Norwood"}, "BX_HP": {"boro": "BX", "name": "Hunts Point"}, "BK_DT": {"boro": "BK", "name": "Downtown Brooklyn"}, "BK_WB": {"boro": "BK", "name": "Williamsburg"}, "BK_BS": {"boro": "BK", "name": "Bed Sty"}, "BK_CH": {"boro": "BK", "name": "Crown Heights"}, "BK_SP": {"boro": "BK", "name": "Sunset Park"}, "BK_CI": {"boro": "BK", "name": "Coney Island"}, "MN_HT": {"boro": "MN", "name": "Harlem"}, "MN_WH": {"boro": "MN", "name": "Washington Heights"}, "MN_UE": {"boro": "MN", "name": "Upper East Side"}, "MN_MT": {"boro": "MN", "name": "Midtown"}, "MN_LE": {"boro": "MN", "name": "Union Square/LES"}, "QN_FU": {"boro": "QN", "name": "Flushing"}, "QN_LI": {"boro": "QN", "name": "Astoria/LIC"}, "QN_JH": {"boro": "QN", "name": "Jackson Heights"}, "QN_JA": {"boro": "QN", "name": "Jamaica"}, "QN_FH": {"boro": "QN", "name": "Forest Hills"}, "QN_LA": {"boro": "QN", "name": "LaGuardia Community College"}, "QN_EE": {"boro": "QN", "name": "East Elmhurst"}};
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const TOD_COLORS = {AM:'#fbbf24', MD:'#60a5fa', PM:'#a78bfa'};
+
+function fmtDate(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-');
+  return `${m}/${d}/${y.slice(2)}`;
+}
+
+// ── Map init ───────────────────────────────────────────────────────────────────
+const map = L.map('map', {
+  center: [40.720, -73.980],
+  zoom: 11,
+  zoomControl: false,
+  attributionControl: false,
+});
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  maxZoom: 18, subdomains: 'abcd'
+}).addTo(map);
+L.control.zoom({position:'topright'}).addTo(map);
+L.control.attribution({position:'bottomright',prefix:false})
+  .addAttribution('© <a href="https://carto.com">CARTO</a>')
+  .addTo(map);
+
+// ── Sidebar ────────────────────────────────────────────────────────────────────
+let activeCid = null;
+const sidebar = $('sidebar');
+
+function openSidebar(cid){
+  activeCid = cid;
+  renderSidebar(cid);
+  sidebar.classList.add('open');
+  // Nudge map west so pin isn't hidden behind sidebar
+  map.panBy([180, 0], {animate:true, duration:.25});
+}
+
+function closeSidebar(){
+  sidebar.classList.remove('open');
+  if(activeCid){
+    map.panBy([-180, 0], {animate:true, duration:.25});
+    activeCid = null;
+  }
+}
+
+$('sb-close').addEventListener('click', closeSidebar);
+map.on('click', () => { if(activeCid) closeSidebar(); });
+
+// ── Render sidebar content ─────────────────────────────────────────────────────
+function scoreDotsHtml(score){
+  let h='<div class="pref-score">';
+  for(let i=1;i<=3;i++)
+    h+=`<div class="pref-dot ${i<=score?'dot-on':'dot-off'}"></div>`;
+  return h+'</div>';
+}
+
+function renderSidebar(cid){
+  const c = COLLECTORS[cid];
+  const todTotal = c.tod.AM + c.tod.MD + c.tod.PM;
+  const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+  // ── Stats ──────────────────────────────────────────────────────────────────
+  const statsHtml = `
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-val">${c.total}</div>
+        <div class="stat-lbl">Total</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val">${c.month}</div>
+        <div class="stat-lbl">This Month</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val">${c.week}</div>
+        <div class="stat-lbl">This Week</div>
+      </div>
+    </div>`;
+
+  // ── TOD breakdown ──────────────────────────────────────────────────────────
+  let todHtml = '';
+  if(todTotal > 0){
+    todHtml = `<div class="section">
+      <div class="sec-title">Time of Day</div>
+      ${['AM','MD','PM'].map(tod=>{
+        const pct = todTotal > 0 ? Math.round(c.tod[tod]/todTotal*100) : 0;
+        return `<div class="tod-bar-row">
+          <span class="tod-lbl">${tod}</span>
+          <div class="tod-bg"><div class="tod-fill" style="width:${pct}%;background:${TOD_COLORS[tod]}"></div></div>
+          <span class="tod-num">${c.tod[tod]}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  // ── Availability ───────────────────────────────────────────────────────────
+  let availHtml = '';
+  if(Object.keys(c.avail).length > 0){
+    availHtml = `<div class="section">
+      <div class="sec-title">Availability</div>
+      <div class="avail-grid">
+        <div class="ag-head"></div>
+        ${DAYS.map(d=>`<div class="ag-head">${d.slice(0,2)}</div>`).join('')}
+        ${['AM','MD','PM'].map(tod=>{
+          const row = c.avail[tod] || Array(7).fill(false);
+          return `<div class="ag-tod">${tod}</div>
+            ${row.map(v=>`<div class="ag-cell ${v?'ag-yes':'ag-no'}">${v?'✓':''}</div>`).join('')}`;
+        }).join('')}
+      </div>
+    </div>`;
+  }
+
+  // ── Route preferences ──────────────────────────────────────────────────────
+  let prefHtml = '';
+  if(c.pref && c.pref.length > 0){
+    prefHtml = `<div class="section">
+      <div class="sec-title">Route Preferences</div>
+      ${c.pref.map(p=>`
+        <div class="pref-row">
+          <span class="pref-name">${p.name}</span>
+          ${scoreDotsHtml(p.score)}
+        </div>`).join('')}
+    </div>`;
+  }
+
+  // ── Recent walks ───────────────────────────────────────────────────────────
+  let recentHtml = '';
+  if(c.recent && c.recent.length > 0){
+    recentHtml = `<div class="section">
+      <div class="sec-title">Recent Walks</div>
+      ${c.recent.map(w=>`
+        <div class="walk-row">
+          <span class="tod-badge tod-${w.tod}">${w.tod}</span>
+          <span class="walk-route">${ROUTES_META[w.route]?.name || w.route}</span>
+          <span class="walk-date">${fmtDate(w.date)}</span>
+        </div>`).join('')}
+    </div>`;
+  } else {
+    recentHtml = `<div class="section">
+      <div class="sec-title">Recent Walks</div>
+      <div style="font-size:12px;color:#6b7099;padding:4px 0">No completed walks yet</div>
+    </div>`;
+  }
+
+  // ── Upcoming scheduled ─────────────────────────────────────────────────────
+  let upcomingHtml = '';
+  if(c.upcoming && c.upcoming.length > 0){
+    upcomingHtml = `<div class="section">
+      <div class="sec-title">Upcoming Scheduled</div>
+      ${c.upcoming.map(a=>`
+        <div class="walk-row">
+          <span class="tod-badge tod-${a.tod}">${a.tod}</span>
+          <span class="walk-route">${ROUTES_META[a.route]?.name || a.route}</span>
+          <span class="walk-date">${fmtDate(a.date)}</span>
+          ${a.backpack?`<span class="walk-bp">BP ${a.backpack}</span>`:''}
+        </div>`).join('')}
+    </div>`;
+  }
+
+  $('sb-content').innerHTML = `
+    <div class="sb-head" style="--c:${c.color}">
+      <div class="sb-avatar" style="--c:${c.color}">${cid}</div>
+      <div>
+        <div class="sb-name">${c.name}</div>
+        <div class="sb-id">${cid}</div>
+      </div>
+    </div>
+    ${statsHtml}
+    ${todHtml}
+    ${availHtml}
+    ${prefHtml}
+    ${recentHtml}
+    ${upcomingHtml}
+  `;
+}
+
+// ── Create SVG pin icon ────────────────────────────────────────────────────────
+function makePinIcon(color, count){
+  const sz  = count > 9 ? 42 : 36;
+  const fsz = count > 9 ? 12 : 13;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${Math.round(sz*1.25)}"
+      viewBox="0 0 36 45">
+    <path d="M18 1C8.6 1 1 8.6 1 18C1 29.5 18 44 18 44S35 29.5 35 18C35 8.6 27.4 1 18 1Z"
+      fill="${color}" stroke="rgba(255,255,255,.25)" stroke-width="1.2"/>
+    <circle cx="18" cy="18" r="11.5" fill="rgba(0,0,0,.22)"/>
+    <text x="18" y="23" text-anchor="middle" fill="white"
+      font-family="-apple-system,BlinkMacSystemFont,sans-serif"
+      font-weight="800" font-size="${fsz}">${count}</text>
+  </svg>`;
+  return L.divIcon({
+    html: svg,
+    className: 'cpin-icon',
+    iconSize:   [sz, Math.round(sz*1.25)],
+    iconAnchor: [sz/2, Math.round(sz*1.25)],
+  });
+}
+
+// ── Place markers ──────────────────────────────────────────────────────────────
+const markers = {};
+
+Object.values(COLLECTORS).forEach(c => {
+  const icon   = makePinIcon(c.color, c.total);
+  const marker = L.marker([c.lat, c.lng], {icon, title:c.name}).addTo(map);
+
+  marker.on('click', e => {
+    L.DomEvent.stopPropagation(e);
+    if(activeCid === c.id) { closeSidebar(); return; }
+    openSidebar(c.id);
+  });
+
+  // Hover tooltip
+  marker.bindTooltip(`<b>${c.name}</b><br>${c.total} walk${c.total!==1?'s':''} completed`, {
+    direction:'top', offset:[0,-38], className:'leaflet-tooltip',
+    opacity:.95,
+  });
+
+  markers[c.id] = marker;
+});
+
+// ── Legend ─────────────────────────────────────────────────────────────────────
+const legBody = $('leg-body');
+Object.values(COLLECTORS).forEach(c => {
+  const row = document.createElement('div');
+  row.className = 'leg-row';
+  row.innerHTML = `
+    <div class="leg-dot" style="background:${c.color}"></div>
+    <span class="leg-name">${c.name}</span>
+    <span class="leg-count">${c.total}</span>`;
+  row.addEventListener('click', () => {
+    map.setView([c.lat, c.lng], 12, {animate:true});
+    openSidebar(c.id);
+  });
+  legBody.appendChild(row);
+});
+</script>
+</body>
+</html>
