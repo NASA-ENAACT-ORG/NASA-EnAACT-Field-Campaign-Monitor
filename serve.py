@@ -97,7 +97,7 @@ _GPS_TRAILS = {bp: deque(maxlen=200) for bp in GPS_BACKPACK_IDS}
 
 # ── Drive polling state ────────────────────────────────────────────────────────
 
-DRIVE_FOLDER_ID       = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
+DRIVE_FOLDER_ID       = os.environ.get("GOOGLE_DRIVE_WALKS_FOLDER_ID", "")
 DRIVE_POLL_INTERVAL   = int(os.environ.get("DRIVE_POLL_INTERVAL", "60"))
 FORECAST_POLL_INTERVAL = int(os.environ.get("FORECAST_POLL_INTERVAL", "300"))  # 5 min default
 _DRIVE_LOCK           = threading.Lock()
@@ -512,7 +512,7 @@ def _run_drive_poll(source: str = "background"):
     print(f"[drive] Walk-log poll triggered by: {source}")
 
     if not DRIVE_FOLDER_ID:
-        return 0, "GOOGLE_DRIVE_FOLDER_ID not set"
+        return 0, "GOOGLE_DRIVE_WALKS_FOLDER_ID not set"
 
     service = _get_drive_service()
     if service is None:
