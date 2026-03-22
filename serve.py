@@ -245,6 +245,12 @@ def _save_forecast_state(state: dict):
         _upload_to_gcs(_FORECAST_STATE_LOCAL, _FORECAST_STATE_GCS)
 
 
+def _reset_forecast_state():
+    """Wipe the forecast state so the next poll re-detects all PDFs as new."""
+    _save_forecast_state({})
+    print("[forecast] State reset — all PDFs will be re-detected on next poll")
+
+
 # ── Scheduler + rebuild pipeline ───────────────────────────────────────────────
 
 def _run_scheduler_and_rebuild():
@@ -787,6 +793,25 @@ class Handler(BaseHTTPRequestHandler):
             _save_confirmations(data)
             self._send(200, "application/json",
                        json.dumps({"ok": True, "confirmations": data}).encode())
+        elif endpoint == "/api/reset-forecast-state":
+            # Clears the forecast state so the next 5-min poll re-detects all PDFs.
+            # Protected by SCHEDULER_PIN.
+            _sched_pin = os.environ.get("SCHEDULER_PIN", "")
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body_bytes = self.rfile.read(length) if length else b"{}"
+                payload = json.loads(body_bytes)
+            except Exception:
+                self._send(400, "application/json",
+                           json.dumps({"error": "bad request"}).encode())
+                return
+            if _sched_pin and payload.get("pin", "") != _sched_pin:
+                self._send(403, "application/json",
+                           json.dumps({"error": "wrong pin"}).encode())
+                return
+            _reset_forecast_state()
+            self._send(200, "application/json",
+                       json.dumps({"ok": True, "message": "Forecast state cleared — next poll will re-detect all PDFs"}).encode())
         elif endpoint == "/api/reassign":
             # Triggered by the UI when a scheduler rejects an assignment and wants
             # a replacement picked.  Protected by SCHEDULER_PIN (same as /api/confirm).
