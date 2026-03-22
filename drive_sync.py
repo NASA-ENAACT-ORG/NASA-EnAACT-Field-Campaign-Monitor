@@ -2,7 +2,7 @@
 """
 drive_sync.py — Sync walks_log.txt from Google Drive Nasa_enaact folder structure
 ====================================================================================
-Periodically polls the Google Drive folder structure (Nasa_enaact/WALKS/[borough]/[route]/[combo_names])
+Periodically polls the Google Drive folder structure (NASA_EnAACT_Research/Walks/[borough]/[route]/[combo_names])
 and appends new walk entries to walks_log.txt.
 
 Runs every 60 seconds and logs all activity to drive_sync.log.
@@ -56,6 +56,14 @@ logger = logging.getLogger(__name__)
 VALID_BACKPACKS = {"A", "B", "X"}
 VALID_BOROUGHS = {"MN", "BK", "QN", "BX"}
 VALID_TODS = {"AM", "MD", "PM"}
+
+# Valid route codes per borough (folder names start with these 2-char codes)
+VALID_ROUTES: Dict[str, set] = {
+    "MN": {"HT", "WH", "UE", "MT", "LE"},
+    "BX": {"HP", "NW"},
+    "BK": {"DT", "WB", "BS", "CH", "SP", "CI"},
+    "QN": {"FU", "LI", "JH", "JA", "FH", "LA", "EE"},
+}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # GOOGLE DRIVE API AUTHENTICATION
@@ -123,23 +131,23 @@ def extract_walks_from_drive(service) -> Set[str]:
     """
     Navigate Google Drive folder structure and extract all combo names.
 
-    Structure: Nasa_enaact/WALKS/[borough]/[route]/[combo_names]
+    Structure: NASA_EnAACT_Research/Walks/[borough]/[route]/[combo_names]
     Returns a set of extracted combo names like "X_TER_BK_BS_20260312_AM"
     """
     extracted = set()
 
-    # Find Nasa_enaact folder (search from root)
-    logger.info("Searching for Nasa_enaact folder...")
-    nasa_id = find_folder_by_name(service, "root", "Nasa_enaact")
+    # Find NASA_EnAACT_Research folder (search from root)
+    logger.info("Searching for NASA_EnAACT_Research folder...")
+    nasa_id = find_folder_by_name(service, "root", "NASA_EnAACT_Research")
     if not nasa_id:
-        logger.warning("Nasa_enaact folder not found in Google Drive")
+        logger.warning("NASA_EnAACT_Research folder not found in Google Drive")
         return extracted
 
-    # Find WALKS folder
-    logger.info("Searching for WALKS folder...")
-    walks_id = find_folder_by_name(service, nasa_id, "WALKS")
+    # Find Walks folder
+    logger.info("Searching for Walks folder...")
+    walks_id = find_folder_by_name(service, nasa_id, "Walks")
     if not walks_id:
-        logger.warning("WALKS folder not found under Nasa_enaact")
+        logger.warning("Walks folder not found under NASA_EnAACT_Research")
         return extracted
 
     # List all borough folders
@@ -147,8 +155,9 @@ def extract_walks_from_drive(service) -> Set[str]:
     borough_folders = list_folders_in_parent(service, walks_id)
 
     for borough_name, borough_id in borough_folders:
-        # Validate borough name
-        if borough_name not in VALID_BOROUGHS:
+        # Validate borough — folder names start with the 2-char code (e.g. "BK - Brooklyn")
+        borough_code = borough_name[:2]
+        if borough_code not in VALID_BOROUGHS:
             logger.debug(f"Skipping non-borough folder: {borough_name}")
             continue
 
@@ -158,6 +167,12 @@ def extract_walks_from_drive(service) -> Set[str]:
         route_folders = list_folders_in_parent(service, borough_id)
 
         for route_name, route_id in route_folders:
+            # Route folders start with the 2-char route code (e.g. "SP - Sunset Park")
+            route_code = route_name[:2]
+            if route_code not in VALID_ROUTES.get(borough_code, set()):
+                logger.debug(f"Skipping non-route folder: {route_name}")
+                continue
+
             logger.debug(f"Processing route: {borough_name}/{route_name}")
 
             # List combo names (deepest level)
