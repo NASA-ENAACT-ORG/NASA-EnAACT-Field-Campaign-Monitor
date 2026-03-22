@@ -2200,12 +2200,19 @@ def main() -> None:
                 if _conf_status == "denied":
                     print(f"  ✗  Denied by scheduler — re-queuing: {_a['route']} {_tod} {_a['date']}")
                     continue
-                # Keep if: within this week AND still good weather in new forecast
-                if week_start <= _d <= week_end and weather.get((_d, _tod), False):
+                # Skip if outside the current week
+                if not (week_start <= _d <= week_end):
+                    continue
+                # Hard-frozen (preserved=True): keep regardless of weather
+                if _a.get("preserved", False):
+                    preserved_assignments.append(_a)
+                    print(f"  🔒 Frozen:    {_a['route']} {_tod} {_a['date']} → {_a['collector']}")
+                # Otherwise keep only if weather still good in new forecast
+                elif weather.get((_d, _tod), False):
                     preserved_assignments.append(_a)
             if preserved_assignments:
-                print(f"  ↩  {len(preserved_assignments)} existing assignment(s) still have "
-                      f"good weather — will preserve them\n")
+                print(f"  ↩  {len(preserved_assignments)} assignment(s) preserved "
+                      f"(frozen or still-good-weather)\n")
         except Exception as _e:
             print(f"  [Note] Could not read existing schedule for preservation: {_e}\n")
 

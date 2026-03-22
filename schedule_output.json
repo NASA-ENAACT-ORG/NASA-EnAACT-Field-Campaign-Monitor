@@ -14,7 +14,7 @@
       "backpack": "B",
       "collector": "SCT",
       "date": "2026-03-22",
-      "preserved": false
+      "preserved": true
     },
     {
       "route": "QN_LA",
@@ -25,7 +25,7 @@
       "backpack": "B",
       "collector": "SCT",
       "date": "2026-03-24",
-      "preserved": false
+      "preserved": true
     },
     {
       "route": "QN_LI",
@@ -36,7 +36,7 @@
       "backpack": "B",
       "collector": "SCT",
       "date": "2026-03-25",
-      "preserved": false
+      "preserved": true
     },
     {
       "route": "MN_UE",
@@ -47,7 +47,7 @@
       "backpack": "A",
       "collector": "TAH",
       "date": "2026-03-24",
-      "preserved": false
+      "preserved": true
     },
     {
       "route": "MN_UE",
@@ -58,7 +58,7 @@
       "backpack": "A",
       "collector": "AYA",
       "date": "2026-03-22",
-      "preserved": false
+      "preserved": true
     },
     {
       "route": "MN_UE",
@@ -69,7 +69,7 @@
       "backpack": "A",
       "collector": "JEN",
       "date": "2026-03-24",
-      "preserved": false
+      "preserved": true
     },
     {
       "route": "MN_HT",
@@ -80,7 +80,7 @@
       "backpack": "A",
       "collector": "TAH",
       "date": "2026-03-25",
-      "preserved": false
+      "preserved": true
     }
   ],
   "unassigned": [
