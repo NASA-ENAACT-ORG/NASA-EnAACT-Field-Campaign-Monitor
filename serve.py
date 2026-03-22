@@ -540,7 +540,7 @@ def _run_drive_poll(source: str = "background"):
                 fname = f["name"]
                 mime = f.get("mimeType", "")
 
-                # Recurse into subfolders
+                # Recurse into subfolders; also check the folder name itself as a walk code
                 if mime == "application/vnd.google-apps.folder":
                     sub_resp = service.files().list(
                         q=f"'{fid}' in parents and trashed=false",
@@ -548,7 +548,7 @@ def _run_drive_poll(source: str = "background"):
                         pageSize=200,
                     ).execute()
                     files.extend(sub_resp.get("files", []))
-                    continue
+                    # Fall through to check if this folder's name is a walk combo code
 
                 if fid in seen_ids:
                     continue
