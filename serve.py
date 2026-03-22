@@ -787,6 +787,26 @@ class Handler(BaseHTTPRequestHandler):
             _save_confirmations(data)
             self._send(200, "application/json",
                        json.dumps({"ok": True, "confirmations": data}).encode())
+        elif endpoint == "/api/reassign":
+            # Triggered by the UI when a scheduler rejects an assignment and wants
+            # a replacement picked.  Protected by SCHEDULER_PIN (same as /api/confirm).
+            _sched_pin = os.environ.get("SCHEDULER_PIN", "")
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body_bytes = self.rfile.read(length) if length else b"{}"
+                payload = json.loads(body_bytes)
+            except Exception:
+                self._send(400, "application/json",
+                           json.dumps({"error": "bad request"}).encode())
+                return
+            if _sched_pin and payload.get("pin", "") != _sched_pin:
+                self._send(403, "application/json",
+                           json.dumps({"error": "wrong pin"}).encode())
+                return
+            t = threading.Thread(target=_run_scheduler_and_rebuild, daemon=True)
+            t.start()
+            self._send(200, "application/json",
+                       json.dumps({"ok": True, "message": "Reassignment started"}).encode())
         elif endpoint == "/api/drive/poll":
             count, err = _run_drive_poll(source="gas")
             if err:

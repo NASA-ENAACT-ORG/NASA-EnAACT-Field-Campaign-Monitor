@@ -188,6 +188,9 @@ body.scheduler-mode .sched-row .sr-actions{width:100%;margin-left:0;justify-cont
 .sr-confirm-btn{background:rgba(63,185,80,.15);border-color:#3fb950!important;color:#3fb950!important}
 .sr-deny-btn{background:rgba(248,81,73,.15);border-color:#f85149!important;color:#f85149!important}
 .sr-reset-btn{background:var(--bg3);border-color:var(--border)!important;color:var(--text2)!important}
+.sr-reassign-btn{background:rgba(56,139,253,.15);border-color:#388bfd!important;color:#388bfd!important}
+.sched-row.confirmed-row{border-left:2px solid rgba(63,185,80,.5)}
+.cal-event.confirmed-event{outline:1px solid rgba(63,185,80,.4)}
 body.scheduler-mode .sched-row .sr-actions{visibility:visible}
 .cal-event .ce-actions{display:none;margin-top:4px;gap:3px}
 .cal-event .ce-actions button{flex:1;padding:2px 4px;border-radius:3px;font-size:9px;font-weight:600;cursor:pointer;border:1px solid}
@@ -1373,7 +1376,20 @@ async function doConfirm(aid, status){
     // Re-render both panels
     renderSchedulePanel();
     if(document.getElementById('calendar-view').classList.contains('active'))renderCalendar();
-    toast(status==='confirmed'?'Assignment confirmed ✅':status==='denied'?'Assignment denied ❌':'Reset to pending','success');
+    toast(status==='confirmed'?'Assignment locked ✅':status==='denied'?'Assignment rejected — hit Save & Reassign to pick someone new':'Reset to pending','success');
+  }catch(e){toast('Could not reach server','');}
+}
+
+async function doReassign(){
+  try{
+    const resp=await fetch('/api/reassign',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({pin:schedAuth.pin||'',scheduler:schedAuth.scheduler})
+    });
+    const data=await resp.json();
+    if(!resp.ok){toast(data.error||'Error','');return;}
+    toast('Reassigning — reload the page in ~2 min to see new assignments','success');
   }catch(e){toast('Could not reach server','');}
 }
 
@@ -1384,7 +1400,12 @@ function actionBtns(aid){
     return `<button class="sr-confirm-btn" onclick="event.stopPropagation();doConfirm('${aid}','confirmed')">✓ Confirm</button>`
           +`<button class="sr-deny-btn"    onclick="event.stopPropagation();doConfirm('${aid}','denied')">✗ Deny</button>`;
   }
-  return `<button class="sr-reset-btn" onclick="event.stopPropagation();doConfirm('${aid}','pending')">↩ Reset</button>`;
+  if(st==='confirmed'){
+    return `<button class="sr-reset-btn" onclick="event.stopPropagation();doConfirm('${aid}','pending')">🔓 Unlock</button>`;
+  }
+  // denied — show Save & Reassign
+  return `<button class="sr-reassign-btn" onclick="event.stopPropagation();doReassign()">💾 Save & Reassign</button>`
+        +`<button class="sr-reset-btn"    onclick="event.stopPropagation();doConfirm('${aid}','pending')">↩ Reset</button>`;
 }
 let schedStep=-1, schedPlaying=false, schedPlayTimer=null;
 let tlWeekIdx=0;   // index into tlWeeks array (0 = most recent)
@@ -1676,7 +1697,8 @@ function renderSchedulePanel(){
       const label=ROUTE_LABELS[r.route]||r.route;
       const todCls=r.tod==='AM'?'tb-am':r.tod==='MD'?'tb-md':'tb-pm';
       const aid=assignId(r);
-      html+=`<div class="sched-row" onclick="highlightSchedRoute('${r.route}','${bp}')">
+      const rowSt=(schedConfirmations[aid]||{}).status||'pending';
+      html+=`<div class="sched-row${rowSt==='confirmed'?' confirmed-row':''}" onclick="highlightSchedRoute('${r.route}','${bp}')">
         <span class="sr-date">${fmtDate(r.date)}</span>
         <span class="sr-tod tb ${todCls}">${r.tod}</span>
         <span class="sr-route">${label}</span>
@@ -1807,7 +1829,8 @@ function renderCalendar(){
         const aid=w.source==='scheduled'?assignId(w):'';
         const badge=aid?statusBadgeHTML(aid):'';
         const actions=aid?`<div class="ce-actions">${actionBtns(aid)}</div>`:'';
-        cellContent+=`<div class="cal-event ${bpCls}${compCls}">
+        const confCls=aid&&(schedConfirmations[aid]||{}).status==='confirmed'?' confirmed-event':'';
+        cellContent+=`<div class="cal-event ${bpCls}${compCls}${confCls}">
           <div class="ce-bp">${bpLabel}</div>
           <div class="ce-route">${routeLbl}</div>
           <div class="ce-col">${colLbl}</div>

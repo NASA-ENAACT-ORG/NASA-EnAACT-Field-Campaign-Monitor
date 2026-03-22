@@ -2203,8 +2203,8 @@ def main() -> None:
                 # Skip if outside the current week
                 if not (week_start <= _d <= week_end):
                     continue
-                # Hard-frozen (preserved=True): keep regardless of weather
-                if _a.get("preserved", False):
+                # Hard-frozen: confirmed by a scheduler OR preserved=True flag — keep regardless of weather
+                if _conf_status == "confirmed" or _a.get("preserved", False):
                     preserved_assignments.append(_a)
                     print(f"  🔒 Frozen:    {_a['route']} {_tod} {_a['date']} → {_a['collector']}")
                 # Otherwise keep only if weather still good in new forecast

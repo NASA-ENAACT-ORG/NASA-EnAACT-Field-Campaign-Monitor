@@ -46,11 +46,8 @@ function pollDrive() {
     if (code === 200) {
       var data = JSON.parse(pollResp.getContentText());
       Logger.log("new_files: " + data.new_files);
-
-      if (data.new_files > 0) {
-        var rerunResp = UrlFetchApp.fetch(SERVICE_URL + "/api/rerun", options);
-        Logger.log("Rerun triggered. HTTP " + rerunResp.getResponseCode());
-      }
+      // Walk-log updated — dashboard rebuild happens server-side.
+      // Scheduler only reruns on new forecast data or manual rejection.
     } else {
       Logger.log("Unexpected response: " + pollResp.getContentText());
     }
