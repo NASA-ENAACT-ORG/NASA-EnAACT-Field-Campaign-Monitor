@@ -55,11 +55,7 @@ jobs:
             echo "📝 Committing updated Walks_Log.txt"
             git add Walks_Log.txt
             SYNC_TIME=$(date -u +'%Y-%m-%d %H:%M:%S UTC')
-            git commit -m "Auto-sync: Update Walks_Log.txt from Google Drive
-
-- Synced at $SYNC_TIME
-- Drive sync service processed new walk entries
-[skip ci]"
+            git commit -m "Auto-sync: Update Walks_Log.txt from Google Drive [skip ci]" -m "Synced at $SYNC_TIME"
             git push
           fi
 
