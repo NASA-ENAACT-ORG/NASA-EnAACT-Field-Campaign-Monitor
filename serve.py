@@ -487,6 +487,13 @@ def _save_seen_ids(ids: set):
 
 
 def _append_to_walk_log(entry: str):
+    # Ensure file ends with a newline before appending to avoid concatenation
+    if WALKS_LOG.exists() and WALKS_LOG.stat().st_size > 0:
+        with open(WALKS_LOG, "rb") as f:
+            f.seek(-1, 2)
+            if f.read(1) != b"\n":
+                with open(WALKS_LOG, "a", encoding="utf-8") as fw:
+                    fw.write("\n")
     with open(WALKS_LOG, "a", encoding="utf-8") as f:
         f.write(entry + "\n")
     print(f"[drive] Appended to Walks_Log.txt: {entry}")
@@ -521,6 +528,11 @@ def _run_drive_poll(source: str = "background"):
     seen_ids = _load_seen_ids()
     new_count = 0
 
+    # Load existing walk codes from log to avoid duplicating manually-entered entries
+    existing_walks: set[str] = set()
+    if WALKS_LOG.exists():
+        existing_walks = {l.strip().upper() for l in WALKS_LOG.read_text(encoding="utf-8").splitlines() if l.strip()}
+
     try:
         # List all files in the folder tree (recursive via query)
         page_token = None
@@ -554,8 +566,9 @@ def _run_drive_poll(source: str = "background"):
                     continue
 
                 entry = _parse_filename_to_log_entry(fname)
-                if entry:
+                if entry and entry.upper() not in existing_walks:
                     _append_to_walk_log(entry)
+                    existing_walks.add(entry.upper())
                     new_count += 1
 
                 seen_ids.add(fid)
