@@ -210,8 +210,6 @@ select option{background:var(--bg3)}
 .cal-cell.cal-today-col{background:rgba(56,139,253,.05)}
 .cal-cell.cal-past-col{background:rgba(0,0,0,.12)}
 .cal-cell.cal-weekend{background:rgba(255,255,255,.012)}
-.cal-cell.cal-reliable-col{background:rgba(56,189,248,.06)}
-.cal-day-head.cal-reliable-head{background:rgba(56,189,248,.18);border-bottom:2px solid #38bdf8}
 .cal-event{border-radius:5px;padding:5px 8px 6px;font-size:11px;cursor:default;transition:filter .12s}
 .cal-event:hover{filter:brightness(1.2)}
 .cal-event.bpa{background:rgba(248,81,73,.18);border-left:3px solid #f85149}
@@ -738,9 +736,6 @@ setTimeout(function(){
       </div>
       <div id="cal-body">
         <div id="cal-grid"></div>
-        <div id="cal-legend" style="padding:6px 12px;font-size:10px;color:var(--text2);border-top:1px solid var(--border);display:flex;gap:16px;flex-wrap:wrap">
-          <span style="display:flex;align-items:center;gap:5px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgba(56,189,248,.35);border:1px solid #38bdf8"></span>Reliable forecast window (next 2 days)</span>
-        </div>
       </div>
     </div>
     </div>
@@ -1570,7 +1565,7 @@ function renderCalendar(){
   const ws=new Date(wk.weekStart+'T00:00:00');
   const we=new Date(ws); we.setDate(ws.getDate()+6);
   const tod=new Date(); tod.setHours(0,0,0,0);
-  const reliableCutoff=new Date(tod); reliableCutoff.setDate(tod.getDate()+2);
+
 
   if(title)title.textContent=
     ws.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' – '+
@@ -1601,8 +1596,7 @@ function renderCalendar(){
   for(let d=0;d<7;d++){
     const dd=new Date(ws); dd.setDate(ws.getDate()+d);
     const isToday=dd.getTime()===tod.getTime();
-    const isReliable=dd>tod&&dd<=reliableCutoff;
-    html+=`<div class="cal-day-head${isToday?' cal-today-head':''}${isReliable?' cal-reliable-head':''}">
+    html+=`<div class="cal-day-head${isToday?' cal-today-head':''}">
       <div class="cal-dname">${DAY_NAMES[dd.getDay()]}</div>
       <div class="cal-dnum">${dd.getDate()}</div>
     </div>`;
@@ -1617,7 +1611,6 @@ function renderCalendar(){
       const isToday=dd.getTime()===tod.getTime();
       const isPast=dd<tod;
       const isWeekend=dd.getDay()===0||dd.getDay()===6;
-      const isReliableCell=dd>tod&&dd<=reliableCutoff;
       const isRecal=wk.recal_day===dateStr;
       const walks=(byDayTod[dateStr]||{})[ctod]||[];
 
@@ -1647,8 +1640,7 @@ function renderCalendar(){
       const cls=['cal-cell',
         isToday?'cal-today-col':'',
         isPast?'cal-past-col':'',
-        isWeekend?'cal-weekend':'',
-        isReliableCell?'cal-reliable-col':''
+        isWeekend?'cal-weekend':''
       ].filter(Boolean).join(' ');
       html+=`<div class="${cls}">${cellContent}</div>`;
     }
