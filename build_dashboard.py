@@ -2066,5 +2066,9 @@ def build():
     size = out.stat().st_size
     print(f"dashboard.html written: {size:,} bytes ({size//1024} KB)")
 
+    # Also rebuild the availability heatmap
+    import subprocess, sys
+    subprocess.run([sys.executable, str(BASE / "build_availability_heatmap.py")], check=True)
+
 if __name__ == "__main__":
     build()

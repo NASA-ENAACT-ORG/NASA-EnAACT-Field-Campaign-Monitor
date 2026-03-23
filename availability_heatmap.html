@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Collector Availability Heatmap</title>
+<style>
+  body{background:#0d1117;color:#e6edf3;font-family:'Segoe UI',sans-serif;padding:32px;margin:0}
+  h1{font-size:16px;font-weight:700;margin:0 0 6px;letter-spacing:-.3px}
+  .subtitle{font-size:11px;color:#8b949e;margin-bottom:28px}
+  .panels{display:flex;gap:40px;flex-wrap:wrap}
+  .panel{flex:1;min-width:340px}
+  .panel-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;padding:6px 10px;border-radius:6px}
+  .panel-title.a{background:rgba(124,58,237,.18);color:#a78bfa;border:1px solid rgba(124,58,237,.3)}
+  .panel-title.b{background:rgba(220,38,38,.14);color:#f87171;border:1px solid rgba(220,38,38,.25)}
+  table{border-collapse:collapse;width:100%}
+  th{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#8b949e;padding:5px 8px;text-align:center}
+  th.row-head{text-align:left;width:36px}
+  td{padding:0;text-align:center;font-size:13px;font-weight:700;width:48px;height:44px;border:1px solid #21262d;position:relative;cursor:default}
+  td .num{position:relative;z-index:2}
+  td .bar{position:absolute;bottom:0;left:0;right:0;border-radius:0 0 2px 2px;transition:height .2s}
+  .tod-label{font-size:10px;font-weight:700;color:#8b949e;text-align:left;padding:6px 8px;width:36px}
+  .legend{display:flex;align-items:center;gap:8px;margin-top:20px;font-size:10px;color:#8b949e}
+  .legend-grad{width:120px;height:10px;border-radius:3px;background:linear-gradient(to right,#f85149,#d29922,#3fb950)}
+  .note{font-size:10px;color:#8b949e;margin-top:24px;line-height:1.6;max-width:740px}
+  /* Tooltip */
+  #tip{position:fixed;display:none;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:10px 13px;font-size:11px;box-shadow:0 6px 24px rgba(0,0,0,.6);pointer-events:none;z-index:9999;min-width:130px}
+  #tip .tip-head{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8b949e;margin-bottom:6px}
+  #tip .tip-names{display:flex;flex-direction:column;gap:3px}
+  #tip .tip-name{font-size:11px;color:#e6edf3}
+  #tip .tip-none{font-size:10px;color:#6e7681;font-style:italic}
+</style>
+</head>
+<body>
+<h1>Collector Availability — Weekly Pattern</h1>
+<div class="subtitle">Built from Availability.xlsx &nbsp;·&nbsp; Numbers = collectors available per slot</div>
+
+<div class="panels">
+  <div class="panel">
+    <div class="panel-title a">Backpack A — CCNY &nbsp;<span style="font-weight:400;opacity:.7">(SOT · AYA · JEN · TAH · ANG &nbsp;max 5)</span></div>
+    <table id="tbl-a"></table>
+  </div>
+  <div class="panel">
+    <div class="panel-title b">Backpack B — LaGCC &nbsp;<span style="font-weight:400;opacity:.7">(TER · ALX · SCT · JAM &nbsp;max 4)</span></div>
+    <table id="tbl-b"></table>
+  </div>
+</div>
+
+<div class="legend">
+  <span>0</span>
+  <div class="legend-grad"></div>
+  <span>max</span>
+  &nbsp;·&nbsp; Cell height = fill %
+</div>
+
+<div id="tip"><div class="tip-head" id="tip-head"></div><div class="tip-names" id="tip-names"></div></div>
+
+<script>
+const DAYS = ["Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"];
+const TODS = ["AM", "MD", "PM"];
+const dataA = {"Thu_AM": {"count": 5, "names": ["Soteri", "Aya", "Jennifer", "Taha", "Angy"]}, "Fri_AM": {"count": 5, "names": ["Soteri", "Aya", "Jennifer", "Taha", "Angy"]}, "Sat_AM": {"count": 5, "names": ["Soteri", "Aya", "Jennifer", "Taha", "Angy"]}, "Sun_AM": {"count": 5, "names": ["Soteri", "Aya", "Jennifer", "Taha", "Angy"]}, "Mon_AM": {"count": 5, "names": ["Soteri", "Aya", "Jennifer", "Taha", "Angy"]}, "Tue_AM": {"count": 5, "names": ["Soteri", "Aya", "Jennifer", "Taha", "Angy"]}, "Wed_AM": {"count": 5, "names": ["Soteri", "Aya", "Jennifer", "Taha", "Angy"]}, "Thu_MD": {"count": 2, "names": ["Soteri", "Taha"]}, "Fri_MD": {"count": 3, "names": ["Soteri", "Aya", "Taha"]}, "Sat_MD": {"count": 3, "names": ["Soteri", "Aya", "Jennifer"]}, "Sun_MD": {"count": 3, "names": ["Soteri", "Aya", "Jennifer"]}, "Mon_MD": {"count": 3, "names": ["Aya", "Taha", "Angy"]}, "Tue_MD": {"count": 3, "names": ["Soteri", "Jennifer", "Taha"]}, "Wed_MD": {"count": 4, "names": ["Soteri", "Aya", "Taha", "Angy"]}, "Thu_PM": {"count": 1, "names": ["Aya"]}, "Fri_PM": {"count": 2, "names": ["Soteri", "Aya"]}, "Sat_PM": {"count": 3, "names": ["Soteri", "Aya", "Jennifer"]}, "Sun_PM": {"count": 3, "names": ["Soteri", "Aya", "Jennifer"]}, "Mon_PM": {"count": 1, "names": ["Angy"]}, "Tue_PM": {"count": 0, "names": []}, "Wed_PM": {"count": 2, "names": ["Taha", "Angy"]}};
+const dataB = {"Thu_AM": {"count": 4, "names": ["Terra", "Alex", "Scott", "James"]}, "Fri_AM": {"count": 4, "names": ["Terra", "Alex", "Scott", "James"]}, "Sat_AM": {"count": 4, "names": ["Terra", "Alex", "Scott", "James"]}, "Sun_AM": {"count": 4, "names": ["Terra", "Alex", "Scott", "James"]}, "Mon_AM": {"count": 4, "names": ["Terra", "Alex", "Scott", "James"]}, "Tue_AM": {"count": 4, "names": ["Terra", "Alex", "Scott", "James"]}, "Wed_AM": {"count": 4, "names": ["Terra", "Alex", "Scott", "James"]}, "Thu_MD": {"count": 3, "names": ["Terra", "Alex", "Scott"]}, "Fri_MD": {"count": 3, "names": ["Terra", "Alex", "Scott"]}, "Sat_MD": {"count": 4, "names": ["Terra", "Alex", "Scott", "James"]}, "Sun_MD": {"count": 4, "names": ["Terra", "Alex", "Scott", "James"]}, "Mon_MD": {"count": 2, "names": ["Alex", "Scott"]}, "Tue_MD": {"count": 3, "names": ["Terra", "Alex", "Scott"]}, "Wed_MD": {"count": 3, "names": ["Terra", "Alex", "Scott"]}, "Thu_PM": {"count": 0, "names": []}, "Fri_PM": {"count": 3, "names": ["Terra", "Alex", "Scott"]}, "Sat_PM": {"count": 2, "names": ["Alex", "James"]}, "Sun_PM": {"count": 4, "names": ["Terra", "Alex", "Scott", "James"]}, "Mon_PM": {"count": 1, "names": ["Alex"]}, "Tue_PM": {"count": 0, "names": []}, "Wed_PM": {"count": 0, "names": []}};
+const MAX_A = 5, MAX_B = 4;
+
+function cellColor(val, max) {
+  const t = val / max;
+  if (t === 0) return { bg: 'rgba(248,81,73,.18)', text: '#f85149' };
+  if (t < 0.35) return { bg: 'rgba(248,81,73,.10)', text: '#d29922' };
+  if (t < 0.6)  return { bg: 'rgba(210,153,34,.14)', text: '#d29922' };
+  if (t < 0.85) return { bg: 'rgba(63,185,80,.12)', text: '#3fb950' };
+  return { bg: 'rgba(63,185,80,.22)', text: '#3fb950' };
+}
+
+const tip = document.getElementById('tip');
+const tipHead = document.getElementById('tip-head');
+const tipNames = document.getElementById('tip-names');
+
+function positionTip(e) {
+  const tw = tip.offsetWidth || 150, th = tip.offsetHeight || 80;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  tip.style.left = (e.clientX + 14 + tw > vw ? e.clientX - tw - 8 : e.clientX + 14) + 'px';
+  tip.style.top  = (e.clientY + 14 + th > vh ? e.clientY - th - 8 : e.clientY + 14) + 'px';
+}
+
+function buildTable(id, data, max) {
+  const tbl = document.getElementById(id);
+  let hdr = '<tr><th class="row-head"></th>';
+  DAYS.forEach(d => hdr += `<th>${d}</th>`);
+  hdr += '</tr>';
+  tbl.innerHTML = hdr;
+
+  TODS.forEach(tod => {
+    let row = `<tr><td class="tod-label">${tod}</td>`;
+    DAYS.forEach(day => {
+      const key = day + '_' + tod;
+      const cell = data[key] || {count:0, names:[]};
+      const val = cell.count;
+      const {bg, text} = cellColor(val, max);
+      const pct = Math.round((val/max)*100);
+      row += `<td style="background:${bg};color:${text}">
+        <div class="bar" style="height:${pct}%;background:${text};opacity:.18"></div>
+        <div class="num">${val}</div>
+      </td>`;
+    });
+    row += '</tr>';
+    tbl.innerHTML += row;
+  });
+
+  // Bind tooltip to each data cell (skip tod-label cells)
+  tbl.querySelectorAll('td:not(.tod-label)').forEach((td, idx) => {
+    const tod = TODS[Math.floor(idx / DAYS.length)];
+    const day = DAYS[idx % DAYS.length];
+    const key = day + '_' + tod;
+    const cell = data[key] || {count:0, names:[]};
+    td.addEventListener('mouseenter', e => {
+      tipHead.textContent = day + ' ' + tod + ' — ' + cell.count + '/' + max + ' available';
+      if (cell.names.length) {
+        tipNames.innerHTML = cell.names.map(n => `<div class="tip-name">${n}</div>`).join('');
+      } else {
+        tipNames.innerHTML = '<div class="tip-none">No one available</div>';
+      }
+      tip.style.display = 'block';
+      positionTip(e);
+    });
+    td.addEventListener('mousemove', positionTip);
+    td.addEventListener('mouseleave', () => tip.style.display = 'none');
+  });
+}
+
+buildTable('tbl-a', dataA, MAX_A);
+buildTable('tbl-b', dataB, MAX_B);
+</script>
+</body>
+</html>
