@@ -223,10 +223,11 @@ select option{background:var(--bg3)}
 .ce-col{font-size:9.5px;color:var(--text2);margin-top:3px}
 .cal-recal-tag{background:rgba(240,165,0,.12);border:1px dashed #f0a500;border-radius:4px;padding:5px 8px;font-size:9.5px;color:#f0a500;text-align:center;font-weight:700;letter-spacing:.3px}
 /* Weather Bad indicator */
-.weather-bad{background:rgba(255,140,0,.24);border-radius:5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:5px 8px;border-left:3px solid #ff8c00}
+.weather-bad{position:absolute;inset:0;background:rgba(255,140,0,.24);border-radius:5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;z-index:10;pointer-events:none}
 .weather-bad .bad-label{font-size:9px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.3px;margin-bottom:1px}
-.weather-bad .no-sign{font-size:28px;line-height:1;color:#ef4444;display:flex;align-items:center;justify-content:center}
+.weather-bad .no-sign{font-size:32px;line-height:1;color:#ef4444;display:flex;align-items:center;justify-content:center}
 .weather-bad .weather-label{font-size:8px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.2px}
+.cal-cell.bad-weather{position:relative}
 .cal-empty-week{grid-column:1/-1;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:12px;padding:48px}
 /* COLLECTOR VIEW */
 #collector-view{flex-direction:column;overflow-y:auto;padding:14px 16px;gap:14px}
