@@ -584,6 +584,7 @@ setTimeout(function(){
         <div class="tab-group-btns">
           <button class="tab-btn" data-view="schedule-view">&#x1F5FA;&#xFE0F; Map</button>
           <button class="tab-btn" data-view="calendar-view">&#x1F4C6; Calendar</button>
+          <a class="tab-btn" href="/availability_heatmap.html" target="_blank">&#x1F4C5; Availability</a>
         </div>
       </div>
     </div>
