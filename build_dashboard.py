@@ -248,11 +248,11 @@ select option{background:var(--bg3)}
 .weather-bad .weather-label{font-size:8px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.2px}
 .cal-cell.bad-weather{position:relative;z-index:0}
 /* ── Availability heatmap view ── */
-#availability-view{overflow-y:auto;padding:28px 32px;gap:0}
+#availability-view{overflow:auto;padding:28px 32px;gap:0}
 #avail-hm-title{font-size:15px;font-weight:700;margin:0 0 4px;letter-spacing:-.3px;font-family:'Space Grotesk',sans-serif}
 #avail-hm-sub{font-size:11px;color:var(--text2);margin-bottom:24px}
-.avail-panels{display:flex;gap:40px;flex-wrap:wrap}
-.avail-panel{flex:1;min-width:340px}
+.avail-panels{display:flex;gap:40px;flex-wrap:nowrap;min-width:max-content}
+.avail-panel{flex:0 0 auto}
 .avail-panel-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;padding:6px 10px;border-radius:6px}
 .avail-panel-title.a{background:rgba(124,58,237,.18);color:#a78bfa;border:1px solid rgba(124,58,237,.3)}
 .avail-panel-title.b{background:rgba(220,38,38,.14);color:#f87171;border:1px solid rgba(220,38,38,.25)}
