@@ -118,6 +118,12 @@ select option{background:var(--bg3)}
 .cal-nav-btn:disabled{opacity:.28;cursor:default}
 #cal-today-btn{padding:3px 12px;border-radius:14px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-size:11px;font-weight:500}
 #cal-today-btn:hover{background:var(--bg3);border-color:var(--accent);color:var(--text)}
+.bp-toggle{padding:3px 8px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-size:10px;font-weight:600;transition:all .15s}
+.bp-toggle:hover{background:var(--bg3);border-color:var(--accent);color:var(--text)}
+.bp-toggle.active{background:var(--bg3);border-color:var(--accent);color:var(--text)}
+.bp-toggle[data-backpack="A"].active{border-color:#f85149;color:#f85149}
+.bp-toggle[data-backpack="B"].active{border-color:#388bfd;color:#388bfd}
+.bp-toggle[data-backpack="X"].active{border-color:#f0a500;color:#f0a500}
 #cal-src-badge{font-size:10px;color:var(--text3);margin-left:auto;padding:2px 8px;background:var(--bg3);border-radius:9px;border:1px solid var(--border);white-space:nowrap}
 #cal-body{flex:1;overflow:auto;min-height:0}
 #cal-grid{display:grid;grid-template-columns:54px repeat(7,1fr);grid-template-rows:56px repeat(3,minmax(110px,1fr));min-height:100%}
@@ -654,6 +660,11 @@ setTimeout(function(){
         <button class="cal-nav-btn" id="cal-next" title="Next week">&#x203A;</button>
         <h2 id="cal-title">—</h2>
         <button id="cal-today-btn">Today</button>
+        <div id="cal-bp-toggles" style="display:flex;gap:4px;margin-left:12px">
+          <button class="bp-toggle active" data-backpack="A" title="Toggle Backpack A">BP A</button>
+          <button class="bp-toggle active" data-backpack="B" title="Toggle Backpack B">BP B</button>
+          <button class="bp-toggle active" data-backpack="X" title="Toggle Legacy X">BP X</button>
+        </div>
         <div id="cal-src-badge">No data loaded</div>
       </div>
       <div id="cal-body">
@@ -968,6 +979,7 @@ const TODS=["AM","MD","PM"];
 let allWalks=[], filteredWalks=[], logText=SAMPLE_LOG;
 let currentRoute=null, currentCollector=COLLECTORS[0], currentWin='2w';
 let filters={season:'',tod:'',backpack:'',from:null,to:null};
+let visibleBackpacks={A:true,B:true,X:true};
 let map=null, routeLayers={}, routeCentroids={}, charts={};
 let collectorHomeLayer=null, collectorHomesVisible=false, collectorHomeMarkers={};
 
@@ -1024,6 +1036,7 @@ function applyFilters(){
     if(filters.season&&w.season!==filters.season)return false;
     if(filters.tod&&w.tod!==filters.tod)return false;
     if(filters.backpack&&w.bp!==filters.backpack)return false;
+    if(!visibleBackpacks[w.bp])return false;
     if(filters.from&&w.date<filters.from)return false;
     if(filters.to&&w.date>filters.to)return false;
     return true;
@@ -1033,6 +1046,7 @@ function applyFilters(){
   updateMapStats();
   if(currentRoute)updateRoutePanel(currentRoute);
   if(document.getElementById('collector-view').classList.contains('active'))renderCV();
+  if(document.getElementById('calendar-view').classList.contains('active'))renderCalendar();
 }
 // ─── MAP ───
 function makeHomeIcon(cid,count){
@@ -1680,6 +1694,7 @@ function renderSchedulePanel(){
   function fmtDate(s){const d=new Date(s+'T00:00:00');return d.toLocaleDateString('en-US',{weekday:'short',month:'numeric',day:'numeric'});}
   function section(bp,rows){
     if(!rows.length)return '';
+    if(!visibleBackpacks[bp])return '';
     const cls=bp==='A'?'bpa':'bpb';
     let html=`<div class="sbp-section"><h3><span class="bpbadge ${cls}">Backpack ${bp}</span> ${rows.length} walk${rows.length>1?'s':''}</h3>`;
     for(const r of rows){
@@ -1769,6 +1784,7 @@ function renderCalendar(){
   // Build lookup: dateStr → {AM:[], MD:[], PM:[]}
   const byDayTod={};
   for(const w of wk.walks){
+    if(!visibleBackpacks[w.backpack])continue;
     if(!byDayTod[w.date])byDayTod[w.date]={AM:[],MD:[],PM:[]};
     if(byDayTod[w.date][w.tod])byDayTod[w.date][w.tod].push(w);
   }
@@ -1892,6 +1908,7 @@ function bindEvents(){
   document.getElementById('fbp').addEventListener('change',e=>{filters.backpack=e.target.value;applyFilters();});
   document.getElementById('ffrom').addEventListener('change',e=>{filters.from=e.target.value?new Date(e.target.value+'T00:00:00'):null;applyFilters();});
   document.getElementById('fto').addEventListener('change',e=>{filters.to=e.target.value?new Date(e.target.value+'T23:59:59'):null;applyFilters();});
+  document.querySelectorAll('.bp-toggle').forEach(btn=>{btn.addEventListener('click',e=>{const bp=e.target.dataset.backpack;visibleBackpacks[bp]=!visibleBackpacks[bp];e.target.classList.toggle('active');applyFilters();renderSchedulePanel();});});
   document.getElementById('btn-refresh').addEventListener('click',()=>{
     allWalks=parseLog(logText);applyFilters();updateStatus();
     toast(`Refreshed: ${allWalks.length} walks`,'success');
