@@ -1857,6 +1857,11 @@ def build_weekly_calendar(
     # Filter top combos — skip any (route, tod) already preserved
     top = [c for c in top if (c["route"], c["tod"]) not in preserved_keys]
 
+    # ── Initialize dynamic walk count tracking ──────────────────────────────────
+    # Create a mutable copy of season_counts that will be updated as assignments
+    # are made, ensuring load balancing is intelligent across the entire scheduling run
+    dynamic_season_counts = (season_counts or {}).copy()
+
     # ── MRV pre-computation ─────────────────────────────────────────────────
     # For each (day, tod) slot, count how many top combos have that slot as a
     # valid good-weather option.  When choosing which day to place a walk on,
@@ -1866,6 +1871,57 @@ def build_weekly_calendar(
     for c in top:
         for d in c["good_weather_days"]:
             slot_demand[(d, c["tod"])] += 1
+
+    # ── Pre-compute constraint levels for intelligent ordering ──────────────────
+    # Categorize combos by how constrained they are (fewest eligible collectors = tightest)
+    # This ensures hard-to-place assignments are handled first while flexibility exists
+    combo_constraints: List[Tuple[int, int, Dict]] = []
+    for combo_idx, combo in enumerate(top):
+        bp = bp_map[combo_idx]
+        tod = combo["tod"]
+        # Count eligible collectors for this combo across all good-weather days
+        eligible_count = 0
+        bp_team = BACKPACK_COLLECTORS.get(bp, set())
+        for cid in combo["available_collectors"]:
+            if cid not in bp_team:
+                continue
+            # Count how many days this collector is available and not yet used that day
+            available_days = sum(
+                1 for d in combo["good_weather_days"]
+                if d > today and d in cal[bp] and
+                   availability.get(cid, {}).get((d, tod), True) and
+                   d not in collector_used_on[cid] and
+                   (recal_day is None or d != recal_day)
+                and cal[bp][d][tod] is None
+            )
+            if available_days > 0:
+                eligible_count += 1
+        # Sort by: (constraint severity (fewest options first), original index)
+        # Constraint 0 = unplaceable, 1 = forced (1 option), 2 = constrained (2-3), 3 = flexible (4+)
+        if eligible_count == 0:
+            constraint_level = 0
+        elif eligible_count == 1:
+            constraint_level = 1  # forced
+        elif eligible_count <= 3:
+            constraint_level = 2  # constrained
+        else:
+            constraint_level = 3  # flexible
+        combo_constraints.append((constraint_level, combo_idx, combo))
+
+    # Sort by constraint level (ascending), then by original index for stability
+    # This processes tight constraints first: forced → constrained → flexible
+    combo_constraints.sort(key=lambda x: (x[0], x[1]))
+
+    # Reorder top based on constraint level (but keep unplaceable at end)
+    top_sorted = [combo for _, _, combo in combo_constraints if _ > 0]
+    top_unplaceable = [combo for _, _, combo in combo_constraints if _ == 0]
+    top = top_sorted + top_unplaceable
+
+    # Update bp_map indices to match new ordering
+    new_bp_map = {}
+    for new_idx, (_, old_idx, _) in enumerate(combo_constraints):
+        new_bp_map[new_idx] = bp_map[old_idx]
+    bp_map = new_bp_map
 
     for idx, combo in enumerate(top):
         tod = combo["tod"]
@@ -1889,9 +1945,8 @@ def build_weekly_calendar(
                 continue  # slot taken by this backpack
 
             # Build scored candidate list:
-            #   score = (season_walks, affinity_penalty, continuity_cost_min, cid)
-            #   Priority: load balance > affinity score (higher = better) > transit continuity > alpha
-            sc = season_counts or {}
+            #   Intelligent scoring: prioritize affinity first, then continuity, then load balance
+            #   This prevents early greedy over-assignment to low-count collectors
             bp_team = BACKPACK_COLLECTORS.get(bp, set())
             eligible = []
             for cid in combo["comfortable_collectors"] + [
@@ -1906,7 +1961,8 @@ def build_weekly_calendar(
                     continue
                 # affinity_penalty: lower = preferred (score 3 → 0, score 0 → 3, unrated → 3)
                 affinity_penalty = 3 - combo["affinity_scores"].get(cid, 0)
-                season_walks     = sc.get(cid, 0)
+                # Use dynamic walk count updated in real-time as assignments are made
+                season_walks     = dynamic_season_counts.get(cid, 0)
                 # same_day=True when collector has a route on the previous
                 # day (consecutive-day sequencing — transit ease matters more)
                 prev_day = d - timedelta(days=1)
@@ -1915,14 +1971,16 @@ def build_weekly_calendar(
                     cid, combo["route"], route_coords, collector_week_routes,
                     same_day=is_consecutive, tod=tod,
                 )
-                # Priority: fewest season walks -> highest affinity -> transit continuity -> alpha
-                eligible.append((season_walks, affinity_penalty, cont_cost, cid))
+                # Priority: affinity first -> continuity second -> load balance third -> alpha
+                # This ensures good matches are preserved, transit continuity is maintained,
+                # and load balancing happens as a tertiary tiebreaker
+                eligible.append((affinity_penalty, cont_cost, season_walks, cid))
 
             if not eligible:
                 continue
 
             eligible.sort(key=lambda x: (x[0], x[1], x[2], x[3]))
-            _sea_walks, _not_comf, _cont_min, chosen = eligible[0]
+            _affinity, _cont_min, _sea_walks, chosen = eligible[0]
 
             entry = {
                 **combo,
@@ -1936,6 +1994,10 @@ def build_weekly_calendar(
             collector_used_on[chosen].add(d)
             collector_week_routes[chosen].append(combo["route"])
             assignments.append(entry)
+            # ── Update dynamic walk count for intelligent load balancing ──────────
+            # Increment the collector's count so subsequent assignments see the updated value
+            # This prevents the algorithm from repeatedly assigning to the same person
+            dynamic_season_counts[chosen] = dynamic_season_counts.get(chosen, 0) + 1
             placed = True
             break
 
