@@ -887,7 +887,10 @@ def parse_availability_xlsx(
     Returns {collector_id: {(date, tod): bool}} for every day in week_days,
     covering only collectors whose tab appears in the workbook.
     """
-    xlsx_path = SCHEDULE_DIR / "Availability.xlsx"
+    xlsx_path = BASE_DIR / "Availability.xlsx"
+    if not xlsx_path.exists():
+        # Fallback: check old location inside Collector_Schedule/
+        xlsx_path = SCHEDULE_DIR / "Availability.xlsx"
     if not xlsx_path.exists():
         print(f"  [WARN] {xlsx_path.name} not found — skipping xlsx availability")
         return {}
@@ -2216,8 +2219,12 @@ def main() -> None:
     missing = [c for c in COLLECTORS if c not in availability]
     if missing:
         print(f"  {len(missing)} collector(s) not in xlsx — falling back to vision: {missing}")
-        schedules    = parse_collector_schedules(client)
-        vision_avail = resolve_availability(schedules, week_days)
+        if SCHEDULE_DIR.is_dir():
+            schedules    = parse_collector_schedules(client)
+            vision_avail = resolve_availability(schedules, week_days)
+        else:
+            print(f"  [WARN] {SCHEDULE_DIR.name}/ not found — skipping vision fallback")
+            schedules, vision_avail = {}, {}
         for cid in missing:
             if cid in vision_avail:
                 availability[cid] = vision_avail[cid]
