@@ -131,12 +131,6 @@ CAMPUS_COORDS = {
 # (CCNY ≈ 135 St / MN_HT stop; LAGCC ≈ Court Sq / QN_LA stop)
 CAMPUS_PROXY_ROUTE = {"A": "MN_HT", "B": "QN_LA"}
 
-# Hardcoded CCNY midday requirement — one backpack must be at CCNY on this date/TOD
-FORCED_CCNY_DATE      = date(2026, 3, 25)   # Wed 3/25
-FORCED_CCNY_TOD       = "MD"
-FORCED_CCNY_BP        = "A"                 # Backpack A goes to CCNY; B continues field work
-FORCED_CCNY_COLLECTOR = "SOT"               # SOT is responsible for this run
-
 # Student collectors per backpack (drive scheduling)
 BACKPACK_COLLECTORS: Dict[str, set] = {
     "A": {"JEN", "AYA", "SOT", "TAH"},   # CCNY team
@@ -1818,21 +1812,8 @@ def build_weekly_calendar(
         "B": {d: {tod: None for tod in TODS} for d in all_week_days},
     }
 
-    # Hardcoded constraint: Backpack A at CCNY midday on 3/25, SOT assigned
     collector_used_on:     Dict[str, set]        = defaultdict(set)
     collector_week_routes: Dict[str, List[str]]  = defaultdict(list)
-
-    if FORCED_CCNY_DATE in cal[FORCED_CCNY_BP]:
-        cal[FORCED_CCNY_BP][FORCED_CCNY_DATE][FORCED_CCNY_TOD] = {
-            "route":              "CCNY",
-            "tod":                FORCED_CCNY_TOD,
-            "backpack":           FORCED_CCNY_BP,
-            "assigned_date":      FORCED_CCNY_DATE,
-            "assigned_collector": FORCED_CCNY_COLLECTOR,
-            "ccny_forced":        True,
-        }
-        # Block SOT from being double-booked on 3/25
-        collector_used_on[FORCED_CCNY_COLLECTOR].add(FORCED_CCNY_DATE)
 
     assignments: List[Dict] = []
     unassigned:  List[Dict] = []
@@ -1999,9 +1980,7 @@ def build_weekly_calendar(
                     continue
                 entry   = cal[bp_label][d][tod]
                 wx_good = weather.get((d, tod), False)
-                if entry and entry.get("ccny_forced"):
-                    cell = "★ CCNY MD"
-                elif entry:
+                if entry:
                     cell = f"{entry['route']}({entry['assigned_collector']})"
                 elif not wx_good:
                     cell = "☁ BAD WX"
@@ -2011,11 +1990,9 @@ def build_weekly_calendar(
             print(f"  {tod:<4} |" + "".join(f"  {c}" for c in cells))
 
         print("─" * W)
-        forced_this_bp = (bp_label == FORCED_CCNY_BP and FORCED_CCNY_DATE in all_week_days)
         print(
             f"  * = past   ☁ = cloudy TOD   (ID) = assigned collector"
             + (f"   ★ = CCNY recalibration day (both backpacks)" if recal_day else "")
-            + (f"   ★ CCNY MD = hardcoded CCNY midday ({FORCED_CCNY_DATE.strftime('%m/%d')})" if forced_this_bp else "")
         )
         print()
 
