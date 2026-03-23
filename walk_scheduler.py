@@ -1900,9 +1900,9 @@ def build_weekly_calendar(
                 1 for d in combo["good_weather_days"]
                 if d > today and d in cal[bp] and
                    availability.get(cid, {}).get((d, tod), True) and
-                   d not in collector_used_on[cid] and
-                   (recal_day is None or d != recal_day)
-                and cal[bp][d][tod] is None
+                   (recal_day is None or d != recal_day) and
+                   cal[bp][d][tod] is None and
+                   sum(1 for t in TODS if cal[bp][d].get(t) is not None and cal[bp][d][t].get("assigned_collector") == cid) < 2
             )
             if available_days > 0:
                 eligible_count += 1
@@ -1967,16 +1967,19 @@ def build_weekly_calendar(
                     continue  # enforce: BP-A → CCNY only, BP-B → LaGCC only
                 if not availability.get(cid, {}).get((d, tod), True):
                     continue
-                if d in collector_used_on[cid]:
+                # Count walks already assigned to this collector on day d (allow up to 2)
+                walks_today = sum(1 for tod_check in TODS if cal[bp][d].get(tod_check) is not None and cal[bp][d][tod_check].get("assigned_collector") == cid)
+                if walks_today >= 2:
                     continue
                 # affinity_penalty: lower = preferred (score 3 → 0, score 0 → 3, unrated → 3)
                 affinity_penalty = 3 - combo["affinity_scores"].get(cid, 0)
                 # Use dynamic walk count updated in real-time as assignments are made
                 season_walks     = dynamic_season_counts.get(cid, 0)
-                # same_day=True when collector has a route on the previous
-                # day (consecutive-day sequencing — transit ease matters more)
+                # same_day=True when collector has OTHER walk on this same day OR previous day
+                # (consecutive-day AND intra-day sequencing — transit ease matters more)
                 prev_day = d - timedelta(days=1)
-                is_consecutive = prev_day in collector_used_on.get(cid, set())
+                walks_today_check = sum(1 for tod_check in TODS if cal[bp][d].get(tod_check) is not None and cal[bp][d][tod_check].get("assigned_collector") == cid)
+                is_consecutive = walks_today_check > 0 or prev_day in collector_used_on.get(cid, set())
                 cont_cost        = _continuity_cost(
                     cid, combo["route"], route_coords, collector_week_routes,
                     same_day=is_consecutive, tod=tod,
