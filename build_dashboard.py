@@ -222,6 +222,12 @@ select option{background:var(--bg3)}
 .ce-route{font-size:11px;font-weight:600;color:var(--text);line-height:1.3}
 .ce-col{font-size:9.5px;color:var(--text2);margin-top:3px}
 .cal-recal-tag{background:rgba(240,165,0,.12);border:1px dashed #f0a500;border-radius:4px;padding:5px 8px;font-size:9.5px;color:#f0a500;text-align:center;font-weight:700;letter-spacing:.3px}
+/* Weather Bad indicator */
+.weather-bad{position:absolute;inset:0;background:#ffe5cc;border-radius:5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;z-index:10;pointer-events:none}
+.weather-bad .bad-label{font-size:9px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.3px;margin-bottom:1px}
+.weather-bad .no-sign{font-size:32px;line-height:1;color:#ef4444;display:flex;align-items:center;justify-content:center}
+.weather-bad .weather-label{font-size:8px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.2px}
+.cal-cell.bad-weather{position:relative}
 .cal-empty-week{grid-column:1/-1;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:12px;padding:48px}
 /* COLLECTOR VIEW */
 #collector-view{flex-direction:column;overflow-y:auto;padding:14px 16px;gap:14px}
@@ -1613,8 +1619,14 @@ function renderCalendar(){
       const isWeekend=dd.getDay()===0||dd.getDay()===6;
       const isRecal=wk.recal_day===dateStr;
       const walks=(byDayTod[dateStr]||{})[ctod]||[];
+      const weatherKey=`${dateStr}_${ctod}`;
+      const isBadWeather=BAKED_SCHEDULE&&BAKED_SCHEDULE.weather&&BAKED_SCHEDULE.weather[weatherKey]===false;
 
       let cellContent='';
+      // Weather indicator overlay for bad weather
+      if(isBadWeather){
+        cellContent+=`<div class="weather-bad"><div class="bad-label">BAD</div><div class="no-sign">🚫</div><div class="weather-label">WEATHER</div></div>`;
+      }
       // Recalibration tag in AM cell
       if(isRecal&&ctod==='AM'){
         cellContent+=`<div class="cal-recal-tag">★ Recalibration — CCNY</div>`;
@@ -1640,7 +1652,8 @@ function renderCalendar(){
       const cls=['cal-cell',
         isToday?'cal-today-col':'',
         isPast?'cal-past-col':'',
-        isWeekend?'cal-weekend':''
+        isWeekend?'cal-weekend':'',
+        isBadWeather?'bad-weather':''
       ].filter(Boolean).join(' ');
       html+=`<div class="${cls}">${cellContent}</div>`;
     }

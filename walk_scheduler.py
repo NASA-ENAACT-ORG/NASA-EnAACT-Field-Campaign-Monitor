@@ -2111,6 +2111,14 @@ def build_weekly_calendar(
     _generate_schedule_map(assignments, route_coords, week_start, week_end)
 
     # ── JSON export for dashboard ─────────────────────────────────────────────
+    # Build weather lookup: convert (date, tod, boro) keys to simple date_TOD strings
+    # Use city-wide weather ("") for the dashboard's unified calendar view
+    weather_lookup = {}
+    for (d, tod, boro), is_good in weather.items():
+        if boro == "":  # City-wide weather
+            key = f"{str(d)}_{tod}"
+            weather_lookup[key] = is_good
+
     schedule_data = {
         "generated":    str(date.today()),
         "generated_at": datetime.now().isoformat(),
@@ -2141,6 +2149,7 @@ def build_weekly_calendar(
             }
             for e in unassigned
         ],
+        "weather": weather_lookup,
     }
     out_path = Path(__file__).parent / "schedule_output.json"
     with open(out_path, "w") as f:
