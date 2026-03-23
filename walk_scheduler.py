@@ -1085,21 +1085,28 @@ def score_combos(
       4. TIEBREAKER – minimum distance from any available collector to route centroid
     """
     # Pre-compute: for each (tod, boro), which dates have good weather?
-    # Also build a union across all boros so collector availability (boro-agnostic)
-    # can still be pre-filtered.
+    # HARD CONSTRAINT: Unified weather - a day is GOOD only if ALL boroughs are good
     good_weather_by_tod_boro: Dict[Tuple[str, str], List[date]] = defaultdict(list)
     good_weather_by_tod_any:  Dict[str, set] = defaultdict(set)
+    weather_by_date_tod: Dict[Tuple[date, str], List[bool]] = defaultdict(list)
+
     for (d, tod, boro), is_good in weather.items():
         if is_good:
             good_weather_by_tod_boro[(tod, boro)].append(d)
             good_weather_by_tod_any[tod].add(d)
+        weather_by_date_tod[(d, tod)].append(is_good)
+
+    # Build unified good weather: bad if ANY borough is bad (HARD REQUIREMENT)
+    good_weather_by_tod_unified: Dict[str, List[date]] = defaultdict(list)
+    for (d, tod), is_good_list in weather_by_date_tod.items():
+        if all(is_good_list):  # Good only if ALL boroughs are good
+            for t in TODS:
+                if tod == t:
+                    good_weather_by_tod_unified[t].append(d)
 
     def good_days_for(tod: str, boro: str) -> List[date]:
-        """Return good-weather days for this tod+boro; fall back to city-wide."""
-        specific = good_weather_by_tod_boro.get((tod, boro), [])
-        if specific:
-            return specific
-        return good_weather_by_tod_boro.get((tod, ""), [])
+        """Return unified good-weather days (HARD CONSTRAINT: bad if ANY borough is bad)."""
+        return sorted(good_weather_by_tod_unified.get(tod, []))
 
     # Pre-compute: which (collector, tod) combinations have available days?
     # Use the union of good-weather days across all boroughs so we don't miss
@@ -2111,19 +2118,19 @@ def build_weekly_calendar(
     _generate_schedule_map(assignments, route_coords, week_start, week_end)
 
     # ── JSON export for dashboard ─────────────────────────────────────────────
-    # Build weather lookup: export all weather data for each date/TOD combination
-    # For unified calendar view, mark as bad if ANY borough has bad weather for that slot
+    # Build unified weather lookup: HARD CONSTRAINT - bad if ANY borough is bad
+    # This must match the scheduler's assignment logic for consistency
     weather_lookup = {}
-    weather_by_date_tod = {}  # Collect all weather values per date/TOD
+    weather_by_date_tod = {}
     for (d, tod, boro), is_good in weather.items():
         key = f"{str(d)}_{tod}"
         if key not in weather_by_date_tod:
             weather_by_date_tod[key] = []
         weather_by_date_tod[key].append(is_good)
 
-    # Mark as bad if ANY borough has bad weather, good only if ALL are good
+    # Mark as bad if ANY borough has bad weather (HARD REQUIREMENT)
     for key, is_good_list in weather_by_date_tod.items():
-        weather_lookup[key] = all(is_good_list)  # True only if all boroughs are good
+        weather_lookup[key] = all(is_good_list)  # Good only if ALL boroughs are good
 
     schedule_data = {
         "generated":    str(date.today()),
@@ -2260,13 +2267,22 @@ def main() -> None:
                 # Skip if outside the current week
                 if not (week_start <= _d <= week_end):
                     continue
-                # Hard-frozen: confirmed by a scheduler OR preserved=True flag — keep regardless of weather
+                # Check weather: HARD CONSTRAINT - must have good weather (cloud cover ≤ 33%)
+                boro = _a.get("boro", "")
+                is_good_weather = weather.get((_d, _tod, boro), False)
+                if not is_good_weather:
+                    # Try city-wide fallback
+                    is_good_weather = weather.get((_d, _tod, ""), False)
+
+                # HARD REQUIREMENT: only keep if weather is good, regardless of preservation status
+                if not is_good_weather:
+                    print(f"  ✗  Rejected (BAD WEATHER): {_a['route']} {_tod} {_a['date']} → {_a['collector']}")
+                    continue
+
+                # Good weather: preserve if confirmed or marked preserved
                 if _conf_status == "confirmed" or _a.get("preserved", False):
                     preserved_assignments.append(_a)
                     print(f"  🔒 Frozen:    {_a['route']} {_tod} {_a['date']} → {_a['collector']}")
-                # Otherwise keep only if weather still good in new forecast
-                elif weather.get((_d, _tod), False):
-                    preserved_assignments.append(_a)
             if preserved_assignments:
                 print(f"  ↩  {len(preserved_assignments)} assignment(s) preserved "
                       f"(frozen or still-good-weather)\n")

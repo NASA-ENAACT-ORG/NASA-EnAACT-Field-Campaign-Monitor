@@ -677,7 +677,7 @@ const ROUTES_GEO = {"BX_NW":{"boro":"BX","name":"Norwood","lines":[[[40.85643,-7
 const COLLECTOR_HOMES = {"TER": {"lat": 40.687309, "lng": -73.941589, "name": "Terra", "non_collector": false}, "AYA": {"lat": 40.6693, "lng": -73.941926, "name": "Aya Nasri", "non_collector": false}, "SCT": {"lat": 40.739522, "lng": -73.877856, "name": "Scott", "non_collector": false}, "ALX": {"lat": 40.67643, "lng": -73.813913, "name": "Alex", "non_collector": false}, "JEN": {"lat": 40.764286, "lng": -73.924059, "name": "Jennifer", "non_collector": false}, "JAM": {"lat": 40.735877, "lng": -73.872864, "name": "James", "non_collector": false}, "ANG": {"lat": 40.764928, "lng": -73.830701, "name": "Angy", "non_collector": true}, "TAH": {"lat": 40.753384, "lng": -73.906652, "name": "Taha", "non_collector": false}, "SOT": {"lat": 40.757137, "lng": -73.971896, "name": "Soteri", "non_collector": false}, "NRS": {"lat": 40.818456, "lng": -73.943499, "name": "Prof. Naresh", "non_collector": false}, "PRA": {"lat": 40.851882, "lng": -73.972726, "name": "Prof. Prathap", "non_collector": false}};
 const BAKED_SCHEDULE = {
   "generated": "2026-03-23",
-  "generated_at": "2026-03-23T12:09:45.067773",
+  "generated_at": "2026-03-23T13:02:31.885814",
   "week_start": "2026-03-23",
   "week_end": "2026-03-27",
   "recal_day": null,
@@ -694,17 +694,6 @@ const BAKED_SCHEDULE = {
       "preserved": true
     },
     {
-      "route": "QN_LI",
-      "label": "Queens \u2013 Astoria/LIC",
-      "boro": "QN",
-      "neigh": "LI",
-      "tod": "AM",
-      "backpack": "B",
-      "collector": "SCT",
-      "date": "2026-03-25",
-      "preserved": true
-    },
-    {
       "route": "MN_UE",
       "label": "Manhattan \u2013 Upper East Side",
       "boro": "MN",
@@ -725,28 +714,6 @@ const BAKED_SCHEDULE = {
       "collector": "JEN",
       "date": "2026-03-24",
       "preserved": true
-    },
-    {
-      "route": "MN_HT",
-      "label": "Manhattan \u2013 Harlem",
-      "boro": "MN",
-      "neigh": "HT",
-      "tod": "AM",
-      "backpack": "A",
-      "collector": "TAH",
-      "date": "2026-03-25",
-      "preserved": true
-    },
-    {
-      "route": "BK_BS",
-      "label": "Brooklyn \u2013 Bed Stuy",
-      "boro": "BK",
-      "neigh": "BS",
-      "tod": "MD",
-      "backpack": "A",
-      "collector": "AYA",
-      "date": "2026-03-26",
-      "preserved": false
     },
     {
       "route": "MN_MT",
@@ -754,57 +721,31 @@ const BAKED_SCHEDULE = {
       "boro": "MN",
       "neigh": "MT",
       "tod": "PM",
-      "backpack": "A",
-      "collector": "SOT",
-      "date": "2026-03-27",
-      "preserved": false
-    },
-    {
-      "route": "MN_LE",
-      "label": "Manhattan \u2013 Union Sq/LES",
-      "boro": "MN",
-      "neigh": "LE",
-      "tod": "PM",
       "backpack": "B",
       "collector": "JAM",
       "date": "2026-03-27",
       "preserved": false
     },
     {
-      "route": "QN_LI",
-      "label": "Queens \u2013 Astoria/LIC",
-      "boro": "QN",
-      "neigh": "LI",
-      "tod": "MD",
-      "backpack": "B",
-      "collector": "ALX",
-      "date": "2026-03-27",
-      "preserved": false
-    },
-    {
-      "route": "QN_LA",
-      "label": "Queens \u2013 LaGuardia CC",
-      "boro": "QN",
-      "neigh": "LA",
-      "tod": "PM",
-      "backpack": "B",
-      "collector": "ALX",
-      "date": "2026-03-25",
-      "preserved": false
-    },
-    {
-      "route": "QN_FH",
-      "label": "Queens \u2013 Forest Hills",
-      "boro": "QN",
-      "neigh": "FH",
+      "route": "BK_WB",
+      "label": "Brooklyn \u2013 Williamsburg",
+      "boro": "BK",
+      "neigh": "WB",
       "tod": "PM",
       "backpack": "A",
-      "collector": "JEN",
-      "date": "2026-03-25",
+      "collector": "AYA",
+      "date": "2026-03-27",
       "preserved": false
     }
   ],
   "unassigned": [
+    {
+      "route": "QN_LI",
+      "label": "Queens \u2013 Astoria/LIC",
+      "tod": "AM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
     {
       "route": "QN_JH",
       "label": "Queens \u2013 Jackson Heights",
@@ -822,6 +763,13 @@ const BAKED_SCHEDULE = {
     {
       "route": "MN_LE",
       "label": "Manhattan \u2013 Union Sq/LES",
+      "tod": "MD",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_LI",
+      "label": "Queens \u2013 Astoria/LIC",
       "tod": "MD",
       "backpack": "B",
       "reason": "no_open_slot"
@@ -848,10 +796,31 @@ const BAKED_SCHEDULE = {
       "reason": "no_open_slot"
     },
     {
+      "route": "BK_WB",
+      "label": "Brooklyn \u2013 Williamsburg",
+      "tod": "MD",
+      "backpack": "A",
+      "reason": "no_open_slot"
+    },
+    {
       "route": "QN_FH",
       "label": "Queens \u2013 Forest Hills",
       "tod": "AM",
       "backpack": "A",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "MN_HT",
+      "label": "Manhattan \u2013 Harlem",
+      "tod": "AM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_FH",
+      "label": "Queens \u2013 Forest Hills",
+      "tod": "MD",
+      "backpack": "B",
       "reason": "no_open_slot"
     },
     {
@@ -872,6 +841,13 @@ const BAKED_SCHEDULE = {
       "route": "QN_FU",
       "label": "Queens \u2013 Flushing",
       "tod": "AM",
+      "backpack": "A",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "BK_BS",
+      "label": "Brooklyn \u2013 Bed Stuy",
+      "tod": "MD",
       "backpack": "B",
       "reason": "no_open_slot"
     },
@@ -883,15 +859,22 @@ const BAKED_SCHEDULE = {
       "reason": "no_open_slot"
     },
     {
-      "route": "BK_WB",
-      "label": "Brooklyn \u2013 Williamsburg",
+      "route": "QN_JH",
+      "label": "Queens \u2013 Jackson Heights",
       "tod": "MD",
       "backpack": "B",
       "reason": "no_open_slot"
     },
     {
-      "route": "BK_WB",
-      "label": "Brooklyn \u2013 Williamsburg",
+      "route": "MN_LE",
+      "label": "Manhattan \u2013 Union Sq/LES",
+      "tod": "PM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_LA",
+      "label": "Queens \u2013 LaGuardia CC",
       "tod": "PM",
       "backpack": "B",
       "reason": "no_open_slot"
@@ -899,7 +882,7 @@ const BAKED_SCHEDULE = {
     {
       "route": "QN_FH",
       "label": "Queens \u2013 Forest Hills",
-      "tod": "MD",
+      "tod": "PM",
       "backpack": "B",
       "reason": "no_open_slot"
     },
@@ -914,13 +897,6 @@ const BAKED_SCHEDULE = {
       "route": "BK_BS",
       "label": "Brooklyn \u2013 Bed Stuy",
       "tod": "PM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_JH",
-      "label": "Queens \u2013 Jackson Heights",
-      "tod": "MD",
       "backpack": "B",
       "reason": "no_open_slot"
     },
