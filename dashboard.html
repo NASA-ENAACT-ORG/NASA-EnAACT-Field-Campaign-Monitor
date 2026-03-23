@@ -188,9 +188,6 @@ body.scheduler-mode .sched-row .sr-actions{width:100%;margin-left:0;justify-cont
 .sr-confirm-btn{background:rgba(63,185,80,.15);border-color:#3fb950!important;color:#3fb950!important}
 .sr-deny-btn{background:rgba(248,81,73,.15);border-color:#f85149!important;color:#f85149!important}
 .sr-reset-btn{background:var(--bg3);border-color:var(--border)!important;color:var(--text2)!important}
-.sr-reassign-btn{background:rgba(56,139,253,.15);border-color:#388bfd!important;color:#388bfd!important}
-.sched-row.confirmed-row{border-left:2px solid rgba(63,185,80,.5)}
-.cal-event.confirmed-event{outline:1px solid rgba(63,185,80,.4)}
 body.scheduler-mode .sched-row .sr-actions{visibility:visible}
 .cal-event .ce-actions{display:none;margin-top:4px;gap:3px}
 .cal-event .ce-actions button{flex:1;padding:2px 4px;border-radius:3px;font-size:9px;font-weight:600;cursor:pointer;border:1px solid}
@@ -673,23 +670,12 @@ const ROUTES_GEO = {"BX_NW":{"boro":"BX","name":"Norwood","lines":[[[40.85643,-7
 ;
 const COLLECTOR_HOMES = {"TER": {"lat": 40.687309, "lng": -73.941589, "name": "Terra", "non_collector": false}, "AYA": {"lat": 40.6693, "lng": -73.941926, "name": "Aya Nasri", "non_collector": false}, "SCT": {"lat": 40.739522, "lng": -73.877856, "name": "Scott", "non_collector": false}, "ALX": {"lat": 40.67643, "lng": -73.813913, "name": "Alex", "non_collector": false}, "JEN": {"lat": 40.764286, "lng": -73.924059, "name": "Jennifer", "non_collector": false}, "JAM": {"lat": 40.735877, "lng": -73.872864, "name": "James", "non_collector": false}, "ANG": {"lat": 40.764928, "lng": -73.830701, "name": "Angy", "non_collector": true}, "TAH": {"lat": 40.753384, "lng": -73.906652, "name": "Taha", "non_collector": false}, "SOT": {"lat": 40.757137, "lng": -73.971896, "name": "Soteri", "non_collector": false}, "NRS": {"lat": 40.818456, "lng": -73.943499, "name": "Prof. Naresh", "non_collector": false}, "PRA": {"lat": 40.851882, "lng": -73.972726, "name": "Prof. Prathap", "non_collector": false}};
 const BAKED_SCHEDULE = {
-  "generated": "2026-03-21",
-  "generated_at": "2026-03-21T15:45:59.474064",
-  "week_start": "2026-03-19",
-  "week_end": "2026-03-25",
+  "generated": "2026-03-22",
+  "generated_at": "2026-03-22T22:07:57.338583",
+  "week_start": "2026-03-23",
+  "week_end": "2026-03-27",
   "recal_day": null,
   "assignments": [
-    {
-      "route": "MN_MT",
-      "label": "Manhattan \u2013 Midtown",
-      "boro": "MN",
-      "neigh": "MT",
-      "tod": "MD",
-      "backpack": "B",
-      "collector": "SCT",
-      "date": "2026-03-22",
-      "preserved": true
-    },
     {
       "route": "QN_LA",
       "label": "Queens \u2013 LaGuardia CC",
@@ -728,17 +714,6 @@ const BAKED_SCHEDULE = {
       "label": "Manhattan \u2013 Upper East Side",
       "boro": "MN",
       "neigh": "UE",
-      "tod": "MD",
-      "backpack": "A",
-      "collector": "AYA",
-      "date": "2026-03-22",
-      "preserved": true
-    },
-    {
-      "route": "MN_UE",
-      "label": "Manhattan \u2013 Upper East Side",
-      "boro": "MN",
-      "neigh": "UE",
       "tod": "PM",
       "backpack": "A",
       "collector": "JEN",
@@ -755,13 +730,57 @@ const BAKED_SCHEDULE = {
       "collector": "TAH",
       "date": "2026-03-25",
       "preserved": true
+    },
+    {
+      "route": "MN_MT",
+      "label": "Manhattan \u2013 Midtown",
+      "boro": "MN",
+      "neigh": "MT",
+      "tod": "PM",
+      "backpack": "B",
+      "collector": "JAM",
+      "date": "2026-03-27",
+      "preserved": false
+    },
+    {
+      "route": "QN_LI",
+      "label": "Queens \u2013 Astoria/LIC",
+      "boro": "QN",
+      "neigh": "LI",
+      "tod": "MD",
+      "backpack": "B",
+      "collector": "ALX",
+      "date": "2026-03-27",
+      "preserved": false
+    },
+    {
+      "route": "BK_WB",
+      "label": "Brooklyn \u2013 Williamsburg",
+      "boro": "BK",
+      "neigh": "WB",
+      "tod": "MD",
+      "backpack": "A",
+      "collector": "AYA",
+      "date": "2026-03-26",
+      "preserved": false
+    },
+    {
+      "route": "BK_WB",
+      "label": "Brooklyn \u2013 Williamsburg",
+      "boro": "BK",
+      "neigh": "WB",
+      "tod": "PM",
+      "backpack": "A",
+      "collector": "SOT",
+      "date": "2026-03-25",
+      "preserved": false
     }
   ],
   "unassigned": [
     {
       "route": "MN_MT",
       "label": "Manhattan \u2013 Midtown",
-      "tod": "PM",
+      "tod": "MD",
       "backpack": "B",
       "reason": "no_open_slot"
     },
@@ -794,16 +813,16 @@ const BAKED_SCHEDULE = {
       "reason": "no_open_slot"
     },
     {
-      "route": "QN_LI",
-      "label": "Queens \u2013 Astoria/LIC",
-      "tod": "MD",
+      "route": "QN_EE",
+      "label": "Queens \u2013 East Elmhurst",
+      "tod": "AM",
       "backpack": "B",
       "reason": "no_open_slot"
     },
     {
-      "route": "QN_EE",
-      "label": "Queens \u2013 East Elmhurst",
-      "tod": "AM",
+      "route": "MN_UE",
+      "label": "Manhattan \u2013 Upper East Side",
+      "tod": "MD",
       "backpack": "B",
       "reason": "no_open_slot"
     },
@@ -818,21 +837,7 @@ const BAKED_SCHEDULE = {
       "route": "BK_WB",
       "label": "Brooklyn \u2013 Williamsburg",
       "tod": "AM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "BK_WB",
-      "label": "Brooklyn \u2013 Williamsburg",
-      "tod": "MD",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "BK_WB",
-      "label": "Brooklyn \u2013 Williamsburg",
-      "tod": "PM",
-      "backpack": "B",
+      "backpack": "A",
       "reason": "no_open_slot"
     },
     {
@@ -846,13 +851,6 @@ const BAKED_SCHEDULE = {
       "route": "QN_FH",
       "label": "Queens \u2013 Forest Hills",
       "tod": "PM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_FH",
-      "label": "Queens \u2013 Forest Hills",
-      "tod": "MD",
       "backpack": "B",
       "reason": "no_open_slot"
     },
@@ -888,7 +886,7 @@ const BAKED_SCHEDULE = {
       "route": "BK_BS",
       "label": "Brooklyn \u2013 Bed Stuy",
       "tod": "MD",
-      "backpack": "B",
+      "backpack": "A",
       "reason": "no_open_slot"
     },
     {
@@ -915,6 +913,13 @@ const BAKED_SCHEDULE = {
     {
       "route": "QN_JH",
       "label": "Queens \u2013 Jackson Heights",
+      "tod": "PM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_EE",
+      "label": "Queens \u2013 East Elmhurst",
       "tod": "PM",
       "backpack": "B",
       "reason": "no_open_slot"
@@ -953,7 +958,9 @@ X_JAM_QN_JH_20260228_MD
 X_SOT_MN_HT_20260309_MD
 X_JEN_MN_HT_20260302_PM
 RECAL_03_01_2026
-X_SOT_MN_MT_20260318_AM`;
+X_SOT_MN_MT_20260318_AM
+X_JEN_BK_SP_20260314_PM
+`;
 const TARGET=8, MINC=6;
 const TODS=["AM","MD","PM"];
 
@@ -1376,20 +1383,7 @@ async function doConfirm(aid, status){
     // Re-render both panels
     renderSchedulePanel();
     if(document.getElementById('calendar-view').classList.contains('active'))renderCalendar();
-    toast(status==='confirmed'?'Assignment locked ✅':status==='denied'?'Assignment rejected — hit Save & Reassign to pick someone new':'Reset to pending','success');
-  }catch(e){toast('Could not reach server','');}
-}
-
-async function doReassign(){
-  try{
-    const resp=await fetch('/api/reassign',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({pin:schedAuth.pin||'',scheduler:schedAuth.scheduler})
-    });
-    const data=await resp.json();
-    if(!resp.ok){toast(data.error||'Error','');return;}
-    toast('Reassigning — reload the page in ~2 min to see new assignments','success');
+    toast(status==='confirmed'?'Assignment confirmed ✅':status==='denied'?'Assignment denied ❌':'Reset to pending','success');
   }catch(e){toast('Could not reach server','');}
 }
 
@@ -1400,12 +1394,7 @@ function actionBtns(aid){
     return `<button class="sr-confirm-btn" onclick="event.stopPropagation();doConfirm('${aid}','confirmed')">✓ Confirm</button>`
           +`<button class="sr-deny-btn"    onclick="event.stopPropagation();doConfirm('${aid}','denied')">✗ Deny</button>`;
   }
-  if(st==='confirmed'){
-    return `<button class="sr-reset-btn" onclick="event.stopPropagation();doConfirm('${aid}','pending')">🔓 Unlock</button>`;
-  }
-  // denied — show Save & Reassign
-  return `<button class="sr-reassign-btn" onclick="event.stopPropagation();doReassign()">💾 Save & Reassign</button>`
-        +`<button class="sr-reset-btn"    onclick="event.stopPropagation();doConfirm('${aid}','pending')">↩ Reset</button>`;
+  return `<button class="sr-reset-btn" onclick="event.stopPropagation();doConfirm('${aid}','pending')">↩ Reset</button>`;
 }
 let schedStep=-1, schedPlaying=false, schedPlayTimer=null;
 let tlWeekIdx=0;   // index into tlWeeks array (0 = most recent)
@@ -1697,8 +1686,7 @@ function renderSchedulePanel(){
       const label=ROUTE_LABELS[r.route]||r.route;
       const todCls=r.tod==='AM'?'tb-am':r.tod==='MD'?'tb-md':'tb-pm';
       const aid=assignId(r);
-      const rowSt=(schedConfirmations[aid]||{}).status||'pending';
-      html+=`<div class="sched-row${rowSt==='confirmed'?' confirmed-row':''}" onclick="highlightSchedRoute('${r.route}','${bp}')">
+      html+=`<div class="sched-row" onclick="highlightSchedRoute('${r.route}','${bp}')">
         <span class="sr-date">${fmtDate(r.date)}</span>
         <span class="sr-tod tb ${todCls}">${r.tod}</span>
         <span class="sr-route">${label}</span>
@@ -1829,8 +1817,7 @@ function renderCalendar(){
         const aid=w.source==='scheduled'?assignId(w):'';
         const badge=aid?statusBadgeHTML(aid):'';
         const actions=aid?`<div class="ce-actions">${actionBtns(aid)}</div>`:'';
-        const confCls=aid&&(schedConfirmations[aid]||{}).status==='confirmed'?' confirmed-event':'';
-        cellContent+=`<div class="cal-event ${bpCls}${compCls}${confCls}">
+        cellContent+=`<div class="cal-event ${bpCls}${compCls}">
           <div class="ce-bp">${bpLabel}</div>
           <div class="ce-route">${routeLbl}</div>
           <div class="ce-col">${colLbl}</div>
