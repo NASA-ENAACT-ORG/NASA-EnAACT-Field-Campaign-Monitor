@@ -75,6 +75,25 @@ if _sched_path.exists():
 else:
     baked_schedule_json = "null"
 
+# ── Bake availability heatmap data ───────────────────────────────────────────
+import sys as _sys
+_sys.path.insert(0, str(BASE))
+from build_availability_heatmap import load_availability, build_heatmap, GROUP_A, GROUP_B, DAYS as _AVAIL_DAYS, TODS as _AVAIL_TODS, FULL_NAMES as _AVAIL_NAMES
+_avail = load_availability()
+_cells_a, _cells_b = {}, {}
+for _tod in _AVAIL_TODS:
+    for _day in _AVAIL_DAYS:
+        _k = f'{_day}_{_tod}'
+        _free_a = [c for c in GROUP_A if _avail.get(c, {}).get(_k, False)]
+        _free_b = [c for c in GROUP_B if _avail.get(c, {}).get(_k, False)]
+        _cells_a[_k] = {'count': len(_free_a), 'names': [_AVAIL_NAMES.get(c,c) for c in _free_a]}
+        _cells_b[_k] = {'count': len(_free_b), 'names': [_AVAIL_NAMES.get(c,c) for c in _free_b]}
+avail_cells_a_json = json.dumps(_cells_a)
+avail_cells_b_json = json.dumps(_cells_b)
+avail_max_a = len(GROUP_A)
+avail_max_b = len(GROUP_B)
+avail_days_json = json.dumps(_AVAIL_DAYS)
+
 HTML_TEMPLATE = """\
 <!DOCTYPE html>
 <html lang="en">
@@ -228,6 +247,28 @@ select option{background:var(--bg3)}
 .weather-bad .no-sign{font-size:32px;line-height:1;color:#ef4444;display:flex;align-items:center;justify-content:center}
 .weather-bad .weather-label{font-size:8px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.2px}
 .cal-cell.bad-weather{position:relative;z-index:0}
+/* ── Availability heatmap view ── */
+#availability-view{overflow-y:auto;padding:28px 32px;gap:0}
+#avail-hm-title{font-size:15px;font-weight:700;margin:0 0 4px;letter-spacing:-.3px;font-family:'Space Grotesk',sans-serif}
+#avail-hm-sub{font-size:11px;color:var(--text2);margin-bottom:24px}
+.avail-panels{display:flex;gap:40px;flex-wrap:wrap}
+.avail-panel{flex:1;min-width:340px}
+.avail-panel-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;padding:6px 10px;border-radius:6px}
+.avail-panel-title.a{background:rgba(124,58,237,.18);color:#a78bfa;border:1px solid rgba(124,58,237,.3)}
+.avail-panel-title.b{background:rgba(220,38,38,.14);color:#f87171;border:1px solid rgba(220,38,38,.25)}
+.avail-tbl{border-collapse:collapse;width:100%}
+.avail-tbl th{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);padding:5px 8px;text-align:center}
+.avail-tbl th.avail-row-head{text-align:left;width:36px}
+.avail-tbl td{padding:0;text-align:center;font-size:13px;font-weight:700;width:48px;height:44px;border:1px solid var(--bg3);position:relative;cursor:default}
+.avail-tbl td .anum{position:relative;z-index:2}
+.avail-tbl td .abar{position:absolute;bottom:0;left:0;right:0;border-radius:0 0 2px 2px}
+.avail-tod-label{font-size:10px;font-weight:700;color:var(--text2);text-align:left;padding:6px 8px;width:36px}
+.avail-legend{display:flex;align-items:center;gap:8px;margin-top:20px;font-size:10px;color:var(--text2)}
+.avail-legend-grad{width:120px;height:10px;border-radius:3px;background:linear-gradient(to right,#f85149,#d29922,#3fb950)}
+#avail-tip{position:fixed;display:none;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 13px;font-size:11px;box-shadow:0 6px 24px rgba(0,0,0,.6);pointer-events:none;z-index:9999;min-width:130px}
+#avail-tip .atip-head{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:6px}
+#avail-tip .atip-name{font-size:11px;color:var(--text)}
+#avail-tip .atip-none{font-size:10px;color:var(--text3);font-style:italic}
 .cal-empty-week{grid-column:1/-1;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:12px;padding:48px}
 /* COLLECTOR VIEW */
 #collector-view{flex-direction:column;overflow-y:auto;padding:14px 16px;gap:14px}
@@ -584,7 +625,7 @@ setTimeout(function(){
         <div class="tab-group-btns">
           <button class="tab-btn" data-view="schedule-view">&#x1F5FA;&#xFE0F; Map</button>
           <button class="tab-btn" data-view="calendar-view">&#x1F4C6; Calendar</button>
-          <a class="tab-btn" href="/availability_heatmap.html">&#x1F4C5; Availability</a>
+          <button class="tab-btn" data-view="availability-view">&#x1F4C5; Availability</button>
         </div>
       </div>
     </div>
@@ -744,6 +785,28 @@ setTimeout(function(){
       <div id="cal-body">
         <div id="cal-grid"></div>
       </div>
+    </div>
+    <!-- ── AVAILABILITY VIEW ── -->
+    <div id="availability-view" class="view">
+      <h1 id="avail-hm-title">Collector Availability</h1>
+      <div id="avail-hm-sub">Built from Availability.xlsx &nbsp;&middot;&nbsp; Numbers = collectors available per slot &nbsp;&middot;&nbsp; Hover a cell to see who is free</div>
+      <div class="avail-panels">
+        <div class="avail-panel">
+          <div class="avail-panel-title a">Backpack A &mdash; CCNY <span style="font-weight:400;opacity:.7">(SOT &middot; AYA &middot; JEN &middot; TAH &middot; ANG &nbsp;max __MAX_A__)</span></div>
+          <table class="avail-tbl" id="avail-tbl-a"></table>
+        </div>
+        <div class="avail-panel">
+          <div class="avail-panel-title b">Backpack B &mdash; LaGCC <span style="font-weight:400;opacity:.7">(TER &middot; ALX &middot; SCT &middot; JAM &nbsp;max __MAX_B__)</span></div>
+          <table class="avail-tbl" id="avail-tbl-b"></table>
+        </div>
+      </div>
+      <div class="avail-legend">
+        <span>0</span>
+        <div class="avail-legend-grad"></div>
+        <span>max</span>
+        &nbsp;&middot;&nbsp; Cell height = fill %
+      </div>
+      <div id="avail-tip"><div class="atip-head" id="atip-head"></div><div id="atip-names"></div></div>
     </div>
     </div>
   </div>
@@ -1663,6 +1726,71 @@ function renderCalendar(){
   grid.innerHTML=html;
 }
 
+// ─── AVAILABILITY HEATMAP ───
+const _AVAIL_DAYS=__AVAIL_DAYS_JSON__;
+const _AVAIL_TODS=['AM','MD','PM'];
+const _CELLS_A=__AVAIL_CELLS_A__;
+const _CELLS_B=__AVAIL_CELLS_B__;
+const _MAX_A=__MAX_A__, _MAX_B=__MAX_B__;
+let _availBuilt=false;
+function avCellColor(val,max){
+  const t=val/max;
+  if(t===0)return{bg:'rgba(248,81,73,.18)',text:'#f85149'};
+  if(t<0.35)return{bg:'rgba(248,81,73,.10)',text:'#d29922'};
+  if(t<0.6)return{bg:'rgba(210,153,34,.14)',text:'#d29922'};
+  if(t<0.85)return{bg:'rgba(63,185,80,.12)',text:'#3fb950'};
+  return{bg:'rgba(63,185,80,.22)',text:'#3fb950'};
+}
+function buildAvailTable(id,data,max){
+  const tbl=document.getElementById(id);
+  if(!tbl)return;
+  let hdr='<tr><th class="avail-row-head"></th>';
+  _AVAIL_DAYS.forEach(d=>hdr+=`<th>${d}</th>`);
+  hdr+='</tr>';
+  tbl.innerHTML=hdr;
+  const tip=document.getElementById('avail-tip');
+  const tipHead=document.getElementById('atip-head');
+  const tipNames=document.getElementById('atip-names');
+  _AVAIL_TODS.forEach(tod=>{
+    let row=`<tr><td class="avail-tod-label">${tod}</td>`;
+    _AVAIL_DAYS.forEach(day=>{
+      const key=day+'_'+tod;
+      const cell=data[key]||{count:0,names:[]};
+      const {bg,text}=avCellColor(cell.count,max);
+      const pct=Math.round((cell.count/max)*100);
+      row+=`<td style="background:${bg};color:${text}"><div class="abar" style="height:${pct}%;background:${text};opacity:.18"></div><div class="anum">${cell.count}</div></td>`;
+    });
+    row+='</tr>';
+    tbl.innerHTML+=row;
+  });
+  // bind tooltip to data cells only
+  tbl.querySelectorAll('td:not(.avail-tod-label)').forEach((td,idx)=>{
+    const tod=_AVAIL_TODS[Math.floor(idx/_AVAIL_DAYS.length)];
+    const day=_AVAIL_DAYS[idx%_AVAIL_DAYS.length];
+    const cell=data[day+'_'+tod]||{count:0,names:[]};
+    td.addEventListener('mouseenter',e=>{
+      tipHead.textContent=day+' '+tod+' — '+cell.count+'/'+max+' available';
+      tipNames.innerHTML=cell.names.length?cell.names.map(n=>`<div class="atip-name">${n}</div>`).join(''):'<div class="atip-none">No one available</div>';
+      tip.style.display='block';
+      const tw=tip.offsetWidth||150,th2=tip.offsetHeight||80,vw=window.innerWidth,vh=window.innerHeight;
+      tip.style.left=(e.clientX+14+tw>vw?e.clientX-tw-8:e.clientX+14)+'px';
+      tip.style.top=(e.clientY+14+th2>vh?e.clientY-th2-8:e.clientY+14)+'px';
+    });
+    td.addEventListener('mousemove',e=>{
+      const tw=tip.offsetWidth||150,th2=tip.offsetHeight||80,vw=window.innerWidth,vh=window.innerHeight;
+      tip.style.left=(e.clientX+14+tw>vw?e.clientX-tw-8:e.clientX+14)+'px';
+      tip.style.top=(e.clientY+14+th2>vh?e.clientY-th2-8:e.clientY+14)+'px';
+    });
+    td.addEventListener('mouseleave',()=>tip.style.display='none');
+  });
+}
+function renderAvailHeatmap(){
+  if(_availBuilt)return;
+  buildAvailTable('avail-tbl-a',_CELLS_A,_MAX_A);
+  buildAvailTable('avail-tbl-b',_CELLS_B,_MAX_B);
+  _availBuilt=true;
+}
+
 // ─── EVENTS ───
 function bindEvents(){
   document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>{
@@ -1686,6 +1814,8 @@ function bindEvents(){
     } else if(b.dataset.view==='calendar-view'){
       calWeekIdx=tlWeekIdx;
       fetchConfirmations().then(()=>renderCalendar());
+    } else if(b.dataset.view==='availability-view'){
+      renderAvailHeatmap();
     } else renderCV();
   }));
   document.getElementById('tl-play').addEventListener('click',playSchedule);
@@ -2037,6 +2167,11 @@ HTML_TEMPLATE = HTML_TEMPLATE.replace('__AFFINITY_JSON__', affinity_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__SAMPLE_LOG__', sample_log_js)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__COLLECTOR_HOMES__', collector_homes_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__BAKED_SCHEDULE__', baked_schedule_json)
+HTML_TEMPLATE = HTML_TEMPLATE.replace('__AVAIL_DAYS_JSON__', avail_days_json)
+HTML_TEMPLATE = HTML_TEMPLATE.replace('__AVAIL_CELLS_A__', avail_cells_a_json)
+HTML_TEMPLATE = HTML_TEMPLATE.replace('__AVAIL_CELLS_B__', avail_cells_b_json)
+HTML_TEMPLATE = HTML_TEMPLATE.replace('__MAX_A__', str(avail_max_a))
+HTML_TEMPLATE = HTML_TEMPLATE.replace('__MAX_B__', str(avail_max_b))
 
 # Fix double file reader issue
 HTML_TEMPLATE = HTML_TEMPLATE.replace(
