@@ -2111,13 +2111,19 @@ def build_weekly_calendar(
     _generate_schedule_map(assignments, route_coords, week_start, week_end)
 
     # ── JSON export for dashboard ─────────────────────────────────────────────
-    # Build weather lookup: convert (date, tod, boro) keys to simple date_TOD strings
-    # Use city-wide weather ("") for the dashboard's unified calendar view
+    # Build weather lookup: export all weather data for each date/TOD combination
+    # For unified calendar view, mark as bad if ANY borough has bad weather for that slot
     weather_lookup = {}
+    weather_by_date_tod = {}  # Collect all weather values per date/TOD
     for (d, tod, boro), is_good in weather.items():
-        if boro == "":  # City-wide weather
-            key = f"{str(d)}_{tod}"
-            weather_lookup[key] = is_good
+        key = f"{str(d)}_{tod}"
+        if key not in weather_by_date_tod:
+            weather_by_date_tod[key] = []
+        weather_by_date_tod[key].append(is_good)
+
+    # Mark as bad if ANY borough has bad weather, good only if ALL are good
+    for key, is_good_list in weather_by_date_tod.items():
+        weather_lookup[key] = all(is_good_list)  # True only if all boroughs are good
 
     schedule_data = {
         "generated":    str(date.today()),
