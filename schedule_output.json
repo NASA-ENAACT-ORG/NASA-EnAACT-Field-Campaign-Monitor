@@ -1,6 +1,6 @@
 {
   "generated": "2026-03-23",
-  "generated_at": "2026-03-23T13:02:31.885814",
+  "generated_at": "2026-03-23T13:05:48.236317",
   "week_start": "2026-03-23",
   "week_end": "2026-03-27",
   "recal_day": null,
@@ -45,6 +45,28 @@
       "neigh": "MT",
       "tod": "PM",
       "backpack": "B",
+      "collector": "ALX",
+      "date": "2026-03-25",
+      "preserved": false
+    },
+    {
+      "route": "MN_LE",
+      "label": "Manhattan \u2013 Union Sq/LES",
+      "boro": "MN",
+      "neigh": "LE",
+      "tod": "MD",
+      "backpack": "B",
+      "collector": "SCT",
+      "date": "2026-03-27",
+      "preserved": false
+    },
+    {
+      "route": "MN_LE",
+      "label": "Manhattan \u2013 Union Sq/LES",
+      "boro": "MN",
+      "neigh": "LE",
+      "tod": "PM",
+      "backpack": "B",
       "collector": "JAM",
       "date": "2026-03-27",
       "preserved": false
@@ -54,6 +76,28 @@
       "label": "Brooklyn \u2013 Williamsburg",
       "boro": "BK",
       "neigh": "WB",
+      "tod": "MD",
+      "backpack": "A",
+      "collector": "AYA",
+      "date": "2026-03-26",
+      "preserved": false
+    },
+    {
+      "route": "BK_WB",
+      "label": "Brooklyn \u2013 Williamsburg",
+      "boro": "BK",
+      "neigh": "WB",
+      "tod": "PM",
+      "backpack": "A",
+      "collector": "JEN",
+      "date": "2026-03-25",
+      "preserved": false
+    },
+    {
+      "route": "BK_DT",
+      "label": "Brooklyn \u2013 Downtown BK",
+      "boro": "BK",
+      "neigh": "DT",
       "tod": "PM",
       "backpack": "A",
       "collector": "AYA",
@@ -84,9 +128,44 @@
       "reason": "no_open_slot"
     },
     {
-      "route": "MN_LE",
-      "label": "Manhattan \u2013 Union Sq/LES",
-      "tod": "MD",
+      "route": "QN_EE",
+      "label": "Queens \u2013 East Elmhurst",
+      "tod": "AM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "BK_WB",
+      "label": "Brooklyn \u2013 Williamsburg",
+      "tod": "AM",
+      "backpack": "A",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_FH",
+      "label": "Queens \u2013 Forest Hills",
+      "tod": "AM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "MN_HT",
+      "label": "Manhattan \u2013 Harlem",
+      "tod": "AM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "BK_DT",
+      "label": "Brooklyn \u2013 Downtown BK",
+      "tod": "AM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_FU",
+      "label": "Queens \u2013 Flushing",
+      "tod": "AM",
       "backpack": "B",
       "reason": "no_open_slot"
     },
@@ -98,100 +177,9 @@
       "reason": "no_open_slot"
     },
     {
-      "route": "QN_EE",
-      "label": "Queens \u2013 East Elmhurst",
-      "tod": "AM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
       "route": "MN_UE",
       "label": "Manhattan \u2013 Upper East Side",
       "tod": "MD",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "BK_WB",
-      "label": "Brooklyn \u2013 Williamsburg",
-      "tod": "AM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "BK_WB",
-      "label": "Brooklyn \u2013 Williamsburg",
-      "tod": "MD",
-      "backpack": "A",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_FH",
-      "label": "Queens \u2013 Forest Hills",
-      "tod": "AM",
-      "backpack": "A",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "MN_HT",
-      "label": "Manhattan \u2013 Harlem",
-      "tod": "AM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_FH",
-      "label": "Queens \u2013 Forest Hills",
-      "tod": "MD",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "BK_DT",
-      "label": "Brooklyn \u2013 Downtown BK",
-      "tod": "AM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "BK_DT",
-      "label": "Brooklyn \u2013 Downtown BK",
-      "tod": "MD",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_FU",
-      "label": "Queens \u2013 Flushing",
-      "tod": "AM",
-      "backpack": "A",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "BK_BS",
-      "label": "Brooklyn \u2013 Bed Stuy",
-      "tod": "MD",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "BK_CH",
-      "label": "Brooklyn \u2013 Crown Heights",
-      "tod": "MD",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_JH",
-      "label": "Queens \u2013 Jackson Heights",
-      "tod": "MD",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "MN_LE",
-      "label": "Manhattan \u2013 Union Sq/LES",
-      "tod": "PM",
       "backpack": "B",
       "reason": "no_open_slot"
     },
@@ -210,9 +198,23 @@
       "reason": "no_open_slot"
     },
     {
+      "route": "QN_FH",
+      "label": "Queens \u2013 Forest Hills",
+      "tod": "MD",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
       "route": "BK_DT",
       "label": "Brooklyn \u2013 Downtown BK",
-      "tod": "PM",
+      "tod": "MD",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "BK_BS",
+      "label": "Brooklyn \u2013 Bed Stuy",
+      "tod": "MD",
       "backpack": "B",
       "reason": "no_open_slot"
     },
@@ -220,6 +222,20 @@
       "route": "BK_BS",
       "label": "Brooklyn \u2013 Bed Stuy",
       "tod": "PM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "BK_CH",
+      "label": "Brooklyn \u2013 Crown Heights",
+      "tod": "MD",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_JH",
+      "label": "Queens \u2013 Jackson Heights",
+      "tod": "MD",
       "backpack": "B",
       "reason": "no_open_slot"
     },
@@ -247,12 +263,12 @@
     "2026-03-24_PM": true,
     "2026-03-25_AM": false,
     "2026-03-25_MD": false,
-    "2026-03-25_PM": false,
+    "2026-03-25_PM": true,
     "2026-03-26_AM": false,
-    "2026-03-26_MD": false,
+    "2026-03-26_MD": true,
     "2026-03-26_PM": false,
     "2026-03-27_AM": false,
-    "2026-03-27_MD": false,
+    "2026-03-27_MD": true,
     "2026-03-27_PM": true
   }
 }

@@ -1085,7 +1085,7 @@ def score_combos(
       4. TIEBREAKER – minimum distance from any available collector to route centroid
     """
     # Pre-compute: for each (tod, boro), which dates have good weather?
-    # HARD CONSTRAINT: Unified weather - a day is GOOD only if ALL boroughs are good
+    # HARD CONSTRAINT: Unified weather - mark as bad if 4+ boroughs are bad
     good_weather_by_tod_boro: Dict[Tuple[str, str], List[date]] = defaultdict(list)
     good_weather_by_tod_any:  Dict[str, set] = defaultdict(set)
     weather_by_date_tod: Dict[Tuple[date, str], List[bool]] = defaultdict(list)
@@ -1096,16 +1096,19 @@ def score_combos(
             good_weather_by_tod_any[tod].add(d)
         weather_by_date_tod[(d, tod)].append(is_good)
 
-    # Build unified good weather: bad if ANY borough is bad (HARD REQUIREMENT)
+    # Build unified good weather: bad if MAJORITY (4+/5) of boroughs are bad
     good_weather_by_tod_unified: Dict[str, List[date]] = defaultdict(list)
     for (d, tod), is_good_list in weather_by_date_tod.items():
-        if all(is_good_list):  # Good only if ALL boroughs are good
+        good_count = sum(is_good_list)
+        bad_count = len(is_good_list) - good_count
+        # Mark as good only if fewer than 4 boroughs have bad weather
+        if bad_count < 4:
             for t in TODS:
                 if tod == t:
                     good_weather_by_tod_unified[t].append(d)
 
     def good_days_for(tod: str, boro: str) -> List[date]:
-        """Return unified good-weather days (HARD CONSTRAINT: bad if ANY borough is bad)."""
+        """Return unified good-weather days (HARD CONSTRAINT: bad if 4+ boroughs bad)."""
         return sorted(good_weather_by_tod_unified.get(tod, []))
 
     # Pre-compute: which (collector, tod) combinations have available days?
@@ -2118,7 +2121,7 @@ def build_weekly_calendar(
     _generate_schedule_map(assignments, route_coords, week_start, week_end)
 
     # ── JSON export for dashboard ─────────────────────────────────────────────
-    # Build unified weather lookup: HARD CONSTRAINT - bad if ANY borough is bad
+    # Build unified weather lookup: HARD CONSTRAINT - bad if MAJORITY (4+/5) of boroughs bad
     # This must match the scheduler's assignment logic for consistency
     weather_lookup = {}
     weather_by_date_tod = {}
@@ -2128,9 +2131,11 @@ def build_weekly_calendar(
             weather_by_date_tod[key] = []
         weather_by_date_tod[key].append(is_good)
 
-    # Mark as bad if ANY borough has bad weather (HARD REQUIREMENT)
+    # Mark as bad only if MAJORITY (4+/5) of boroughs have bad weather
     for key, is_good_list in weather_by_date_tod.items():
-        weather_lookup[key] = all(is_good_list)  # Good only if ALL boroughs are good
+        good_count = sum(is_good_list)
+        bad_count = len(is_good_list) - good_count
+        weather_lookup[key] = bad_count < 4  # Good if fewer than 4 boroughs bad
 
     schedule_data = {
         "generated":    str(date.today()),
