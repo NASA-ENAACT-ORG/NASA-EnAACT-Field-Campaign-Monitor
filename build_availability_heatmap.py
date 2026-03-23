@@ -7,7 +7,7 @@ import pandas as pd  # type: ignore
 
 BASE = Path(__file__).parent
 
-DAYS = ['Thu', 'Fri', 'Sat', 'Sun', 'Mon', 'Tue', 'Wed']
+DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 TODS = ['AM', 'MD', 'PM']
 
 # Backpack groups
