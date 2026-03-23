@@ -1,6 +1,6 @@
 {
-  "generated": "2026-03-22",
-  "generated_at": "2026-03-22T22:07:57.338583",
+  "generated": "2026-03-23",
+  "generated_at": "2026-03-23T11:57:45.461568",
   "week_start": "2026-03-23",
   "week_end": "2026-03-27",
   "recal_day": null,
@@ -61,10 +61,32 @@
       "preserved": true
     },
     {
+      "route": "BK_BS",
+      "label": "Brooklyn \u2013 Bed Stuy",
+      "boro": "BK",
+      "neigh": "BS",
+      "tod": "MD",
+      "backpack": "A",
+      "collector": "AYA",
+      "date": "2026-03-26",
+      "preserved": false
+    },
+    {
       "route": "MN_MT",
       "label": "Manhattan \u2013 Midtown",
       "boro": "MN",
       "neigh": "MT",
+      "tod": "PM",
+      "backpack": "A",
+      "collector": "SOT",
+      "date": "2026-03-27",
+      "preserved": false
+    },
+    {
+      "route": "MN_LE",
+      "label": "Manhattan \u2013 Union Sq/LES",
+      "boro": "MN",
+      "neigh": "LE",
       "tod": "PM",
       "backpack": "B",
       "collector": "JAM",
@@ -83,36 +105,29 @@
       "preserved": false
     },
     {
-      "route": "BK_WB",
-      "label": "Brooklyn \u2013 Williamsburg",
-      "boro": "BK",
-      "neigh": "WB",
-      "tod": "MD",
-      "backpack": "A",
-      "collector": "AYA",
-      "date": "2026-03-26",
+      "route": "QN_LA",
+      "label": "Queens \u2013 LaGuardia CC",
+      "boro": "QN",
+      "neigh": "LA",
+      "tod": "PM",
+      "backpack": "B",
+      "collector": "ALX",
+      "date": "2026-03-25",
       "preserved": false
     },
     {
-      "route": "BK_WB",
-      "label": "Brooklyn \u2013 Williamsburg",
-      "boro": "BK",
-      "neigh": "WB",
+      "route": "QN_FH",
+      "label": "Queens \u2013 Forest Hills",
+      "boro": "QN",
+      "neigh": "FH",
       "tod": "PM",
       "backpack": "A",
-      "collector": "SOT",
+      "collector": "JEN",
       "date": "2026-03-25",
       "preserved": false
     }
   ],
   "unassigned": [
-    {
-      "route": "MN_MT",
-      "label": "Manhattan \u2013 Midtown",
-      "tod": "MD",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
     {
       "route": "QN_JH",
       "label": "Queens \u2013 Jackson Heights",
@@ -131,13 +146,6 @@
       "route": "MN_LE",
       "label": "Manhattan \u2013 Union Sq/LES",
       "tod": "MD",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "MN_LE",
-      "label": "Manhattan \u2013 Union Sq/LES",
-      "tod": "PM",
       "backpack": "B",
       "reason": "no_open_slot"
     },
@@ -156,31 +164,17 @@
       "reason": "no_open_slot"
     },
     {
-      "route": "QN_LA",
-      "label": "Queens \u2013 LaGuardia CC",
-      "tod": "PM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
       "route": "BK_WB",
       "label": "Brooklyn \u2013 Williamsburg",
       "tod": "AM",
-      "backpack": "A",
+      "backpack": "B",
       "reason": "no_open_slot"
     },
     {
       "route": "QN_FH",
       "label": "Queens \u2013 Forest Hills",
       "tod": "AM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_FH",
-      "label": "Queens \u2013 Forest Hills",
-      "tod": "PM",
-      "backpack": "B",
+      "backpack": "A",
       "reason": "no_open_slot"
     },
     {
@@ -194,13 +188,6 @@
       "route": "BK_DT",
       "label": "Brooklyn \u2013 Downtown BK",
       "tod": "MD",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "BK_DT",
-      "label": "Brooklyn \u2013 Downtown BK",
-      "tod": "PM",
       "backpack": "B",
       "reason": "no_open_slot"
     },
@@ -212,20 +199,6 @@
       "reason": "no_open_slot"
     },
     {
-      "route": "BK_BS",
-      "label": "Brooklyn \u2013 Bed Stuy",
-      "tod": "MD",
-      "backpack": "A",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "BK_BS",
-      "label": "Brooklyn \u2013 Bed Stuy",
-      "tod": "PM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
       "route": "BK_CH",
       "label": "Brooklyn \u2013 Crown Heights",
       "tod": "MD",
@@ -233,6 +206,41 @@
       "reason": "no_open_slot"
     },
     {
+      "route": "BK_WB",
+      "label": "Brooklyn \u2013 Williamsburg",
+      "tod": "MD",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "BK_WB",
+      "label": "Brooklyn \u2013 Williamsburg",
+      "tod": "PM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_FH",
+      "label": "Queens \u2013 Forest Hills",
+      "tod": "MD",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "BK_DT",
+      "label": "Brooklyn \u2013 Downtown BK",
+      "tod": "PM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "BK_BS",
+      "label": "Brooklyn \u2013 Bed Stuy",
+      "tod": "PM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
       "route": "QN_JH",
       "label": "Queens \u2013 Jackson Heights",
       "tod": "MD",
@@ -247,11 +255,12 @@
       "reason": "no_open_slot"
     },
     {
-      "route": "QN_EE",
-      "label": "Queens \u2013 East Elmhurst",
-      "tod": "PM",
+      "route": "MN_MT",
+      "label": "Manhattan \u2013 Midtown",
+      "tod": "MD",
       "backpack": "B",
       "reason": "no_open_slot"
     }
-  ]
+  ],
+  "weather": {}
 }
