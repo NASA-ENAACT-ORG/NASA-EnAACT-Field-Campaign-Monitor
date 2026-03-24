@@ -134,7 +134,7 @@ CAMPUS_PROXY_ROUTE = {"A": "MN_HT", "B": "QN_LA"}
 # Student collectors per backpack (drive scheduling)
 BACKPACK_COLLECTORS: Dict[str, set] = {
     "A": {"JEN", "AYA", "SOT", "TAH"},   # CCNY team
-    "B": {"TER", "ALX", "SCT", "JAM"},   # LaGCC team
+    "B": {"TER", "ALX", "SCT", "JAM", "JEN"},   # LaGCC team
 }
 # ANG is CCNY-affiliated staff; only used as a last resort for Backpack A
 LAST_RESORT_COLLECTORS = ["ANG"]
@@ -1096,13 +1096,16 @@ def score_combos(
             good_weather_by_tod_any[tod].add(d)
         weather_by_date_tod[(d, tod)].append(is_good)
 
-    # Build unified good weather: bad if MAJORITY (4+/5) of boroughs are bad
+    # Build unified good weather:
+    #   City-wide (1 entry):  bad if that single entry is bad
+    #   Per-borough (multiple): bad only if MAJORITY (4+) of boroughs are bad
     good_weather_by_tod_unified: Dict[str, List[date]] = defaultdict(list)
     for (d, tod), is_good_list in weather_by_date_tod.items():
+        total = len(is_good_list)
         good_count = sum(is_good_list)
-        bad_count = len(is_good_list) - good_count
-        # Mark as good only if fewer than 4 boroughs have bad weather
-        if bad_count < 4:
+        bad_count = total - good_count
+        threshold = 1 if total <= 1 else 4
+        if bad_count < threshold:
             for t in TODS:
                 if tod == t:
                     good_weather_by_tod_unified[t].append(d)
@@ -2134,11 +2137,13 @@ def build_weekly_calendar(
             weather_by_date_tod[key] = []
         weather_by_date_tod[key].append(is_good)
 
-    # Mark as bad only if MAJORITY (4+/5) of boroughs have bad weather
+    # City-wide (1 entry): bad if that entry is bad
+    # Per-borough (multiple): bad only if 4+ boroughs bad
     for key, is_good_list in weather_by_date_tod.items():
-        good_count = sum(is_good_list)
-        bad_count = len(is_good_list) - good_count
-        weather_lookup[key] = bad_count < 4  # Good if fewer than 4 boroughs bad
+        total = len(is_good_list)
+        bad_count = total - sum(is_good_list)
+        threshold = 1 if total <= 1 else 4
+        weather_lookup[key] = bad_count < threshold
 
     schedule_data = {
         "generated":    str(date.today()),

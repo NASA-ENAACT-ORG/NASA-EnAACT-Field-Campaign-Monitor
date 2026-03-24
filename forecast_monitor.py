@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-forecast_monitor.py — Monitor Google Drive borough forecasts and auto-trigger scheduler
+forecast_monitor.py — Monitor Google Drive forecasts and auto-trigger scheduler
 ========================================================================================
-Periodically polls the Google Drive folder structure (Nasa_enaact/Forecasts/[borough]/)
-for new forecast PDFs and automatically triggers the walk scheduler when new forecasts
-are detected.
+Periodically polls the Google Drive folder (Nasa_enaact/Forecasts/) for new forecast
+PDFs and automatically triggers the walk scheduler when new forecasts are detected.
+Forecast PDFs are stored flat in the Forecasts/ folder, named by date range
+(e.g., "Mar 23 - Mar 27.pdf").
 
 When new forecasts are found:
-1. Downloads the latest forecast PDF from each borough folder
+1. Downloads the new forecast PDF
 2. Copies to local Forecast/ folder
 3. Runs walk_scheduler.py
 4. Runs build_dashboard.py
@@ -58,8 +59,6 @@ BUILD_DASHBOARD = BASE_DIR / "build_dashboard.py"
 # Google Drive API scopes
 SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 
-# Valid borough codes
-VALID_BOROUGHS = {"MN", "BK", "QN", "BX"}
 
 # Setup logging
 logging.basicConfig(
@@ -117,6 +116,26 @@ def find_folder_by_name(service, parent_id: str, folder_name: str) -> Optional[s
         logger.warning(f"Error finding folder '{folder_name}': {e}")
         return None
 
+def find_folder_by_name_global(service, folder_name: str) -> Optional[str]:
+    """Find a folder by name anywhere visible to the service account (including shared)."""
+    try:
+        query = f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+        results = service.files().list(
+            q=query,
+            spaces="drive",
+            fields="files(id, name)",
+            pageSize=1
+        ).execute()
+
+        files = results.get("files", [])
+        if files:
+            logger.info(f"Found '{folder_name}' via global search (id: {files[0]['id']})")
+            return files[0]["id"]
+        return None
+    except Exception as e:
+        logger.warning(f"Error in global search for '{folder_name}': {e}")
+        return None
+
 def list_files_in_folder(service, parent_id: str, mime_type: str = "application/pdf") -> List[Tuple[str, str, int]]:
     """List all files of a given MIME type in a folder. Returns list of (filename, file_id, mtime) tuples."""
     try:
@@ -144,63 +163,42 @@ def list_files_in_folder(service, parent_id: str, mime_type: str = "application/
         logger.warning(f"Error listing files in parent {parent_id}: {e}")
         return []
 
-def find_borough_forecasts(service) -> Dict[str, Tuple[str, str, int]]:
+def find_forecasts(service) -> Dict[str, Tuple[str, str, int]]:
     """
-    Find latest forecast PDF in each borough folder.
+    Find all forecast PDFs in Nasa_enaact/Forecasts/ (flat folder, no subfolders).
 
-    Structure: Nasa_enaact/Forecasts/[borough]/[forecast_pdfs]
+    PDFs are named by date range, e.g. "Mar 23 - Mar 27.pdf".
 
-    Returns: {borough: (filename, file_id, mtime_ts), ...}
+    Returns: {filename: (filename, file_id, mtime_ts), ...}
     """
     forecasts = {}
 
-    # Find Nasa_enaact folder (search from root)
-    logger.info("Searching for Nasa_enaact folder...")
-    nasa_id = find_folder_by_name(service, "root", "Nasa_enaact")
+    # Find NASA_EnAACT_Research folder (may be shared, not under "root")
+    logger.info("Searching for NASA_EnAACT_Research folder...")
+    nasa_id = find_folder_by_name(service, "root", "NASA_EnAACT_Research")
     if not nasa_id:
-        logger.warning("Nasa_enaact folder not found in Google Drive")
+        # Shared folders don't appear under root — search globally by name
+        nasa_id = find_folder_by_name_global(service, "NASA_EnAACT_Research")
+    if not nasa_id:
+        logger.warning("NASA_EnAACT_Research folder not found in Google Drive")
         return forecasts
 
-    # Find Forecasts folder
-    logger.info("Searching for Forecasts folder...")
-    forecasts_id = find_folder_by_name(service, nasa_id, "Forecasts")
+    # Find Forecast folder
+    logger.info("Searching for Forecast folder...")
+    forecasts_id = find_folder_by_name(service, nasa_id, "Forecast")
     if not forecasts_id:
-        logger.warning("Forecasts folder not found under Nasa_enaact")
+        logger.warning("Forecast folder not found under NASA_EnAACT_Research")
         return forecasts
 
-    # List borough folders
-    logger.info("Listing borough folders...")
-    borough_folders_data = []
-    try:
-        query = f"mimeType='application/vnd.google-apps.folder' and '{forecasts_id}' in parents and trashed=false"
-        results = service.files().list(
-            q=query,
-            spaces="drive",
-            fields="files(id, name)",
-            pageSize=1000
-        ).execute()
+    # List PDFs directly in Forecasts/
+    logger.info("Listing forecast PDFs...")
+    pdfs = list_files_in_folder(service, forecasts_id, mime_type="application/pdf")
 
-        borough_folders_data = [(f["name"], f["id"]) for f in results.get("files", [])]
-    except Exception as e:
-        logger.warning(f"Error listing borough folders: {e}")
-        return forecasts
+    for filename, file_id, mtime_ts in pdfs:
+        forecasts[filename] = (filename, file_id, mtime_ts)
+        logger.debug(f"Found forecast: {filename} (mtime: {mtime_ts})")
 
-    # For each borough, find the latest PDF
-    for borough_name, borough_id in borough_folders_data:
-        if borough_name not in VALID_BOROUGHS:
-            logger.debug(f"Skipping non-borough folder: {borough_name}")
-            continue
-
-        logger.debug(f"Searching for forecasts in borough: {borough_name}")
-        pdfs = list_files_in_folder(service, borough_id, mime_type="application/pdf")
-
-        if pdfs:
-            # pdfs are already sorted by modifiedTime descending, so first is newest
-            filename, file_id, mtime_ts = pdfs[0]
-            forecasts[borough_name] = (filename, file_id, mtime_ts)
-            logger.debug(f"{borough_name}: {filename} (mtime: {mtime_ts})")
-
-    logger.info(f"Found {len(forecasts)} borough forecasts")
+    logger.info(f"Found {len(forecasts)} forecast PDF(s)")
     return forecasts
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -229,11 +227,11 @@ def save_forecast_state(state: Dict[str, int]):
         logger.error(f"Error saving forecast state: {e}")
 
 def has_new_forecasts(current: Dict[str, Tuple[str, str, int]], previous: Dict[str, int]) -> bool:
-    """Check if any borough has a newer forecast than previously processed."""
-    for borough, (filename, file_id, mtime_ts) in current.items():
-        prev_mtime = previous.get(borough, -1)
+    """Check if any forecast PDF is new or updated since last sync."""
+    for filename, (_, file_id, mtime_ts) in current.items():
+        prev_mtime = previous.get(filename, -1)
         if mtime_ts > prev_mtime:
-            logger.info(f"New forecast detected for {borough}: {filename} (mtime: {mtime_ts} > {prev_mtime})")
+            logger.info(f"New forecast detected: {filename} (mtime: {mtime_ts} > {prev_mtime})")
             return True
     return False
 
@@ -262,8 +260,8 @@ def download_file(service, file_id: str, file_name: str, destination: Path) -> b
         logger.error(f"Error downloading {file_name}: {e}")
         return False
 
-def sync_borough_forecasts(service, forecasts: Dict[str, Tuple[str, str, int]]) -> bool:
-    """Download all borough forecasts to the local Forecast/ folder."""
+def sync_forecasts(service, forecasts: Dict[str, Tuple[str, str, int]]) -> bool:
+    """Download forecast PDFs to the local Forecast/ folder."""
     if not forecasts:
         logger.info("No forecasts to sync")
         return False
@@ -272,9 +270,14 @@ def sync_borough_forecasts(service, forecasts: Dict[str, Tuple[str, str, int]]) 
     FORECAST_DIR.mkdir(exist_ok=True)
 
     success = True
-    for borough, (filename, file_id, mtime_ts) in forecasts.items():
-        dest = FORECAST_DIR / f"{borough}_{filename}"
-        logger.info(f"Downloading {borough} forecast: {filename}")
+    for filename, (_, file_id, mtime_ts) in forecasts.items():
+        # Ensure local filename ends with .pdf
+        local_name = filename if filename.lower().endswith(".pdf") else f"{filename}.pdf"
+        dest = FORECAST_DIR / local_name
+        if dest.exists():
+            logger.debug(f"Skipping already-present forecast: {local_name}")
+            continue
+        logger.info(f"Downloading forecast: {filename}")
         if not download_file(service, file_id, filename, dest):
             success = False
 
@@ -283,6 +286,20 @@ def sync_borough_forecasts(service, forecasts: Dict[str, Tuple[str, str, int]]) 
 # ─────────────────────────────────────────────────────────────────────────────
 # SCHEDULER EXECUTION
 # ─────────────────────────────────────────────────────────────────────────────
+
+def _get_env_with_api_key() -> dict:
+    """Return os.environ extended with ANTHROPIC_API_KEY from Windows User env if missing."""
+    env = os.environ.copy()
+    if not env.get("ANTHROPIC_API_KEY"):
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
+                value, _ = winreg.QueryValueEx(key, "ANTHROPIC_API_KEY")
+                env["ANTHROPIC_API_KEY"] = value
+                logger.debug("Loaded ANTHROPIC_API_KEY from Windows User environment")
+        except Exception:
+            pass  # Not on Windows or key not there — subprocess will fail with its own error
+    return env
 
 def run_scheduler():
     """Run walk_scheduler.py and return success status."""
@@ -297,7 +314,8 @@ def run_scheduler():
             cwd=str(BASE_DIR),
             capture_output=True,
             text=True,
-            timeout=300  # 5 minute timeout
+            timeout=300,  # 5 minute timeout
+            env=_get_env_with_api_key(),
         )
 
         if result.returncode == 0:
@@ -362,7 +380,7 @@ def sync_once(service) -> bool:
         prev_state = load_forecast_state()
 
         # Find current forecasts on Google Drive
-        current_forecasts = find_borough_forecasts(service)
+        current_forecasts = find_forecasts(service)
 
         if not current_forecasts:
             logger.info("No forecasts found on Google Drive")
@@ -376,7 +394,7 @@ def sync_once(service) -> bool:
         logger.info("New forecasts detected! Starting sync...")
 
         # Download forecasts to local folder
-        if not sync_borough_forecasts(service, current_forecasts):
+        if not sync_forecasts(service, current_forecasts):
             logger.warning("Failed to download some forecasts, but continuing...")
 
         # Run scheduler and dashboard
@@ -385,7 +403,7 @@ def sync_once(service) -> bool:
 
         if scheduler_ok and dashboard_ok:
             # Update state with latest mtimes
-            new_state = {borough: mtime_ts for borough, (_, _, mtime_ts) in current_forecasts.items()}
+            new_state = {filename: mtime_ts for filename, (_, _, mtime_ts) in current_forecasts.items()}
             save_forecast_state(new_state)
             logger.info("✓ Sync completed successfully")
             return True
