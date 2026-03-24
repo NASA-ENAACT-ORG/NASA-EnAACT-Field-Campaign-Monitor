@@ -12,7 +12,7 @@ TODS = ['AM', 'MD', 'PM']
 
 # Backpack groups
 GROUP_A = ['SOT', 'AYA', 'JEN', 'TAH', 'ANG']
-GROUP_B = ['TER', 'ALX', 'SCT', 'JAM']
+GROUP_B = ['TER', 'ALX', 'SCT', 'JAM', 'JEN']
 
 FULL_NAMES = {
     'SOT': 'Soteri', 'AYA': 'Aya', 'JEN': 'Jennifer',
@@ -109,7 +109,7 @@ def build_heatmap(avail: dict) -> str:
     <table id="tbl-a"></table>
   </div>
   <div class="panel">
-    <div class="panel-title b">Backpack B — LaGCC &nbsp;<span style="font-weight:400;opacity:.7">(TER · ALX · SCT · JAM &nbsp;max {max_b})</span></div>
+    <div class="panel-title b">Backpack B — LaGCC &nbsp;<span style="font-weight:400;opacity:.7">(TER · ALX · SCT · JAM · JEN &nbsp;max {max_b})</span></div>
     <table id="tbl-b"></table>
   </div>
 </div>

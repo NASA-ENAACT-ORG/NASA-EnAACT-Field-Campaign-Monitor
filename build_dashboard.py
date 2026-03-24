@@ -254,14 +254,13 @@ select option{background:var(--bg3)}
 .weather-bad .weather-label{font-size:8px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.2px}
 .cal-cell.bad-weather{position:relative;z-index:0}
 /* ── Availability heatmap view ── */
-#availability-view{overflow:auto;padding:28px 32px;gap:0}
+#availability-view{flex-direction:column;overflow-y:auto;padding:14px 16px;gap:14px}
+#avail-header{flex-shrink:0}
 #avail-hm-title{font-size:15px;font-weight:700;margin:0 0 4px;letter-spacing:-.3px;font-family:'Space Grotesk',sans-serif}
-#avail-hm-sub{font-size:11px;color:var(--text2);margin-bottom:24px}
-.avail-panels{display:flex;gap:40px;flex-wrap:nowrap;min-width:max-content}
-.avail-panel{flex:0 0 auto}
-.avail-panel-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;padding:6px 10px;border-radius:6px}
-.avail-panel-title.a{background:rgba(124,58,237,.18);color:#a78bfa;border:1px solid rgba(124,58,237,.3)}
-.avail-panel-title.b{background:rgba(220,38,38,.14);color:#f87171;border:1px solid rgba(220,38,38,.25)}
+#avail-hm-sub{font-size:11px;color:var(--text2)}
+#avail-panels{display:flex;gap:14px;flex-wrap:wrap;width:100%}
+#avail-panels .cgroup{flex:1;min-width:340px}
+.avail-tbl-wrap{padding:10px;overflow-x:auto}
 .avail-tbl{border-collapse:collapse;width:100%}
 .avail-tbl th{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);padding:5px 8px;text-align:center}
 .avail-tbl th.avail-row-head{text-align:left;width:36px}
@@ -269,7 +268,7 @@ select option{background:var(--bg3)}
 .avail-tbl td .anum{position:relative;z-index:2}
 .avail-tbl td .abar{position:absolute;bottom:0;left:0;right:0;border-radius:0 0 2px 2px}
 .avail-tod-label{font-size:10px;font-weight:700;color:var(--text2);text-align:left;padding:6px 8px;width:36px}
-.avail-legend{display:flex;align-items:center;gap:8px;margin-top:20px;font-size:10px;color:var(--text2)}
+.avail-legend{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--text2);padding:0 10px 10px}
 .avail-legend-grad{width:120px;height:10px;border-radius:3px;background:linear-gradient(to right,#f85149,#d29922,#3fb950)}
 #avail-tip{position:fixed;display:none;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 13px;font-size:11px;box-shadow:0 6px 24px rgba(0,0,0,.6);pointer-events:none;z-index:9999;min-width:130px}
 #avail-tip .atip-head{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:6px}
@@ -799,23 +798,39 @@ setTimeout(function(){
     </div>
     <!-- ── AVAILABILITY VIEW ── -->
     <div id="availability-view" class="view">
-      <h1 id="avail-hm-title">Collector Availability</h1>
-      <div id="avail-hm-sub">Built from Availability.xlsx &nbsp;&middot;&nbsp; Numbers = collectors available per slot &nbsp;&middot;&nbsp; Hover a cell to see who is free</div>
-      <div class="avail-panels">
-        <div class="avail-panel">
-          <div class="avail-panel-title a">Backpack A &mdash; CCNY <span style="font-weight:400;opacity:.7">(SOT &middot; AYA &middot; JEN &middot; TAH &middot; ANG &nbsp;max __MAX_A__)</span></div>
-          <table class="avail-tbl" id="avail-tbl-a"></table>
-        </div>
-        <div class="avail-panel">
-          <div class="avail-panel-title b">Backpack B &mdash; LaGCC <span style="font-weight:400;opacity:.7">(TER &middot; ALX &middot; SCT &middot; JAM &nbsp;max __MAX_B__)</span></div>
-          <table class="avail-tbl" id="avail-tbl-b"></table>
-        </div>
+      <div id="avail-header">
+        <h1 id="avail-hm-title">Collector Availability</h1>
+        <div id="avail-hm-sub">Built from Availability.xlsx &nbsp;&middot;&nbsp; Numbers = collectors available per slot &nbsp;&middot;&nbsp; Hover a cell to see who is free</div>
       </div>
-      <div class="avail-legend">
-        <span>0</span>
-        <div class="avail-legend-grad"></div>
-        <span>max</span>
-        &nbsp;&middot;&nbsp; Cell height = fill %
+      <div id="avail-panels">
+        <div class="cgroup ccny">
+          <div class="cgroup-head">
+            <span class="cg-dot"></span>
+            <span class="cg-title">CCNY &mdash; Backpack A</span>
+            <span class="cg-sub">SOT &middot; AYA &middot; JEN &middot; TAH &middot; ANG &nbsp;&nbsp;max __MAX_A__</span>
+          </div>
+          <div class="avail-tbl-wrap">
+            <table class="avail-tbl" id="avail-tbl-a"></table>
+            <div class="avail-legend">
+              <span>0</span><div class="avail-legend-grad"></div><span>max</span>
+              &nbsp;&middot;&nbsp; Cell height = fill %
+            </div>
+          </div>
+        </div>
+        <div class="cgroup lagcc">
+          <div class="cgroup-head">
+            <span class="cg-dot"></span>
+            <span class="cg-title">LaGCC &mdash; Backpack B</span>
+            <span class="cg-sub">TER &middot; ALX &middot; SCT &middot; JAM &middot; JEN &nbsp;&nbsp;max __MAX_B__</span>
+          </div>
+          <div class="avail-tbl-wrap">
+            <table class="avail-tbl" id="avail-tbl-b"></table>
+            <div class="avail-legend">
+              <span>0</span><div class="avail-legend-grad"></div><span>max</span>
+              &nbsp;&middot;&nbsp; Cell height = fill %
+            </div>
+          </div>
+        </div>
       </div>
       <div id="avail-tip"><div class="atip-head" id="atip-head"></div><div id="atip-names"></div></div>
     </div>

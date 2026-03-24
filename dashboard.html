@@ -157,14 +157,13 @@ select option{background:var(--bg3)}
 .weather-bad .weather-label{font-size:8px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.2px}
 .cal-cell.bad-weather{position:relative;z-index:0}
 /* ── Availability heatmap view ── */
-#availability-view{overflow:auto;padding:28px 32px;gap:0}
+#availability-view{flex-direction:column;overflow-y:auto;padding:14px 16px;gap:14px}
+#avail-header{flex-shrink:0}
 #avail-hm-title{font-size:15px;font-weight:700;margin:0 0 4px;letter-spacing:-.3px;font-family:'Space Grotesk',sans-serif}
-#avail-hm-sub{font-size:11px;color:var(--text2);margin-bottom:24px}
-.avail-panels{display:flex;gap:40px;flex-wrap:nowrap;min-width:max-content}
-.avail-panel{flex:0 0 auto}
-.avail-panel-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;padding:6px 10px;border-radius:6px}
-.avail-panel-title.a{background:rgba(124,58,237,.18);color:#a78bfa;border:1px solid rgba(124,58,237,.3)}
-.avail-panel-title.b{background:rgba(220,38,38,.14);color:#f87171;border:1px solid rgba(220,38,38,.25)}
+#avail-hm-sub{font-size:11px;color:var(--text2)}
+#avail-panels{display:flex;gap:14px;flex-wrap:wrap;width:100%}
+#avail-panels .cgroup{flex:1;min-width:340px}
+.avail-tbl-wrap{padding:10px;overflow-x:auto}
 .avail-tbl{border-collapse:collapse;width:100%}
 .avail-tbl th{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);padding:5px 8px;text-align:center}
 .avail-tbl th.avail-row-head{text-align:left;width:36px}
@@ -172,7 +171,7 @@ select option{background:var(--bg3)}
 .avail-tbl td .anum{position:relative;z-index:2}
 .avail-tbl td .abar{position:absolute;bottom:0;left:0;right:0;border-radius:0 0 2px 2px}
 .avail-tod-label{font-size:10px;font-weight:700;color:var(--text2);text-align:left;padding:6px 8px;width:36px}
-.avail-legend{display:flex;align-items:center;gap:8px;margin-top:20px;font-size:10px;color:var(--text2)}
+.avail-legend{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--text2);padding:0 10px 10px}
 .avail-legend-grad{width:120px;height:10px;border-radius:3px;background:linear-gradient(to right,#f85149,#d29922,#3fb950)}
 #avail-tip{position:fixed;display:none;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 13px;font-size:11px;box-shadow:0 6px 24px rgba(0,0,0,.6);pointer-events:none;z-index:9999;min-width:130px}
 #avail-tip .atip-head{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:6px}
@@ -702,23 +701,39 @@ setTimeout(function(){
     </div>
     <!-- ── AVAILABILITY VIEW ── -->
     <div id="availability-view" class="view">
-      <h1 id="avail-hm-title">Collector Availability</h1>
-      <div id="avail-hm-sub">Built from Availability.xlsx &nbsp;&middot;&nbsp; Numbers = collectors available per slot &nbsp;&middot;&nbsp; Hover a cell to see who is free</div>
-      <div class="avail-panels">
-        <div class="avail-panel">
-          <div class="avail-panel-title a">Backpack A &mdash; CCNY <span style="font-weight:400;opacity:.7">(SOT &middot; AYA &middot; JEN &middot; TAH &middot; ANG &nbsp;max 5)</span></div>
-          <table class="avail-tbl" id="avail-tbl-a"></table>
-        </div>
-        <div class="avail-panel">
-          <div class="avail-panel-title b">Backpack B &mdash; LaGCC <span style="font-weight:400;opacity:.7">(TER &middot; ALX &middot; SCT &middot; JAM &nbsp;max 4)</span></div>
-          <table class="avail-tbl" id="avail-tbl-b"></table>
-        </div>
+      <div id="avail-header">
+        <h1 id="avail-hm-title">Collector Availability</h1>
+        <div id="avail-hm-sub">Built from Availability.xlsx &nbsp;&middot;&nbsp; Numbers = collectors available per slot &nbsp;&middot;&nbsp; Hover a cell to see who is free</div>
       </div>
-      <div class="avail-legend">
-        <span>0</span>
-        <div class="avail-legend-grad"></div>
-        <span>max</span>
-        &nbsp;&middot;&nbsp; Cell height = fill %
+      <div id="avail-panels">
+        <div class="cgroup ccny">
+          <div class="cgroup-head">
+            <span class="cg-dot"></span>
+            <span class="cg-title">CCNY &mdash; Backpack A</span>
+            <span class="cg-sub">SOT &middot; AYA &middot; JEN &middot; TAH &middot; ANG &nbsp;&nbsp;max 5</span>
+          </div>
+          <div class="avail-tbl-wrap">
+            <table class="avail-tbl" id="avail-tbl-a"></table>
+            <div class="avail-legend">
+              <span>0</span><div class="avail-legend-grad"></div><span>max</span>
+              &nbsp;&middot;&nbsp; Cell height = fill %
+            </div>
+          </div>
+        </div>
+        <div class="cgroup lagcc">
+          <div class="cgroup-head">
+            <span class="cg-dot"></span>
+            <span class="cg-title">LaGCC &mdash; Backpack B</span>
+            <span class="cg-sub">TER &middot; ALX &middot; SCT &middot; JAM &middot; JEN &nbsp;&nbsp;max 5</span>
+          </div>
+          <div class="avail-tbl-wrap">
+            <table class="avail-tbl" id="avail-tbl-b"></table>
+            <div class="avail-legend">
+              <span>0</span><div class="avail-legend-grad"></div><span>max</span>
+              &nbsp;&middot;&nbsp; Cell height = fill %
+            </div>
+          </div>
+        </div>
       </div>
       <div id="avail-tip"><div class="atip-head" id="atip-head"></div><div id="atip-names"></div></div>
     </div>
@@ -733,7 +748,7 @@ const ROUTES_GEO = {"BX_NW":{"boro":"BX","name":"Norwood","lines":[[[40.85643,-7
 const COLLECTOR_HOMES = {"TER": {"lat": 40.687309, "lng": -73.941589, "name": "Terra", "non_collector": false}, "AYA": {"lat": 40.6693, "lng": -73.941926, "name": "Aya Nasri", "non_collector": false}, "SCT": {"lat": 40.739522, "lng": -73.877856, "name": "Scott", "non_collector": false}, "ALX": {"lat": 40.67643, "lng": -73.813913, "name": "Alex", "non_collector": false}, "JEN": {"lat": 40.764286, "lng": -73.924059, "name": "Jennifer", "non_collector": false}, "JAM": {"lat": 40.735877, "lng": -73.872864, "name": "James", "non_collector": false}, "ANG": {"lat": 40.764928, "lng": -73.830701, "name": "Angy", "non_collector": true}, "TAH": {"lat": 40.753384, "lng": -73.906652, "name": "Taha", "non_collector": false}, "SOT": {"lat": 40.757137, "lng": -73.971896, "name": "Soteri", "non_collector": false}, "NRS": {"lat": 40.818456, "lng": -73.943499, "name": "Prof. Naresh", "non_collector": false}, "PRA": {"lat": 40.851882, "lng": -73.972726, "name": "Prof. Prathap", "non_collector": false}};
 const BAKED_SCHEDULE = {
   "generated": "2026-03-23",
-  "generated_at": "2026-03-23T23:37:22.345121",
+  "generated_at": "2026-03-23T23:50:14.876131",
   "week_start": "2026-03-24",
   "week_end": "2026-03-28",
   "recal_day": null,
@@ -750,21 +765,10 @@ const BAKED_SCHEDULE = {
       "preserved": false
     },
     {
-      "route": "MN_LE",
-      "label": "Manhattan \u2013 Union Sq/LES",
+      "route": "MN_UE",
+      "label": "Manhattan \u2013 Upper East Side",
       "boro": "MN",
-      "neigh": "LE",
-      "tod": "PM",
-      "backpack": "B",
-      "collector": "JAM",
-      "date": "2026-03-28",
-      "preserved": false
-    },
-    {
-      "route": "QN_LA",
-      "label": "Queens \u2013 LaGuardia CC",
-      "boro": "QN",
-      "neigh": "LA",
+      "neigh": "UE",
       "tod": "PM",
       "backpack": "A",
       "collector": "JEN",
@@ -777,8 +781,8 @@ const BAKED_SCHEDULE = {
       "boro": "MN",
       "neigh": "HT",
       "tod": "AM",
-      "backpack": "B",
-      "collector": "TER",
+      "backpack": "A",
+      "collector": "TAH",
       "date": "2026-03-24",
       "preserved": false
     },
@@ -787,10 +791,21 @@ const BAKED_SCHEDULE = {
       "label": "Brooklyn \u2013 Downtown BK",
       "boro": "BK",
       "neigh": "DT",
-      "tod": "AM",
-      "backpack": "A",
-      "collector": "SOT",
+      "tod": "PM",
+      "backpack": "B",
+      "collector": "JEN",
       "date": "2026-03-24",
+      "preserved": false
+    },
+    {
+      "route": "BK_BS",
+      "label": "Brooklyn \u2013 Bed Stuy",
+      "boro": "BK",
+      "neigh": "BS",
+      "tod": "PM",
+      "backpack": "B",
+      "collector": "JEN",
+      "date": "2026-03-28",
       "preserved": false
     },
     {
@@ -801,7 +816,7 @@ const BAKED_SCHEDULE = {
       "tod": "AM",
       "backpack": "B",
       "collector": "TER",
-      "date": "2026-03-25",
+      "date": "2026-03-24",
       "preserved": false
     },
     {
@@ -812,18 +827,29 @@ const BAKED_SCHEDULE = {
       "tod": "AM",
       "backpack": "B",
       "collector": "TER",
+      "date": "2026-03-25",
+      "preserved": false
+    },
+    {
+      "route": "QN_LA",
+      "label": "Queens \u2013 LaGuardia CC",
+      "boro": "QN",
+      "neigh": "LA",
+      "tod": "AM",
+      "backpack": "B",
+      "collector": "SCT",
       "date": "2026-03-28",
       "preserved": false
     },
     {
-      "route": "BK_WB",
-      "label": "Brooklyn \u2013 Williamsburg",
-      "boro": "BK",
-      "neigh": "WB",
-      "tod": "AM",
+      "route": "QN_LA",
+      "label": "Queens \u2013 LaGuardia CC",
+      "boro": "QN",
+      "neigh": "LA",
+      "tod": "PM",
       "backpack": "A",
-      "collector": "AYA",
-      "date": "2026-03-25",
+      "collector": "SOT",
+      "date": "2026-03-27",
       "preserved": false
     }
   ],
@@ -857,65 +883,9 @@ const BAKED_SCHEDULE = {
       "reason": "no_open_slot"
     },
     {
-      "route": "MN_UE",
-      "label": "Manhattan \u2013 Upper East Side",
-      "tod": "PM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "BK_WB",
-      "label": "Brooklyn \u2013 Williamsburg",
-      "tod": "PM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_FH",
-      "label": "Queens \u2013 Forest Hills",
-      "tod": "PM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "BK_DT",
-      "label": "Brooklyn \u2013 Downtown BK",
-      "tod": "PM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "BK_BS",
-      "label": "Brooklyn \u2013 Bed Stuy",
-      "tod": "PM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_JH",
-      "label": "Queens \u2013 Jackson Heights",
-      "tod": "PM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_EE",
-      "label": "Queens \u2013 East Elmhurst",
-      "tod": "PM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
       "route": "QN_JA",
       "label": "Queens \u2013 Jamaica",
       "tod": "PM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_LA",
-      "label": "Queens \u2013 LaGuardia CC",
-      "tod": "AM",
       "backpack": "B",
       "reason": "no_open_slot"
     },
@@ -941,6 +911,13 @@ const BAKED_SCHEDULE = {
       "reason": "no_open_slot"
     },
     {
+      "route": "MN_LE",
+      "label": "Manhattan \u2013 Union Sq/LES",
+      "tod": "PM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
       "route": "QN_EE",
       "label": "Queens \u2013 East Elmhurst",
       "tod": "AM",
@@ -955,8 +932,36 @@ const BAKED_SCHEDULE = {
       "reason": "no_open_slot"
     },
     {
+      "route": "BK_WB",
+      "label": "Brooklyn \u2013 Williamsburg",
+      "tod": "AM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "BK_WB",
+      "label": "Brooklyn \u2013 Williamsburg",
+      "tod": "PM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
       "route": "QN_FH",
       "label": "Queens \u2013 Forest Hills",
+      "tod": "AM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_FH",
+      "label": "Queens \u2013 Forest Hills",
+      "tod": "PM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "BK_DT",
+      "label": "Brooklyn \u2013 Downtown BK",
       "tod": "AM",
       "backpack": "B",
       "reason": "no_open_slot"
@@ -965,6 +970,20 @@ const BAKED_SCHEDULE = {
       "route": "QN_FU",
       "label": "Queens \u2013 Flushing",
       "tod": "AM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_JH",
+      "label": "Queens \u2013 Jackson Heights",
+      "tod": "PM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_EE",
+      "label": "Queens \u2013 East Elmhurst",
+      "tod": "PM",
       "backpack": "B",
       "reason": "no_open_slot"
     },
@@ -1928,8 +1947,8 @@ function renderCalendar(){
 const _AVAIL_DAYS=["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const _AVAIL_TODS=['AM','MD','PM'];
 const _CELLS_A={"Sun_AM": {"count": 5, "names": ["Soteri", "Aya", "Jennifer", "Taha", "Angy"]}, "Mon_AM": {"count": 5, "names": ["Soteri", "Aya", "Jennifer", "Taha", "Angy"]}, "Tue_AM": {"count": 5, "names": ["Soteri", "Aya", "Jennifer", "Taha", "Angy"]}, "Wed_AM": {"count": 5, "names": ["Soteri", "Aya", "Jennifer", "Taha", "Angy"]}, "Thu_AM": {"count": 5, "names": ["Soteri", "Aya", "Jennifer", "Taha", "Angy"]}, "Fri_AM": {"count": 5, "names": ["Soteri", "Aya", "Jennifer", "Taha", "Angy"]}, "Sat_AM": {"count": 5, "names": ["Soteri", "Aya", "Jennifer", "Taha", "Angy"]}, "Sun_MD": {"count": 3, "names": ["Soteri", "Aya", "Jennifer"]}, "Mon_MD": {"count": 3, "names": ["Aya", "Taha", "Angy"]}, "Tue_MD": {"count": 3, "names": ["Soteri", "Jennifer", "Taha"]}, "Wed_MD": {"count": 4, "names": ["Soteri", "Aya", "Taha", "Angy"]}, "Thu_MD": {"count": 2, "names": ["Soteri", "Taha"]}, "Fri_MD": {"count": 3, "names": ["Soteri", "Aya", "Taha"]}, "Sat_MD": {"count": 3, "names": ["Soteri", "Aya", "Jennifer"]}, "Sun_PM": {"count": 3, "names": ["Soteri", "Aya", "Jennifer"]}, "Mon_PM": {"count": 1, "names": ["Angy"]}, "Tue_PM": {"count": 0, "names": []}, "Wed_PM": {"count": 2, "names": ["Taha", "Angy"]}, "Thu_PM": {"count": 1, "names": ["Aya"]}, "Fri_PM": {"count": 2, "names": ["Soteri", "Aya"]}, "Sat_PM": {"count": 3, "names": ["Soteri", "Aya", "Jennifer"]}};
-const _CELLS_B={"Sun_AM": {"count": 4, "names": ["Terra", "Alex", "Scott", "James"]}, "Mon_AM": {"count": 4, "names": ["Terra", "Alex", "Scott", "James"]}, "Tue_AM": {"count": 4, "names": ["Terra", "Alex", "Scott", "James"]}, "Wed_AM": {"count": 4, "names": ["Terra", "Alex", "Scott", "James"]}, "Thu_AM": {"count": 4, "names": ["Terra", "Alex", "Scott", "James"]}, "Fri_AM": {"count": 4, "names": ["Terra", "Alex", "Scott", "James"]}, "Sat_AM": {"count": 4, "names": ["Terra", "Alex", "Scott", "James"]}, "Sun_MD": {"count": 4, "names": ["Terra", "Alex", "Scott", "James"]}, "Mon_MD": {"count": 2, "names": ["Alex", "Scott"]}, "Tue_MD": {"count": 3, "names": ["Terra", "Alex", "Scott"]}, "Wed_MD": {"count": 3, "names": ["Terra", "Alex", "Scott"]}, "Thu_MD": {"count": 3, "names": ["Terra", "Alex", "Scott"]}, "Fri_MD": {"count": 3, "names": ["Terra", "Alex", "Scott"]}, "Sat_MD": {"count": 4, "names": ["Terra", "Alex", "Scott", "James"]}, "Sun_PM": {"count": 4, "names": ["Terra", "Alex", "Scott", "James"]}, "Mon_PM": {"count": 1, "names": ["Alex"]}, "Tue_PM": {"count": 0, "names": []}, "Wed_PM": {"count": 0, "names": []}, "Thu_PM": {"count": 0, "names": []}, "Fri_PM": {"count": 3, "names": ["Terra", "Alex", "Scott"]}, "Sat_PM": {"count": 2, "names": ["Alex", "James"]}};
-const _MAX_A=5, _MAX_B=4;
+const _CELLS_B={"Sun_AM": {"count": 5, "names": ["Terra", "Alex", "Scott", "James", "Jennifer"]}, "Mon_AM": {"count": 5, "names": ["Terra", "Alex", "Scott", "James", "Jennifer"]}, "Tue_AM": {"count": 5, "names": ["Terra", "Alex", "Scott", "James", "Jennifer"]}, "Wed_AM": {"count": 5, "names": ["Terra", "Alex", "Scott", "James", "Jennifer"]}, "Thu_AM": {"count": 5, "names": ["Terra", "Alex", "Scott", "James", "Jennifer"]}, "Fri_AM": {"count": 5, "names": ["Terra", "Alex", "Scott", "James", "Jennifer"]}, "Sat_AM": {"count": 5, "names": ["Terra", "Alex", "Scott", "James", "Jennifer"]}, "Sun_MD": {"count": 5, "names": ["Terra", "Alex", "Scott", "James", "Jennifer"]}, "Mon_MD": {"count": 2, "names": ["Alex", "Scott"]}, "Tue_MD": {"count": 4, "names": ["Terra", "Alex", "Scott", "Jennifer"]}, "Wed_MD": {"count": 3, "names": ["Terra", "Alex", "Scott"]}, "Thu_MD": {"count": 3, "names": ["Terra", "Alex", "Scott"]}, "Fri_MD": {"count": 3, "names": ["Terra", "Alex", "Scott"]}, "Sat_MD": {"count": 5, "names": ["Terra", "Alex", "Scott", "James", "Jennifer"]}, "Sun_PM": {"count": 5, "names": ["Terra", "Alex", "Scott", "James", "Jennifer"]}, "Mon_PM": {"count": 1, "names": ["Alex"]}, "Tue_PM": {"count": 0, "names": []}, "Wed_PM": {"count": 0, "names": []}, "Thu_PM": {"count": 0, "names": []}, "Fri_PM": {"count": 3, "names": ["Terra", "Alex", "Scott"]}, "Sat_PM": {"count": 3, "names": ["Alex", "James", "Jennifer"]}};
+const _MAX_A=5, _MAX_B=5;
 let _availBuilt=false;
 function avCellColor(val,max){
   const t=val/max;
