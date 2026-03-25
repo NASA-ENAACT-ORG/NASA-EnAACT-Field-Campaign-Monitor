@@ -747,8 +747,8 @@ const ROUTES_GEO = {"BX_NW":{"boro":"BX","name":"Norwood","lines":[[[40.85643,-7
 ;
 const COLLECTOR_HOMES = {"TER": {"lat": 40.687309, "lng": -73.941589, "name": "Terra", "non_collector": false}, "AYA": {"lat": 40.6693, "lng": -73.941926, "name": "Aya Nasri", "non_collector": false}, "SCT": {"lat": 40.739522, "lng": -73.877856, "name": "Scott", "non_collector": false}, "ALX": {"lat": 40.67643, "lng": -73.813913, "name": "Alex", "non_collector": false}, "JEN": {"lat": 40.764286, "lng": -73.924059, "name": "Jennifer", "non_collector": false}, "JAM": {"lat": 40.735877, "lng": -73.872864, "name": "James", "non_collector": false}, "ANG": {"lat": 40.764928, "lng": -73.830701, "name": "Angy", "non_collector": true}, "TAH": {"lat": 40.753384, "lng": -73.906652, "name": "Taha", "non_collector": false}, "SOT": {"lat": 40.757137, "lng": -73.971896, "name": "Soteri", "non_collector": false}, "NRS": {"lat": 40.818456, "lng": -73.943499, "name": "Prof. Naresh", "non_collector": false}, "PRA": {"lat": 40.851882, "lng": -73.972726, "name": "Prof. Prathap", "non_collector": false}};
 const BAKED_SCHEDULE = {
-  "generated": "2026-03-23",
-  "generated_at": "2026-03-23T23:50:14.876131",
+  "generated": "2026-03-24",
+  "generated_at": "2026-03-24T21:45:40.667854",
   "week_start": "2026-03-24",
   "week_end": "2026-03-28",
   "recal_day": null,
@@ -771,8 +771,8 @@ const BAKED_SCHEDULE = {
       "neigh": "UE",
       "tod": "PM",
       "backpack": "A",
-      "collector": "JEN",
-      "date": "2026-03-24",
+      "collector": "SOT",
+      "date": "2026-03-27",
       "preserved": false
     },
     {
@@ -783,7 +783,7 @@ const BAKED_SCHEDULE = {
       "tod": "AM",
       "backpack": "A",
       "collector": "TAH",
-      "date": "2026-03-24",
+      "date": "2026-03-25",
       "preserved": false
     },
     {
@@ -791,17 +791,6 @@ const BAKED_SCHEDULE = {
       "label": "Brooklyn \u2013 Downtown BK",
       "boro": "BK",
       "neigh": "DT",
-      "tod": "PM",
-      "backpack": "B",
-      "collector": "JEN",
-      "date": "2026-03-24",
-      "preserved": false
-    },
-    {
-      "route": "BK_BS",
-      "label": "Brooklyn \u2013 Bed Stuy",
-      "boro": "BK",
-      "neigh": "BS",
       "tod": "PM",
       "backpack": "B",
       "collector": "JEN",
@@ -816,7 +805,7 @@ const BAKED_SCHEDULE = {
       "tod": "AM",
       "backpack": "B",
       "collector": "TER",
-      "date": "2026-03-24",
+      "date": "2026-03-25",
       "preserved": false
     },
     {
@@ -827,17 +816,6 @@ const BAKED_SCHEDULE = {
       "tod": "AM",
       "backpack": "B",
       "collector": "TER",
-      "date": "2026-03-25",
-      "preserved": false
-    },
-    {
-      "route": "QN_LA",
-      "label": "Queens \u2013 LaGuardia CC",
-      "boro": "QN",
-      "neigh": "LA",
-      "tod": "AM",
-      "backpack": "B",
-      "collector": "SCT",
       "date": "2026-03-28",
       "preserved": false
     },
@@ -848,8 +826,8 @@ const BAKED_SCHEDULE = {
       "neigh": "LA",
       "tod": "PM",
       "backpack": "A",
-      "collector": "SOT",
-      "date": "2026-03-27",
+      "collector": "JEN",
+      "date": "2026-03-28",
       "preserved": false
     }
   ],
@@ -883,9 +861,23 @@ const BAKED_SCHEDULE = {
       "reason": "no_open_slot"
     },
     {
+      "route": "BK_BS",
+      "label": "Brooklyn \u2013 Bed Stuy",
+      "tod": "PM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
       "route": "QN_JA",
       "label": "Queens \u2013 Jamaica",
       "tod": "PM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_LA",
+      "label": "Queens \u2013 LaGuardia CC",
+      "tod": "AM",
       "backpack": "B",
       "reason": "no_open_slot"
     },
