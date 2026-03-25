@@ -925,17 +925,30 @@ def _restore_gcs_state():
         return
     # Walks_Log.txt — always refresh from GCS (may be newer than baked copy)
     _download_from_gcs("Walks_Log.txt", WALKS_LOG)
-    # schedule_output.json — only overwrite if GCS has a non-empty valid JSON
+    # schedule_output.json — only overwrite if GCS copy is newer than baked copy
     tmp = SCHEDULE_OUTPUT.with_suffix(".gcs_tmp")
     if _download_from_gcs("schedule_output.json", tmp):
         try:
-            data = json.loads(tmp.read_text(encoding="utf-8"))
-            if data.get("assignments") is not None:
-                tmp.replace(SCHEDULE_OUTPUT)
-                print("[gcs-restore] schedule_output.json refreshed from GCS")
-            else:
+            gcs_data = json.loads(tmp.read_text(encoding="utf-8"))
+            if gcs_data.get("assignments") is None:
                 tmp.unlink(missing_ok=True)
                 print("[gcs-restore] GCS schedule_output.json empty — keeping baked copy")
+            else:
+                # Compare generated_at timestamps: keep whichever is newer
+                gcs_ts = gcs_data.get("generated_at", "")
+                baked_ts = ""
+                if SCHEDULE_OUTPUT.exists():
+                    try:
+                        baked_data = json.loads(SCHEDULE_OUTPUT.read_text(encoding="utf-8"))
+                        baked_ts = baked_data.get("generated_at", "")
+                    except Exception:
+                        pass
+                if gcs_ts > baked_ts:
+                    tmp.replace(SCHEDULE_OUTPUT)
+                    print(f"[gcs-restore] schedule_output.json refreshed from GCS (generated_at: {gcs_ts})")
+                else:
+                    tmp.unlink(missing_ok=True)
+                    print(f"[gcs-restore] Baked schedule_output.json is newer — keeping it (baked: {baked_ts}, GCS: {gcs_ts})")
         except Exception:
             tmp.unlink(missing_ok=True)
             print("[gcs-restore] GCS schedule_output.json invalid — keeping baked copy")
