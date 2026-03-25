@@ -595,26 +595,25 @@ def _run_drive_poll(source: str = "background"):
     except Exception as e:
         return 0, f"Drive list error: {e}"
 
-    # Deduplicate while preserving first-seen order, then sort for stable output
-    seen_set: set = set()
-    deduped: list = []
+    # Deduplicate Drive entries
+    drive_set: set = set()
     for e in all_entries:
-        if e not in seen_set:
-            seen_set.add(e)
-            deduped.append(e)
-    deduped.sort()
+        drive_set.add(e.upper())
 
-    # Compare with existing log (ignore any stale RECAL lines that may still be present)
-    old_entries: set = set()
+    # Load existing log entries (manually added entries not in Drive must be preserved)
+    existing_entries: set = set()
     if WALKS_LOG.exists():
-        old_entries = {
+        existing_entries = {
             l.strip().upper() for l in WALKS_LOG.read_text(encoding="utf-8").splitlines()
             if l.strip() and not l.strip().upper().startswith("RECAL_")
         }
-    log_changed = set(deduped) != old_entries
 
-    # Always rebuild from Drive's current state
-    _rebuild_walk_log(deduped)
+    # Union: Drive entries + any manually-added entries not found in Drive
+    merged = sorted(drive_set | existing_entries)
+    log_changed = set(merged) != existing_entries
+
+    # Rebuild log from merged set (Drive state + preserved manual entries)
+    _rebuild_walk_log(merged)
 
     new_count = len(current_ids - seen_ids)
     _save_seen_ids(current_ids)
