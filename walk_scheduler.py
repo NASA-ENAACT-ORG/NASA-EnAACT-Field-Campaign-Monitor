@@ -422,7 +422,8 @@ def find_current_week_forecast() -> Tuple[Path, date, date]:
             "Drop a PDF named like 'Mar 15 - Mar 21.pdf' into the Forecast/ folder."
         )
 
-    candidates.sort(key=lambda x: x[0], reverse=True)   # newest first
+    # Prefer latest week end-date first, then most recently modified as tiebreaker
+    candidates.sort(key=lambda x: (x[2], x[0]), reverse=True)
     mtime, start, end, best_pdf = candidates[0]
     mtime_str = _dt.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
     print(f"  Using forecast: {best_pdf.name}  (last modified {mtime_str})")
