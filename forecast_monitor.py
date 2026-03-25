@@ -2,7 +2,7 @@
 """
 forecast_monitor.py — Monitor Google Drive forecasts and auto-trigger scheduler
 ========================================================================================
-Periodically polls the Google Drive folder (Nasa_enaact/Forecasts/) for new forecast
+Periodically polls the Google Drive folder (Forecast/) for new forecast
 PDFs and automatically triggers the walk scheduler when new forecasts are detected.
 Forecast PDFs are stored flat in the Forecasts/ folder, named by date range
 (e.g., "Mar 23 - Mar 27.pdf").
@@ -165,7 +165,7 @@ def list_files_in_folder(service, parent_id: str, mime_type: str = "application/
 
 def find_forecasts(service) -> Dict[str, Tuple[str, str, int]]:
     """
-    Find all forecast PDFs in Nasa_enaact/Forecasts/ (flat folder, no subfolders).
+    Find all forecast PDFs in the Forecast/ folder (flat, no subfolders).
 
     PDFs are named by date range, e.g. "Mar 23 - Mar 27.pdf".
 
@@ -173,21 +173,13 @@ def find_forecasts(service) -> Dict[str, Tuple[str, str, int]]:
     """
     forecasts = {}
 
-    # Find NASA_EnAACT_Research folder (may be shared, not under "root")
-    logger.info("Searching for NASA_EnAACT_Research folder...")
-    nasa_id = find_folder_by_name(service, "root", "NASA_EnAACT_Research")
-    if not nasa_id:
-        # Shared folders don't appear under root — search globally by name
-        nasa_id = find_folder_by_name_global(service, "NASA_EnAACT_Research")
-    if not nasa_id:
-        logger.warning("NASA_EnAACT_Research folder not found in Google Drive")
-        return forecasts
-
-    # Find Forecast folder
+    # Find Forecast folder directly (search root first, then globally for shared drives)
     logger.info("Searching for Forecast folder...")
-    forecasts_id = find_folder_by_name(service, nasa_id, "Forecast")
+    forecasts_id = find_folder_by_name(service, "root", "Forecast")
     if not forecasts_id:
-        logger.warning("Forecast folder not found under NASA_EnAACT_Research")
+        forecasts_id = find_folder_by_name_global(service, "Forecast")
+    if not forecasts_id:
+        logger.warning("Forecast folder not found in Google Drive")
         return forecasts
 
     # List PDFs directly in Forecasts/
