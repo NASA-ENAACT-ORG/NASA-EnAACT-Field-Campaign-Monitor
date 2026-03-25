@@ -147,6 +147,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .tab-btn.active{background:var(--bg3);border-color:var(--border);color:var(--text)}
 .tab-group:first-child .tab-btn.active{border-color:rgba(96,165,250,.5);color:#60a5fa}
 .tab-group:last-child .tab-btn.active{border-color:rgba(167,139,250,.5);color:#a78bfa}
+.force-rebuild-btn{padding:4px 11px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:11px;font-weight:600;transition:all .15s;font-family:'Space Grotesk',sans-serif;margin-right:4px;display:flex;align-items:center;gap:3px;white-space:nowrap}
+.force-rebuild-btn:hover{background:#4f3a0f;border-color:#d29922;color:#d29922}
+.force-rebuild-btn.rebuilding{opacity:.5;cursor:wait;pointer-events:none}
 /* Filters always live in a drawer panel, opened by hamburger on all screen sizes */
 #filters{display:none;position:fixed;left:-100%;top:56px;width:280px;max-width:calc(100% - 16px);height:calc(100vh - 56px);background:var(--bg2);border-right:1px solid var(--border);border-top:1px solid var(--border);overflow-y:auto;z-index:580;padding:14px;gap:10px;flex-direction:column;transition:left .25s ease;box-shadow:4px 0 20px rgba(0,0,0,.4)}
 #filters.open{display:flex!important;left:0!important}
@@ -642,6 +645,7 @@ setTimeout(function(){
         </div>
       </div>
     </div>
+    <button id="force-rebuild-btn" class="force-rebuild-btn" title="Force rebuild: re-download PDFs, build weather, run scheduler, rebuild dashboard">&#x27F3; Rebuild</button>
     <button id="mobile-menu-btn" class="mobile-menu-btn" title="Toggle filters">&#x2630;</button>
     <div id="filters">
       <div class="filter-section-head">Walk Filters</div>
@@ -1976,6 +1980,68 @@ function bindEvents(){
     renderSchedulePanel();
     if(document.getElementById('calendar-view').classList.contains('active'))renderCalendar();
   });
+
+  // ── Force Rebuild Button ──────────────────────────────────────────────────
+  const forceRebuildBtn=document.getElementById('force-rebuild-btn');
+  if(forceRebuildBtn){
+    forceRebuildBtn.addEventListener('click',async()=>{
+      if(forceRebuildBtn.classList.contains('rebuilding'))return;
+      let pin='';
+      if(schedAuth.unlocked){
+        pin=schedAuth.pin;
+      }else{
+        pin=prompt('Enter SCHEDULER_PIN to force rebuild:','');
+        if(pin===null)return;
+      }
+      forceRebuildBtn.classList.add('rebuilding');
+      forceRebuildBtn.textContent='\u29f3 Building\u2026';
+      try{
+        const resp=await fetch('/api/force-rebuild',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({pin})
+        });
+        if(resp.status===403){
+          toast('Incorrect PIN.','error');
+          forceRebuildBtn.classList.remove('rebuilding');
+          forceRebuildBtn.innerHTML='&#x27F3; Rebuild';
+          return;
+        }
+        if(!resp.ok)throw new Error('Server error: '+resp.status);
+        toast('Rebuild started \u2014 page will refresh when complete.','success');
+        let attempts=0;
+        const maxAttempts=30;
+        const origMtime=BAKED_SCHEDULE&&BAKED_SCHEDULE.generated?BAKED_SCHEDULE.generated:null;
+        const poll=setInterval(async()=>{
+          attempts++;
+          try{
+            const sr=await fetch('/api/status');
+            if(sr.ok){
+              const st=await sr.json();
+              const newMtime=st.schedule_output&&st.schedule_output.mtime?st.schedule_output.mtime:null;
+              if(newMtime&&newMtime!==origMtime){
+                clearInterval(poll);
+                toast('Rebuild complete! Refreshing\u2026','success');
+                setTimeout(()=>window.location.reload(),500);
+                return;
+              }
+            }
+          }catch(e){}
+          if(attempts>=maxAttempts){
+            clearInterval(poll);
+            toast('Build in progress \u2014 please refresh manually.','info');
+            forceRebuildBtn.classList.remove('rebuilding');
+            forceRebuildBtn.innerHTML='&#x27F3; Rebuild';
+          }
+        },2000);
+      }catch(err){
+        console.error('Force rebuild error:',err);
+        toast('Error triggering rebuild: '+err.message,'error');
+        forceRebuildBtn.classList.remove('rebuilding');
+        forceRebuildBtn.innerHTML='&#x27F3; Rebuild';
+      }
+    });
+  }
 }
 // ─── INIT ───
 async function init(){

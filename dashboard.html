@@ -42,7 +42,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .tab-btn.active{background:var(--bg3);border-color:var(--border);color:var(--text)}
 .tab-group:first-child .tab-btn.active{border-color:rgba(96,165,250,.5);color:#60a5fa}
 .tab-group:last-child .tab-btn.active{border-color:rgba(167,139,250,.5);color:#a78bfa}
-.force-rebuild-btn{padding:4px 11px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:11px;font-weight:600;transition:all .15s;font-family:'Space Grotesk',sans-serif;margin-right:12px;display:flex;align-items:center;gap:3px;white-space:nowrap}
+.force-rebuild-btn{padding:4px 11px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:11px;font-weight:600;transition:all .15s;font-family:'Space Grotesk',sans-serif;margin-right:4px;display:flex;align-items:center;gap:3px;white-space:nowrap}
 .force-rebuild-btn:hover{background:#4f3a0f;border-color:#d29922;color:#d29922}
 .force-rebuild-btn.rebuilding{opacity:.5;cursor:wait;pointer-events:none}
 /* Filters always live in a drawer panel, opened by hamburger on all screen sizes */
@@ -1028,6 +1028,301 @@ const BAKED_SCHEDULE = {
     "2026-03-29_PM": true
   }
 };
+const BAKED_WEATHER = {
+  "generated": "2026-03-25T15:40:48.480274",
+  "frozen_before": "2026-03-11",
+  "current_week_start": "2026-03-24",
+  "current_week_end": "2026-03-28",
+  "weather": {
+    "2026-03-11_AM": false,
+    "2026-03-11_MD": false,
+    "2026-03-11_PM": false,
+    "2026-03-12_AM": false,
+    "2026-03-12_MD": false,
+    "2026-03-12_PM": false,
+    "2026-03-13_AM": true,
+    "2026-03-13_MD": false,
+    "2026-03-13_PM": false,
+    "2026-03-14_AM": false,
+    "2026-03-14_MD": true,
+    "2026-03-14_PM": true,
+    "2026-03-15_AM": false,
+    "2026-03-15_MD": false,
+    "2026-03-15_PM": false,
+    "2026-03-16_AM": false,
+    "2026-03-16_MD": false,
+    "2026-03-16_PM": false,
+    "2026-03-17_AM": true,
+    "2026-03-17_MD": false,
+    "2026-03-17_PM": false,
+    "2026-03-18_AM": false,
+    "2026-03-18_MD": false,
+    "2026-03-18_PM": true,
+    "2026-03-19_AM": false,
+    "2026-03-19_MD": true,
+    "2026-03-19_PM": false,
+    "2026-03-20_AM": true,
+    "2026-03-20_MD": true,
+    "2026-03-20_PM": false,
+    "2026-03-21_AM": true,
+    "2026-03-21_MD": false,
+    "2026-03-21_PM": true,
+    "2026-03-22_AM": false,
+    "2026-03-22_MD": true,
+    "2026-03-22_PM": false,
+    "2026-03-23_AM": false,
+    "2026-03-23_MD": false,
+    "2026-03-23_PM": false,
+    "2026-03-24_AM": true,
+    "2026-03-24_MD": true,
+    "2026-03-24_PM": true,
+    "2026-03-25_AM": true,
+    "2026-03-25_MD": false,
+    "2026-03-25_PM": false,
+    "2026-03-26_AM": false,
+    "2026-03-26_MD": true,
+    "2026-03-26_PM": false,
+    "2026-03-27_AM": false,
+    "2026-03-27_MD": false,
+    "2026-03-27_PM": true,
+    "2026-03-28_AM": true,
+    "2026-03-28_MD": false,
+    "2026-03-28_PM": true,
+    "2026-03-29_AM": true,
+    "2026-03-29_MD": true,
+    "2026-03-29_PM": true
+  },
+  "_meta": {
+    "2026-03-11_AM": {
+      "source": "Mar 8 - Mar 14 R2.pdf",
+      "last_updated": "2026-03-11"
+    },
+    "2026-03-11_MD": {
+      "source": "Mar 8 - Mar 14 R2.pdf",
+      "last_updated": "2026-03-11"
+    },
+    "2026-03-11_PM": {
+      "source": "Mar 8 - Mar 14 R2.pdf",
+      "last_updated": "2026-03-11"
+    },
+    "2026-03-12_AM": {
+      "source": "Mar 8 - Mar 14 R2.pdf",
+      "last_updated": "2026-03-11"
+    },
+    "2026-03-12_MD": {
+      "source": "Mar 8 - Mar 14 R2.pdf",
+      "last_updated": "2026-03-11"
+    },
+    "2026-03-12_PM": {
+      "source": "Mar 8 - Mar 14 R2.pdf",
+      "last_updated": "2026-03-11"
+    },
+    "2026-03-13_AM": {
+      "source": "Mar 13 - Mar 19.pdf",
+      "last_updated": "2026-03-13"
+    },
+    "2026-03-13_MD": {
+      "source": "Mar 13 - Mar 19.pdf",
+      "last_updated": "2026-03-13"
+    },
+    "2026-03-13_PM": {
+      "source": "Mar 13 - Mar 19.pdf",
+      "last_updated": "2026-03-13"
+    },
+    "2026-03-14_AM": {
+      "source": "Mar 13 - Mar 19.pdf",
+      "last_updated": "2026-03-13"
+    },
+    "2026-03-14_MD": {
+      "source": "Mar 13 - Mar 19.pdf",
+      "last_updated": "2026-03-13"
+    },
+    "2026-03-14_PM": {
+      "source": "Mar 13 - Mar 19.pdf",
+      "last_updated": "2026-03-13"
+    },
+    "2026-03-15_AM": {
+      "source": "Mar 13 - Mar 19.pdf",
+      "last_updated": "2026-03-13"
+    },
+    "2026-03-15_MD": {
+      "source": "Mar 13 - Mar 19.pdf",
+      "last_updated": "2026-03-13"
+    },
+    "2026-03-15_PM": {
+      "source": "Mar 13 - Mar 19.pdf",
+      "last_updated": "2026-03-13"
+    },
+    "2026-03-16_AM": {
+      "source": "Mar 16 - Mar 22.pdf",
+      "last_updated": "2026-03-15"
+    },
+    "2026-03-16_MD": {
+      "source": "Mar 16 - Mar 22.pdf",
+      "last_updated": "2026-03-15"
+    },
+    "2026-03-16_PM": {
+      "source": "Mar 16 - Mar 22.pdf",
+      "last_updated": "2026-03-15"
+    },
+    "2026-03-17_AM": {
+      "source": "Mar 16 - Mar 22.pdf",
+      "last_updated": "2026-03-15"
+    },
+    "2026-03-17_MD": {
+      "source": "Mar 16 - Mar 22.pdf",
+      "last_updated": "2026-03-15"
+    },
+    "2026-03-17_PM": {
+      "source": "Mar 16 - Mar 22.pdf",
+      "last_updated": "2026-03-15"
+    },
+    "2026-03-18_AM": {
+      "source": "Mar 18 - Mar 24.pdf",
+      "last_updated": "2026-03-18"
+    },
+    "2026-03-18_MD": {
+      "source": "Mar 18 - Mar 24.pdf",
+      "last_updated": "2026-03-18"
+    },
+    "2026-03-18_PM": {
+      "source": "Mar 18 - Mar 24.pdf",
+      "last_updated": "2026-03-18"
+    },
+    "2026-03-19_AM": {
+      "source": "Mar 19 - Mar 25.pdf",
+      "last_updated": "2026-03-19"
+    },
+    "2026-03-19_MD": {
+      "source": "Mar 19 - Mar 25.pdf",
+      "last_updated": "2026-03-19"
+    },
+    "2026-03-19_PM": {
+      "source": "Mar 19 - Mar 25.pdf",
+      "last_updated": "2026-03-19"
+    },
+    "2026-03-20_AM": {
+      "source": "Mar 19 - Mar 25.pdf",
+      "last_updated": "2026-03-19"
+    },
+    "2026-03-20_MD": {
+      "source": "Mar 19 - Mar 25.pdf",
+      "last_updated": "2026-03-19"
+    },
+    "2026-03-20_PM": {
+      "source": "Mar 19 - Mar 25.pdf",
+      "last_updated": "2026-03-19"
+    },
+    "2026-03-21_AM": {
+      "source": "Mar 19 - Mar 25.pdf",
+      "last_updated": "2026-03-19"
+    },
+    "2026-03-21_MD": {
+      "source": "Mar 19 - Mar 25.pdf",
+      "last_updated": "2026-03-19"
+    },
+    "2026-03-21_PM": {
+      "source": "Mar 19 - Mar 25.pdf",
+      "last_updated": "2026-03-19"
+    },
+    "2026-03-22_AM": {
+      "source": "Mar 19 - Mar 25.pdf",
+      "last_updated": "2026-03-19"
+    },
+    "2026-03-22_MD": {
+      "source": "Mar 19 - Mar 25.pdf",
+      "last_updated": "2026-03-19"
+    },
+    "2026-03-22_PM": {
+      "source": "Mar 19 - Mar 25.pdf",
+      "last_updated": "2026-03-19"
+    },
+    "2026-03-23_AM": {
+      "source": "Mar 19 - Mar 25.pdf",
+      "last_updated": "2026-03-19"
+    },
+    "2026-03-23_MD": {
+      "source": "Mar 19 - Mar 25.pdf",
+      "last_updated": "2026-03-19"
+    },
+    "2026-03-23_PM": {
+      "source": "Mar 19 - Mar 25.pdf",
+      "last_updated": "2026-03-19"
+    },
+    "2026-03-24_AM": {
+      "source": "Mar 24 - Mar 28.pdf",
+      "last_updated": "2026-03-23"
+    },
+    "2026-03-24_MD": {
+      "source": "Mar 24 - Mar 28.pdf",
+      "last_updated": "2026-03-23"
+    },
+    "2026-03-24_PM": {
+      "source": "Mar 24 - Mar 28.pdf",
+      "last_updated": "2026-03-23"
+    },
+    "2026-03-25_AM": {
+      "source": "Mar 24 - Mar 28.pdf",
+      "last_updated": "2026-03-23"
+    },
+    "2026-03-25_MD": {
+      "source": "Mar 24 - Mar 28.pdf",
+      "last_updated": "2026-03-23"
+    },
+    "2026-03-25_PM": {
+      "source": "Mar 24 - Mar 28.pdf",
+      "last_updated": "2026-03-23"
+    },
+    "2026-03-26_AM": {
+      "source": "Mar 24 - Mar 28.pdf",
+      "last_updated": "2026-03-23"
+    },
+    "2026-03-26_MD": {
+      "source": "Mar 24 - Mar 28.pdf",
+      "last_updated": "2026-03-23"
+    },
+    "2026-03-26_PM": {
+      "source": "Mar 24 - Mar 28.pdf",
+      "last_updated": "2026-03-23"
+    },
+    "2026-03-27_AM": {
+      "source": "Mar 24 - Mar 28.pdf",
+      "last_updated": "2026-03-23"
+    },
+    "2026-03-27_MD": {
+      "source": "Mar 24 - Mar 28.pdf",
+      "last_updated": "2026-03-23"
+    },
+    "2026-03-27_PM": {
+      "source": "Mar 24 - Mar 28.pdf",
+      "last_updated": "2026-03-23"
+    },
+    "2026-03-28_AM": {
+      "source": "Mar 24 - Mar 28.pdf",
+      "last_updated": "2026-03-23"
+    },
+    "2026-03-28_MD": {
+      "source": "Mar 24 - Mar 28.pdf",
+      "last_updated": "2026-03-23"
+    },
+    "2026-03-28_PM": {
+      "source": "Mar 24 - Mar 28.pdf",
+      "last_updated": "2026-03-23"
+    },
+    "2026-03-29_AM": {
+      "source": "Mar 25 - Mar 29.pdf",
+      "last_updated": "2025-03-25"
+    },
+    "2026-03-29_MD": {
+      "source": "Mar 25 - Mar 29.pdf",
+      "last_updated": "2025-03-25"
+    },
+    "2026-03-29_PM": {
+      "source": "Mar 25 - Mar 29.pdf",
+      "last_updated": "2025-03-25"
+    }
+  }
+};
 // Campus affiliation → pin color  (purple = CCNY, red = LaGCC, amber = staff)
 const COLLECTOR_PIN_COLOR = {
   'SOT':'#7c3aed','AYA':'#7c3aed','JEN':'#7c3aed','TAH':'#7c3aed','ANG':'#7c3aed',
@@ -1909,7 +2204,7 @@ function renderCalendar(){
       const isRecal=wk.recal_day===dateStr;
       const walks=(byDayTod[dateStr]||{})[ctod]||[];
       const weatherKey=`${dateStr}_${ctod}`;
-      const isBadWeather=BAKED_SCHEDULE&&BAKED_SCHEDULE.weather&&BAKED_SCHEDULE.weather[weatherKey]===false;
+      const isBadWeather=BAKED_WEATHER&&BAKED_WEATHER.weather&&BAKED_WEATHER.weather[weatherKey]===false;
 
       let cellContent='';
       // Weather indicator overlay for bad weather
@@ -2159,6 +2454,68 @@ function bindEvents(){
     renderSchedulePanel();
     if(document.getElementById('calendar-view').classList.contains('active'))renderCalendar();
   });
+
+  // ── Force Rebuild Button ──────────────────────────────────────────────────
+  const forceRebuildBtn=document.getElementById('force-rebuild-btn');
+  if(forceRebuildBtn){
+    forceRebuildBtn.addEventListener('click',async()=>{
+      if(forceRebuildBtn.classList.contains('rebuilding'))return;
+      let pin='';
+      if(schedAuth.unlocked){
+        pin=schedAuth.pin;
+      }else{
+        pin=prompt('Enter SCHEDULER_PIN to force rebuild:','');
+        if(pin===null)return;
+      }
+      forceRebuildBtn.classList.add('rebuilding');
+      forceRebuildBtn.textContent='⧳ Building…';
+      try{
+        const resp=await fetch('/api/force-rebuild',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({pin})
+        });
+        if(resp.status===403){
+          toast('Incorrect PIN.','error');
+          forceRebuildBtn.classList.remove('rebuilding');
+          forceRebuildBtn.innerHTML='&#x27F3; Rebuild';
+          return;
+        }
+        if(!resp.ok)throw new Error('Server error: '+resp.status);
+        toast('Rebuild started — page will refresh when complete.','success');
+        let attempts=0;
+        const maxAttempts=30;
+        const origMtime=BAKED_SCHEDULE&&BAKED_SCHEDULE.generated?BAKED_SCHEDULE.generated:null;
+        const poll=setInterval(async()=>{
+          attempts++;
+          try{
+            const sr=await fetch('/api/status');
+            if(sr.ok){
+              const st=await sr.json();
+              const newMtime=st.schedule_output&&st.schedule_output.mtime?st.schedule_output.mtime:null;
+              if(newMtime&&newMtime!==origMtime){
+                clearInterval(poll);
+                toast('Rebuild complete! Refreshing…','success');
+                setTimeout(()=>window.location.reload(),500);
+                return;
+              }
+            }
+          }catch(e){}
+          if(attempts>=maxAttempts){
+            clearInterval(poll);
+            toast('Build in progress — please refresh manually.','info');
+            forceRebuildBtn.classList.remove('rebuilding');
+            forceRebuildBtn.innerHTML='&#x27F3; Rebuild';
+          }
+        },2000);
+      }catch(err){
+        console.error('Force rebuild error:',err);
+        toast('Error triggering rebuild: '+err.message,'error');
+        forceRebuildBtn.classList.remove('rebuilding');
+        forceRebuildBtn.innerHTML='&#x27F3; Rebuild';
+      }
+    });
+  }
 }
 // ─── INIT ───
 async function init(){
@@ -2304,31 +2661,6 @@ document.addEventListener('DOMContentLoaded',()=>{
       }catch(e){toast('Drive sync failed: '+e.message,'');}
       finally{syncBtn.disabled=false;syncBtn.textContent='↻ Sync';}
       refreshDriveStatus();
-    });
-  }
-  // Force rebuild button — triggers full pipeline (download, weather, scheduler, dashboard)
-  const rebuildBtn=document.getElementById('force-rebuild-btn');
-  if(rebuildBtn){
-    rebuildBtn.addEventListener('click',async()=>{
-      const {pin}=await promptAuthModal('Force Rebuild','Are you sure? This will re-download all PDFs, rebuild weather, run the scheduler, and rebuild the dashboard. Check back in ~30 seconds.');
-      if(pin===undefined)return;
-      rebuildBtn.classList.add('rebuilding');rebuildBtn.disabled=true;rebuildBtn.textContent='⏳ Rebuilding…';
-      try{
-        const r=await fetch('/api/force-rebuild',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})});
-        if(r.ok){
-          const d=await r.json();
-          toast('Rebuild started — check back in 30 seconds','success');
-          setTimeout(()=>{location.reload();},35000);
-        }else if(r.status===403){
-          toast('Rebuild failed: wrong PIN','error');
-        }else{
-          toast('Rebuild failed: '+r.statusText,'error');
-        }
-      }catch(e){
-        toast('Rebuild error: '+e.message,'error');
-      }finally{
-        rebuildBtn.classList.remove('rebuilding');rebuildBtn.disabled=false;rebuildBtn.textContent='⟲ Rebuild';
-      }
     });
   }
   // Poll GPS every 5s, Drive status every 30s
