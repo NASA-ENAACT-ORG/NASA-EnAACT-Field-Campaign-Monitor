@@ -980,16 +980,11 @@ def main():
             # Always refresh — GCS copy may be newer than the baked image copy
             _download_from_gcs("Walks_Log.txt", WALKS_LOG)
 
-        # schedule_output.json — last scheduler run results
-        _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
-
-        # schedule_confirmations.json — confirm/deny state
+        # schedule_output.json and schedule_confirmations.json are already
+        # restored by --restore-only (step 1 of CMD), and dashboard HTML was
+        # rebuilt from them (step 2). Don't re-download here or we'd overwrite
+        # the freshly built files with stale GCS copies.
         _download_from_gcs("schedule_confirmations.json", CONFIRMATIONS_FILE)
-
-        # Rebuilt HTML files — pick up latest from GCS if newer than baked copy
-        for html_name in ("dashboard.html", "availability_heatmap.html",
-                          "schedule_map.html", "collector_map.html"):
-            _download_from_gcs(html_name, BASE_DIR / html_name)
 
         print("[startup] GCS state restored")
 
