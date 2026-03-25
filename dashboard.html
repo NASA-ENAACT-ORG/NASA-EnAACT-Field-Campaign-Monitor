@@ -42,6 +42,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .tab-btn.active{background:var(--bg3);border-color:var(--border);color:var(--text)}
 .tab-group:first-child .tab-btn.active{border-color:rgba(96,165,250,.5);color:#60a5fa}
 .tab-group:last-child .tab-btn.active{border-color:rgba(167,139,250,.5);color:#a78bfa}
+.force-rebuild-btn{padding:4px 11px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:11px;font-weight:600;transition:all .15s;font-family:'Space Grotesk',sans-serif;margin-right:12px;display:flex;align-items:center;gap:3px;white-space:nowrap}
+.force-rebuild-btn:hover{background:#4f3a0f;border-color:#d29922;color:#d29922}
+.force-rebuild-btn.rebuilding{opacity:.5;cursor:wait;pointer-events:none}
 /* Filters always live in a drawer panel, opened by hamburger on all screen sizes */
 #filters{display:none;position:fixed;left:-100%;top:56px;width:280px;max-width:calc(100% - 16px);height:calc(100vh - 56px);background:var(--bg2);border-right:1px solid var(--border);border-top:1px solid var(--border);overflow-y:auto;z-index:580;padding:14px;gap:10px;flex-direction:column;transition:left .25s ease;box-shadow:4px 0 20px rgba(0,0,0,.4)}
 #filters.open{display:flex!important;left:0!important}
@@ -537,6 +540,7 @@ setTimeout(function(){
         </div>
       </div>
     </div>
+    <button id="force-rebuild-btn" class="force-rebuild-btn" title="Force rebuild: re-download PDFs, build weather, run scheduler, rebuild dashboard">&#x27F3; Rebuild</button>
     <button id="mobile-menu-btn" class="mobile-menu-btn" title="Toggle filters">&#x2630;</button>
     <div id="filters">
       <div class="filter-section-head">Walk Filters</div>
@@ -747,21 +751,32 @@ const ROUTES_GEO = {"BX_NW":{"boro":"BX","name":"Norwood","lines":[[[40.85643,-7
 ;
 const COLLECTOR_HOMES = {"TER": {"lat": 40.687309, "lng": -73.941589, "name": "Terra", "non_collector": false}, "AYA": {"lat": 40.6693, "lng": -73.941926, "name": "Aya Nasri", "non_collector": false}, "SCT": {"lat": 40.739522, "lng": -73.877856, "name": "Scott", "non_collector": false}, "ALX": {"lat": 40.67643, "lng": -73.813913, "name": "Alex", "non_collector": false}, "JEN": {"lat": 40.764286, "lng": -73.924059, "name": "Jennifer", "non_collector": false}, "JAM": {"lat": 40.735877, "lng": -73.872864, "name": "James", "non_collector": false}, "ANG": {"lat": 40.764928, "lng": -73.830701, "name": "Angy", "non_collector": true}, "TAH": {"lat": 40.753384, "lng": -73.906652, "name": "Taha", "non_collector": false}, "SOT": {"lat": 40.757137, "lng": -73.971896, "name": "Soteri", "non_collector": false}, "NRS": {"lat": 40.818456, "lng": -73.943499, "name": "Prof. Naresh", "non_collector": false}, "PRA": {"lat": 40.851882, "lng": -73.972726, "name": "Prof. Prathap", "non_collector": false}};
 const BAKED_SCHEDULE = {
-  "generated": "2026-03-24",
-  "generated_at": "2026-03-24T21:56:32.023876",
-  "week_start": "2026-03-24",
-  "week_end": "2026-03-28",
+  "generated": "2026-03-25",
+  "generated_at": "2026-03-25T01:20:19.567947",
+  "week_start": "2026-03-25",
+  "week_end": "2026-03-29",
   "recal_day": null,
   "assignments": [
     {
-      "route": "BK_CH",
-      "label": "Brooklyn \u2013 Crown Heights",
-      "boro": "BK",
-      "neigh": "CH",
-      "tod": "PM",
-      "backpack": "B",
-      "collector": "TER",
-      "date": "2026-03-27",
+      "route": "MN_UE",
+      "label": "Manhattan \u2013 Upper East Side",
+      "boro": "MN",
+      "neigh": "UE",
+      "tod": "AM",
+      "backpack": "A",
+      "collector": "SOT",
+      "date": "2026-03-28",
+      "preserved": false
+    },
+    {
+      "route": "MN_UE",
+      "label": "Manhattan \u2013 Upper East Side",
+      "boro": "MN",
+      "neigh": "UE",
+      "tod": "MD",
+      "backpack": "A",
+      "collector": "AYA",
+      "date": "2026-03-26",
       "preserved": false
     },
     {
@@ -771,8 +786,8 @@ const BAKED_SCHEDULE = {
       "neigh": "UE",
       "tod": "PM",
       "backpack": "A",
-      "collector": "SOT",
-      "date": "2026-03-27",
+      "collector": "JEN",
+      "date": "2026-03-28",
       "preserved": false
     },
     {
@@ -782,8 +797,8 @@ const BAKED_SCHEDULE = {
       "neigh": "HT",
       "tod": "AM",
       "backpack": "A",
-      "collector": "TAH",
-      "date": "2026-03-25",
+      "collector": "SOT",
+      "date": "2026-03-29",
       "preserved": false
     },
     {
@@ -798,207 +813,205 @@ const BAKED_SCHEDULE = {
       "preserved": false
     },
     {
+      "route": "BK_BS",
+      "label": "Brooklyn \u2013 Bed Stuy",
+      "boro": "BK",
+      "neigh": "BS",
+      "tod": "PM",
+      "backpack": "B",
+      "collector": "TER",
+      "date": "2026-03-29",
+      "preserved": false
+    },
+    {
       "route": "BK_CH",
       "label": "Brooklyn \u2013 Crown Heights",
       "boro": "BK",
       "neigh": "CH",
-      "tod": "AM",
+      "tod": "MD",
       "backpack": "B",
       "collector": "TER",
-      "date": "2026-03-25",
+      "date": "2026-03-29",
       "preserved": false
     },
     {
-      "route": "BK_SP",
-      "label": "Brooklyn \u2013 Sunset Park",
-      "boro": "BK",
-      "neigh": "SP",
+      "route": "MN_LE",
+      "label": "Manhattan \u2013 Union Sq/LES",
+      "boro": "MN",
+      "neigh": "LE",
       "tod": "AM",
       "backpack": "B",
-      "collector": "TER",
+      "collector": "SCT",
       "date": "2026-03-28",
       "preserved": false
     },
     {
-      "route": "QN_LA",
-      "label": "Queens \u2013 LaGuardia CC",
-      "boro": "QN",
-      "neigh": "LA",
-      "tod": "PM",
-      "backpack": "A",
+      "route": "MN_LE",
+      "label": "Manhattan \u2013 Union Sq/LES",
+      "boro": "MN",
+      "neigh": "LE",
+      "tod": "MD",
+      "backpack": "B",
       "collector": "JEN",
       "date": "2026-03-28",
       "preserved": false
-    }
-  ],
-  "unassigned": [
-    {
-      "route": "BK_CH",
-      "label": "Brooklyn \u2013 Crown Heights",
-      "tod": "MD",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "BK_SP",
-      "label": "Brooklyn \u2013 Sunset Park",
-      "tod": "MD",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "BK_DT",
-      "label": "Brooklyn \u2013 Downtown BK",
-      "tod": "MD",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "BK_BS",
-      "label": "Brooklyn \u2013 Bed Stuy",
-      "tod": "MD",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "BK_BS",
-      "label": "Brooklyn \u2013 Bed Stuy",
-      "tod": "PM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_JA",
-      "label": "Queens \u2013 Jamaica",
-      "tod": "PM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_LA",
-      "label": "Queens \u2013 LaGuardia CC",
-      "tod": "AM",
-      "backpack": "B",
-      "reason": "no_open_slot"
     },
     {
       "route": "QN_LI",
       "label": "Queens \u2013 Astoria/LIC",
+      "boro": "QN",
+      "neigh": "LI",
       "tod": "AM",
       "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_JH",
-      "label": "Queens \u2013 Jackson Heights",
-      "tod": "AM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "MN_LE",
-      "label": "Manhattan \u2013 Union Sq/LES",
-      "tod": "AM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "MN_LE",
-      "label": "Manhattan \u2013 Union Sq/LES",
-      "tod": "PM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_EE",
-      "label": "Queens \u2013 East Elmhurst",
-      "tod": "AM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "MN_UE",
-      "label": "Manhattan \u2013 Upper East Side",
-      "tod": "AM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "BK_WB",
-      "label": "Brooklyn \u2013 Williamsburg",
-      "tod": "AM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "BK_WB",
-      "label": "Brooklyn \u2013 Williamsburg",
-      "tod": "PM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_FH",
-      "label": "Queens \u2013 Forest Hills",
-      "tod": "AM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_FH",
-      "label": "Queens \u2013 Forest Hills",
-      "tod": "PM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "BK_DT",
-      "label": "Brooklyn \u2013 Downtown BK",
-      "tod": "AM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_FU",
-      "label": "Queens \u2013 Flushing",
-      "tod": "AM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_JH",
-      "label": "Queens \u2013 Jackson Heights",
-      "tod": "PM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_EE",
-      "label": "Queens \u2013 East Elmhurst",
-      "tod": "PM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
-    {
-      "route": "QN_JA",
-      "label": "Queens \u2013 Jamaica",
-      "tod": "AM",
-      "backpack": "B",
-      "reason": "no_open_slot"
-    },
+      "collector": "ALX",
+      "date": "2026-03-29",
+      "preserved": false
+    }
+  ],
+  "unassigned": [
     {
       "route": "MN_MT",
       "label": "Manhattan \u2013 Midtown",
       "tod": "PM",
       "backpack": "B",
       "reason": "no_open_slot"
+    },
+    {
+      "route": "MN_LE",
+      "label": "Manhattan \u2013 Union Sq/LES",
+      "tod": "PM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_LI",
+      "label": "Queens \u2013 Astoria/LIC",
+      "tod": "MD",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_LA",
+      "label": "Queens \u2013 LaGuardia CC",
+      "tod": "AM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_LA",
+      "label": "Queens \u2013 LaGuardia CC",
+      "tod": "PM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "BK_WB",
+      "label": "Brooklyn \u2013 Williamsburg",
+      "tod": "AM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "BK_WB",
+      "label": "Brooklyn \u2013 Williamsburg",
+      "tod": "MD",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "BK_WB",
+      "label": "Brooklyn \u2013 Williamsburg",
+      "tod": "PM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_FH",
+      "label": "Queens \u2013 Forest Hills",
+      "tod": "AM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_FH",
+      "label": "Queens \u2013 Forest Hills",
+      "tod": "PM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_FH",
+      "label": "Queens \u2013 Forest Hills",
+      "tod": "MD",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "BK_DT",
+      "label": "Brooklyn \u2013 Downtown BK",
+      "tod": "AM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "BK_DT",
+      "label": "Brooklyn \u2013 Downtown BK",
+      "tod": "MD",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "BK_BS",
+      "label": "Brooklyn \u2013 Bed Stuy",
+      "tod": "MD",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_JH",
+      "label": "Queens \u2013 Jackson Heights",
+      "tod": "AM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_JH",
+      "label": "Queens \u2013 Jackson Heights",
+      "tod": "MD",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_JH",
+      "label": "Queens \u2013 Jackson Heights",
+      "tod": "PM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_EE",
+      "label": "Queens \u2013 East Elmhurst",
+      "tod": "AM",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "QN_EE",
+      "label": "Queens \u2013 East Elmhurst",
+      "tod": "MD",
+      "backpack": "B",
+      "reason": "no_open_slot"
+    },
+    {
+      "route": "MN_MT",
+      "label": "Manhattan \u2013 Midtown",
+      "tod": "MD",
+      "backpack": "B",
+      "reason": "no_open_slot"
     }
   ],
   "weather": {
-    "2026-03-24_AM": true,
-    "2026-03-24_MD": true,
-    "2026-03-24_PM": true,
-    "2026-03-25_AM": true,
+    "2026-03-25_AM": false,
     "2026-03-25_MD": false,
     "2026-03-25_PM": false,
     "2026-03-26_AM": false,
@@ -1006,10 +1019,13 @@ const BAKED_SCHEDULE = {
     "2026-03-26_PM": false,
     "2026-03-27_AM": false,
     "2026-03-27_MD": false,
-    "2026-03-27_PM": true,
+    "2026-03-27_PM": false,
     "2026-03-28_AM": true,
-    "2026-03-28_MD": false,
-    "2026-03-28_PM": true
+    "2026-03-28_MD": true,
+    "2026-03-28_PM": true,
+    "2026-03-29_AM": true,
+    "2026-03-29_MD": true,
+    "2026-03-29_PM": true
   }
 };
 // Campus affiliation → pin color  (purple = CCNY, red = LaGCC, amber = staff)
@@ -2288,6 +2304,31 @@ document.addEventListener('DOMContentLoaded',()=>{
       }catch(e){toast('Drive sync failed: '+e.message,'');}
       finally{syncBtn.disabled=false;syncBtn.textContent='↻ Sync';}
       refreshDriveStatus();
+    });
+  }
+  // Force rebuild button — triggers full pipeline (download, weather, scheduler, dashboard)
+  const rebuildBtn=document.getElementById('force-rebuild-btn');
+  if(rebuildBtn){
+    rebuildBtn.addEventListener('click',async()=>{
+      const {pin}=await promptAuthModal('Force Rebuild','Are you sure? This will re-download all PDFs, rebuild weather, run the scheduler, and rebuild the dashboard. Check back in ~30 seconds.');
+      if(pin===undefined)return;
+      rebuildBtn.classList.add('rebuilding');rebuildBtn.disabled=true;rebuildBtn.textContent='⏳ Rebuilding…';
+      try{
+        const r=await fetch('/api/force-rebuild',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})});
+        if(r.ok){
+          const d=await r.json();
+          toast('Rebuild started — check back in 30 seconds','success');
+          setTimeout(()=>{location.reload();},35000);
+        }else if(r.status===403){
+          toast('Rebuild failed: wrong PIN','error');
+        }else{
+          toast('Rebuild failed: '+r.statusText,'error');
+        }
+      }catch(e){
+        toast('Rebuild error: '+e.message,'error');
+      }finally{
+        rebuildBtn.classList.remove('rebuilding');rebuildBtn.disabled=false;rebuildBtn.textContent='⟲ Rebuild';
+      }
     });
   }
   // Poll GPS every 5s, Drive status every 30s

@@ -868,6 +868,27 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 body = json.dumps({"status": "ok", "new_files": count}).encode()
                 self._send(200, "application/json", body)
+        elif endpoint == "/api/force-rebuild":
+            # Force immediate rebuild: download all PDFs, build weather, run scheduler, rebuild dashboard
+            # Protected by SCHEDULER_PIN
+            _sched_pin = os.environ.get("SCHEDULER_PIN", "")
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body_bytes = self.rfile.read(length) if length else b"{}"
+                payload = json.loads(body_bytes)
+            except Exception:
+                self._send(400, "application/json",
+                           json.dumps({"error": "bad request"}).encode())
+                return
+            if _sched_pin and payload.get("pin", "") != _sched_pin:
+                self._send(403, "application/json",
+                           json.dumps({"error": "wrong pin"}).encode())
+                return
+            print("[API] Force rebuild triggered")
+            t = threading.Thread(target=_run_scheduler_and_rebuild, daemon=True)
+            t.start()
+            self._send(200, "application/json",
+                       json.dumps({"status": "ok", "message": "Rebuild started — check back in 30 seconds"}).encode())
         else:
             self._send(404, "text/plain", b"Unknown endpoint")
 
