@@ -98,6 +98,7 @@ import folium
 
 BASE_DIR      = Path(__file__).parent
 WALKS_LOG     = BASE_DIR / "Walks_Log.txt"
+RECAL_LOG     = BASE_DIR / "Recal_Log.txt"
 PREF_ROUTES    = BASE_DIR / "Preferred_Routes.xlsx"
 PREF_ROUTES_V2 = BASE_DIR / "V2_Preferred_Routes.xlsx"
 FORECAST_DIR  = BASE_DIR / "Forecast"
@@ -1217,11 +1218,14 @@ RECAL_MAX_DAYS     = 40   # hard limit — recal is required regardless of field
 
 def parse_last_recal_date() -> Optional[date]:
     """
-    Scan Sample_Walks_Log.txt for all RECAL_MM_DD_YYYY entries and
+    Scan Recal_Log.txt for all RECAL_MM_DD_YYYY entries and
     return the most recent date, or None if no recal has ever been logged.
+    Falls back to Walks_Log.txt for backwards compatibility if Recal_Log.txt
+    does not exist yet.
     """
+    log_path = RECAL_LOG if RECAL_LOG.exists() else WALKS_LOG
     try:
-        text = WALKS_LOG.read_text(encoding="utf-8", errors="ignore")
+        text = log_path.read_text(encoding="utf-8", errors="ignore")
     except FileNotFoundError:
         return None
     pattern = re.compile(r"^RECAL_(\d{2})_(\d{2})_(\d{4})$")

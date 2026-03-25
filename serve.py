@@ -45,6 +45,7 @@ BUILD_DASHBOARD       = BASE_DIR / "build_dashboard.py"
 BUILD_MAP             = BASE_DIR / "build_collector_map.py"
 FORECAST_STABILITY    = BASE_DIR / "forecast_stability_analysis.py"
 WALKS_LOG             = BASE_DIR / "Walks_Log.txt"
+RECAL_LOG             = BASE_DIR / "Recal_Log.txt"
 SEEN_FILES_PATH       = BASE_DIR / "drive_seen_files.json"
 CONFIRMATIONS_FILE    = BASE_DIR / "schedule_confirmations.json"
 SCHEDULE_OUTPUT       = BASE_DIR / "schedule_output.json"
@@ -98,7 +99,7 @@ _GPS_TRAILS = {bp: deque(maxlen=200) for bp in GPS_BACKPACK_IDS}
 # ── Drive polling state ────────────────────────────────────────────────────────
 
 DRIVE_FOLDER_ID       = os.environ.get("GOOGLE_DRIVE_WALKS_FOLDER_ID", "")
-DRIVE_POLL_INTERVAL   = int(os.environ.get("DRIVE_POLL_INTERVAL", "60"))
+DRIVE_POLL_INTERVAL   = int(os.environ.get("DRIVE_POLL_INTERVAL", "300"))
 FORECAST_POLL_INTERVAL = int(os.environ.get("FORECAST_POLL_INTERVAL", "300"))  # 5 min default
 _DRIVE_LOCK           = threading.Lock()
 _drive_last_poll      = None
@@ -520,19 +521,12 @@ def _save_seen_ids(ids: set):
         print(f"[drive] Warning: could not save seen IDs: {e}")
 
 
-def _append_to_walk_log(entry: str):
-    # Ensure file ends with a newline before appending to avoid concatenation
-    if WALKS_LOG.exists() and WALKS_LOG.stat().st_size > 0:
-        with open(WALKS_LOG, "rb") as f:
-            f.seek(-1, 2)
-            if f.read(1) != b"\n":
-                with open(WALKS_LOG, "a", encoding="utf-8") as fw:
-                    fw.write("\n")
-    with open(WALKS_LOG, "a", encoding="utf-8") as f:
-        f.write(entry + "\n")
-    print(f"[drive] Appended to Walks_Log.txt: {entry}")
-
-    # Also upload to GCS if configured
+def _rebuild_walk_log(entries: list):
+    """Rewrite Walks_Log.txt from scratch with all discovered walk entries.
+    Never writes RECAL lines — those live exclusively in Recal_Log.txt."""
+    content = "\n".join(entries) + "\n" if entries else ""
+    WALKS_LOG.write_text(content, encoding="utf-8")
+    print(f"[drive] Rebuilt Walks_Log.txt: {len(entries)} walk entries")
     if _gcs_bucket:
         _upload_to_gcs(WALKS_LOG, "Walks_Log.txt")
 
@@ -548,7 +542,8 @@ def _trigger_rebuild():
 
 
 def _run_drive_poll(source: str = "background"):
-    """Poll walk-log Drive folder for new completed-walk files. Returns (new_count, error_msg)."""
+    """Poll walk-log Drive folder, rebuild Walks_Log.txt from ALL files every cycle.
+    Returns (new_file_count, error_msg). new_file_count = IDs not seen in previous poll."""
     global _drive_last_poll, _drive_new_today
     print(f"[drive] Walk-log poll triggered by: {source}")
 
@@ -560,19 +555,12 @@ def _run_drive_poll(source: str = "background"):
         return 0, "Drive auth failed (GOOGLE_SERVICE_ACCOUNT_JSON missing or invalid)"
 
     seen_ids = _load_seen_ids()
-    new_count = 0
-
-    # Load existing walk codes from log to avoid duplicating manually-entered entries
-    existing_walks: set[str] = set()
-    if WALKS_LOG.exists():
-        existing_walks = {l.strip().upper() for l in WALKS_LOG.read_text(encoding="utf-8").splitlines() if l.strip()}
+    all_entries: list = []    # every valid walk entry found in Drive this cycle
+    current_ids: set = set()
 
     try:
-        # List all files in the folder tree (recursive via query)
         page_token = None
         while True:
-            query = f"'{DRIVE_FOLDER_ID}' in parents or parents in (select id from driveFiles where '{DRIVE_FOLDER_ID}' in parents)"
-            # Simpler: list all files under the root folder (1 level) + subfolder files
             response = service.files().list(
                 q=f"'{DRIVE_FOLDER_ID}' in parents and trashed=false",
                 fields="nextPageToken, files(id, name, mimeType)",
@@ -586,7 +574,7 @@ def _run_drive_poll(source: str = "background"):
                 fname = f["name"]
                 mime = f.get("mimeType", "")
 
-                # Recurse into subfolders; also check the folder name itself as a walk code
+                # Recurse one level into subfolders
                 if mime == "application/vnd.google-apps.folder":
                     sub_resp = service.files().list(
                         q=f"'{fid}' in parents and trashed=false",
@@ -594,36 +582,53 @@ def _run_drive_poll(source: str = "background"):
                         pageSize=200,
                     ).execute()
                     files.extend(sub_resp.get("files", []))
-                    # Fall through to check if this folder's name is a walk combo code
 
-                if fid in seen_ids:
-                    continue
-
+                current_ids.add(fid)
                 entry = _parse_filename_to_log_entry(fname)
-                if entry and entry.upper() not in existing_walks:
-                    _append_to_walk_log(entry)
-                    existing_walks.add(entry.upper())
-                    new_count += 1
-
-                seen_ids.add(fid)
+                if entry:
+                    all_entries.append(entry.upper())
 
             page_token = response.get("nextPageToken")
             if not page_token:
                 break
 
     except Exception as e:
-        return new_count, f"Drive list error: {e}"
+        return 0, f"Drive list error: {e}"
 
-    _save_seen_ids(seen_ids)
+    # Deduplicate while preserving first-seen order, then sort for stable output
+    seen_set: set = set()
+    deduped: list = []
+    for e in all_entries:
+        if e not in seen_set:
+            seen_set.add(e)
+            deduped.append(e)
+    deduped.sort()
+
+    # Compare with existing log (ignore any stale RECAL lines that may still be present)
+    old_entries: set = set()
+    if WALKS_LOG.exists():
+        old_entries = {
+            l.strip().upper() for l in WALKS_LOG.read_text(encoding="utf-8").splitlines()
+            if l.strip() and not l.strip().upper().startswith("RECAL_")
+        }
+    log_changed = set(deduped) != old_entries
+
+    # Always rebuild from Drive's current state
+    _rebuild_walk_log(deduped)
+
+    new_count = len(current_ids - seen_ids)
+    _save_seen_ids(current_ids)
 
     with _DRIVE_LOCK:
         _drive_last_poll = _now_iso()
-        today = datetime.now().date()
         if new_count > 0:
             _drive_new_today += new_count
 
-    if new_count > 0:
+    if log_changed:
+        print(f"[drive] Walk log changed — triggering dashboard rebuild")
         _trigger_rebuild()
+    else:
+        print(f"[drive] Walk log unchanged ({len(deduped)} entries)")
 
     return new_count, None
 
