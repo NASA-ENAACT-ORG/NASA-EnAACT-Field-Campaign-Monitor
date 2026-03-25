@@ -974,6 +974,12 @@ def main():
 
     # ── Start forecast monitor thread ──────────────────────────────────────────
     if DRIVE_FORECASTS_FOLDER_ID and FORECAST_POLL_INTERVAL > 0:
+        # Reset forecast state so the monitor re-detects all PDFs and re-runs
+        # the scheduler with the latest code. The GCS copy may have been saved
+        # by a previous container that used buggy forecast selection logic.
+        # TODO: remove this one-time reset after the next successful deploy
+        _reset_forecast_state()
+        print("[startup] Forecast state reset — monitor will re-process all PDFs")
         ft = threading.Thread(target=_forecast_monitor_thread, daemon=True)
         ft.start()
         print(f"  Forecast monitor : active (every {FORECAST_POLL_INTERVAL}s)")
