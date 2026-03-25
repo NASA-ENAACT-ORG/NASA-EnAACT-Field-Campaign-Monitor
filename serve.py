@@ -20,7 +20,6 @@ Endpoints:
   POST /api/drive/poll          → manually trigger one Google Drive poll cycle
 """
 
-import argparse
 import json
 import os
 import re
@@ -28,7 +27,6 @@ import subprocess
 import sys
 import threading
 import time
-import urllib.parse
 from collections import deque
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -55,7 +53,6 @@ DRIVE_FORECASTS_FOLDER_ID   = os.environ.get("DRIVE_FORECASTS_FOLDER_ID", "")
 
 
 # ── Confirmation helpers ───────────────────────────────────────────────────────
-import threading
 _CONFIRM_LOCK = threading.Lock()
 
 def _load_confirmations() -> dict:
@@ -292,6 +289,15 @@ def _run_scheduler_and_rebuild():
         print(f"[forecast] Dashboard rebuild exit={r2.returncode}")
         if r2.stdout:
             print(r2.stdout[-500:])
+
+        # Upload rebuilt HTML files to GCS so they persist across container restarts
+        if _gcs_bucket:
+            for html_name in ("dashboard.html", "availability_heatmap.html",
+                              "schedule_map.html", "collector_map.html"):
+                html_path = BASE_DIR / html_name
+                if html_path.exists():
+                    _upload_to_gcs(html_path, html_name)
+            print("[forecast] Uploaded rebuilt HTML files → GCS")
     except subprocess.TimeoutExpired:
         print("[forecast] Scheduler timed out (6 min limit)")
     except Exception as e:
@@ -964,6 +970,11 @@ def main():
 
         # schedule_confirmations.json — confirm/deny state
         _download_from_gcs("schedule_confirmations.json", CONFIRMATIONS_FILE)
+
+        # Rebuilt HTML files — pick up latest from GCS if newer than baked copy
+        for html_name in ("dashboard.html", "availability_heatmap.html",
+                          "schedule_map.html", "collector_map.html"):
+            _download_from_gcs(html_name, BASE_DIR / html_name)
 
         print("[startup] GCS state restored")
 
