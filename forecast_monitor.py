@@ -266,10 +266,7 @@ def sync_forecasts(service, forecasts: Dict[str, Tuple[str, str, int]]) -> bool:
         # Ensure local filename ends with .pdf
         local_name = filename if filename.lower().endswith(".pdf") else f"{filename}.pdf"
         dest = FORECAST_DIR / local_name
-        if dest.exists():
-            logger.debug(f"Skipping already-present forecast: {local_name}")
-            continue
-        logger.info(f"Downloading forecast: {filename}")
+        logger.info(f"Downloading forecast: {filename} (always re-download)")
         if not download_file(service, file_id, filename, dest):
             success = False
 

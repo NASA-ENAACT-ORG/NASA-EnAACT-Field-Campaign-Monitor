@@ -75,6 +75,14 @@ if _sched_path.exists():
 else:
     baked_schedule_json = "null"
 
+# ── Bake boolean_weather.json into the dashboard ─────────────────────────────
+_weather_path = BASE / "boolean_weather.json"
+if _weather_path.exists():
+    with open(_weather_path, encoding="utf-8") as _wf:
+        baked_weather_json = _wf.read()
+else:
+    baked_weather_json = "null"
+
 # ── Bake availability heatmap data ───────────────────────────────────────────
 import sys as _sys
 _sys.path.insert(0, str(BASE))
@@ -843,6 +851,7 @@ setTimeout(function(){
 const ROUTES_GEO = __ROUTES_JSON__;
 const COLLECTOR_HOMES = __COLLECTOR_HOMES__;
 const BAKED_SCHEDULE = __BAKED_SCHEDULE__;
+const BAKED_WEATHER = __BAKED_WEATHER__;
 // Campus affiliation → pin color  (purple = CCNY, red = LaGCC, amber = staff)
 const COLLECTOR_PIN_COLOR = {
   'SOT':'#7c3aed','AYA':'#7c3aed','JEN':'#7c3aed','TAH':'#7c3aed','ANG':'#7c3aed',
@@ -1715,7 +1724,7 @@ function renderCalendar(){
       const isRecal=wk.recal_day===dateStr;
       const walks=(byDayTod[dateStr]||{})[ctod]||[];
       const weatherKey=`${dateStr}_${ctod}`;
-      const isBadWeather=BAKED_SCHEDULE&&BAKED_SCHEDULE.weather&&BAKED_SCHEDULE.weather[weatherKey]===false;
+      const isBadWeather=BAKED_WEATHER&&BAKED_WEATHER.weather&&BAKED_WEATHER.weather[weatherKey]===false;
 
       let cellContent='';
       // Weather indicator overlay for bad weather
@@ -2199,6 +2208,7 @@ HTML_TEMPLATE = HTML_TEMPLATE.replace('__AFFINITY_JSON__', affinity_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__SAMPLE_LOG__', sample_log_js)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__COLLECTOR_HOMES__', collector_homes_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__BAKED_SCHEDULE__', baked_schedule_json)
+HTML_TEMPLATE = HTML_TEMPLATE.replace('__BAKED_WEATHER__', baked_weather_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__AVAIL_DAYS_JSON__', avail_days_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__AVAIL_CELLS_A__', avail_cells_a_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__AVAIL_CELLS_B__', avail_cells_b_json)

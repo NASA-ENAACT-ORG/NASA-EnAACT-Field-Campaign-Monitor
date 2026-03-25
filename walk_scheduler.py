@@ -1065,7 +1065,7 @@ def parse_collector_locs() -> Dict[str, Tuple[float, float]]:
 
 def score_combos(
     completions:   Dict[Tuple[str, str, str], int],
-    weather:       Dict[Tuple[date, str, str], bool],
+    weather:       Dict[Tuple[date, str], bool],
     affinity:      Dict[str, Dict[str, int]],
     availability:  Dict[str, Dict[Tuple[date, str], bool]],
     route_coords:  Dict[str, Tuple[float, float]],
@@ -1074,9 +1074,7 @@ def score_combos(
     """
     Score every (route, tod) combo for CURRENT_SEASON that is still below target.
 
-    Weather dict is keyed by (date, tod, boro) where boro is one of
-    BX/MN/QN/BK (per-borough PDF) or "" (city-wide PDF).
-    Routes use their own boro's weather; city-wide "" is the fallback.
+    Weather dict is keyed by (date, tod) → bool (city-wide unified).
 
     Priority order:
       1. PRIMARY   – at least one good-weather day for that TOD this week (filter)
@@ -1085,44 +1083,22 @@ def score_combos(
       3. TERTIARY  – has at least one available+comfortable collector
       4. TIEBREAKER – minimum distance from any available collector to route centroid
     """
-    # Pre-compute: for each (tod, boro), which dates have good weather?
-    # HARD CONSTRAINT: Unified weather - mark as bad if 4+ boroughs are bad
-    good_weather_by_tod_boro: Dict[Tuple[str, str], List[date]] = defaultdict(list)
-    good_weather_by_tod_any:  Dict[str, set] = defaultdict(set)
-    weather_by_date_tod: Dict[Tuple[date, str], List[bool]] = defaultdict(list)
-
-    for (d, tod, boro), is_good in weather.items():
+    # Pre-compute: for each tod, which dates have good weather?
+    good_weather_by_tod: Dict[str, List[date]] = defaultdict(list)
+    for (d, tod), is_good in weather.items():
         if is_good:
-            good_weather_by_tod_boro[(tod, boro)].append(d)
-            good_weather_by_tod_any[tod].add(d)
-        weather_by_date_tod[(d, tod)].append(is_good)
-
-    # Build unified good weather:
-    #   City-wide (1 entry):  bad if that single entry is bad
-    #   Per-borough (multiple): bad only if MAJORITY (4+) of boroughs are bad
-    good_weather_by_tod_unified: Dict[str, List[date]] = defaultdict(list)
-    for (d, tod), is_good_list in weather_by_date_tod.items():
-        total = len(is_good_list)
-        good_count = sum(is_good_list)
-        bad_count = total - good_count
-        threshold = 1 if total <= 1 else 4
-        if bad_count < threshold:
-            for t in TODS:
-                if tod == t:
-                    good_weather_by_tod_unified[t].append(d)
+            good_weather_by_tod[tod].append(d)
 
     def good_days_for(tod: str, boro: str) -> List[date]:
-        """Return unified good-weather days (HARD CONSTRAINT: bad if 4+ boroughs bad)."""
-        return sorted(good_weather_by_tod_unified.get(tod, []))
+        """Return good-weather days for the given TOD."""
+        return sorted(good_weather_by_tod.get(tod, []))
 
     # Pre-compute: which (collector, tod) combinations have available days?
-    # Use the union of good-weather days across all boroughs so we don't miss
-    # any day a collector could theoretically be sent out.
     collector_avail_days: Dict[Tuple[str, str], List[date]] = defaultdict(list)
     for cid in COLLECTORS:
         cid_avail = availability.get(cid, {})
         for tod in TODS:
-            for d in good_weather_by_tod_any.get(tod, set()):
+            for d in good_weather_by_tod.get(tod, []):
                 if cid_avail.get((d, tod), True):
                     collector_avail_days[(cid, tod)].append(d)
 
@@ -2128,24 +2104,7 @@ def build_weekly_calendar(
     _generate_schedule_map(assignments, route_coords, week_start, week_end)
 
     # ── JSON export for dashboard ─────────────────────────────────────────────
-    # Build unified weather lookup: HARD CONSTRAINT - bad if MAJORITY (4+/5) of boroughs bad
-    # This must match the scheduler's assignment logic for consistency
-    weather_lookup = {}
-    weather_by_date_tod = {}
-    for (d, tod, boro), is_good in weather.items():
-        key = f"{str(d)}_{tod}"
-        if key not in weather_by_date_tod:
-            weather_by_date_tod[key] = []
-        weather_by_date_tod[key].append(is_good)
-
-    # City-wide (1 entry): bad if that entry is bad
-    # Per-borough (multiple): bad only if 4+ boroughs bad
-    for key, is_good_list in weather_by_date_tod.items():
-        total = len(is_good_list)
-        bad_count = total - sum(is_good_list)
-        threshold = 1 if total <= 1 else 4
-        weather_lookup[key] = bad_count < threshold
-
+    # Weather is now in boolean_weather.json (built by build_weather.py)
     schedule_data = {
         "generated":    str(date.today()),
         "generated_at": datetime.now().isoformat(),
@@ -2176,7 +2135,6 @@ def build_weekly_calendar(
             }
             for e in unassigned
         ],
-        "weather": weather_lookup,
     }
     out_path = Path(__file__).parent / "schedule_output.json"
     with open(out_path, "w") as f:
@@ -2245,13 +2203,29 @@ def main() -> None:
     print(f"  {total} walks logged across {len(completions)} unique route+TOD+season combos\n")
 
     # ── Step 2 ──────────────────────────────────────────────────────────────
-    print("▶ Step 2  Loading current-week forecast …")
-    forecast_pdf, week_start, week_end = find_current_week_forecast()
-    weather = parse_forecast_pdf(forecast_pdf)
+    print("▶ Step 2  Loading weather from boolean_weather.json …")
+    bw_path = BASE_DIR / "boolean_weather.json"
+    if not bw_path.exists():
+        print(f"  [ERROR] {bw_path.name} not found — run build_weather.py first.")
+        sys.exit(1)
+    with open(bw_path, encoding="utf-8") as _bwf:
+        _bw = json.load(_bwf)
+    weather: Dict[Tuple[date, str], bool] = {}
+    for _key, _is_good in _bw.get("weather", {}).items():
+        _d_str, _tod = _key.rsplit("_", 1)
+        weather[(date.fromisoformat(_d_str), _tod)] = _is_good
+    # Extract week start/end from boolean_weather.json
+    _bw_ws = _bw.get("current_week_start")
+    _bw_we = _bw.get("current_week_end")
+    if _bw_ws and _bw_we:
+        week_start = date.fromisoformat(_bw_ws)
+        week_end   = date.fromisoformat(_bw_we)
+    else:
+        print("  [ERROR] boolean_weather.json missing current_week_start / current_week_end")
+        sys.exit(1)
     good = sum(1 for v in weather.values() if v)
-    boros_in_wx = sorted({b for (_, _, b) in weather if b})
-    wx_scope = f"per-borough ({', '.join(boros_in_wx)})" if boros_in_wx else "city-wide"
-    print(f"  {good}/{len(weather)} day+TOD slots have good weather (≤{CLOUD_THRESHOLD}% cloud, {wx_scope})\n")
+    print(f"  {good}/{len(weather)} day+TOD slots have good weather (≤{CLOUD_THRESHOLD}% cloud, city-wide)")
+    print(f"  Week: {week_start} → {week_end}\n")
 
     # ── Load existing schedule — preserve assignments still in good weather ──
     preserved_assignments: List[Dict] = []
@@ -2282,11 +2256,7 @@ def main() -> None:
                 if not (week_start <= _d <= week_end):
                     continue
                 # Check weather: HARD CONSTRAINT - must have good weather (cloud cover ≤ 33%)
-                boro = _a.get("boro", "")
-                is_good_weather = weather.get((_d, _tod, boro), False)
-                if not is_good_weather:
-                    # Try city-wide fallback
-                    is_good_weather = weather.get((_d, _tod, ""), False)
+                is_good_weather = weather.get((_d, _tod), False)
 
                 # HARD REQUIREMENT: only keep if weather is good, regardless of preservation status
                 if not is_good_weather:

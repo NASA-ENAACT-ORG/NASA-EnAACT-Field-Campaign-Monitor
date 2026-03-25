@@ -40,6 +40,7 @@ _gcs_bucket = None
 
 BASE_DIR              = Path(__file__).parent.resolve()
 SCHEDULER             = BASE_DIR / "walk_scheduler.py"
+BUILD_WEATHER         = BASE_DIR / "build_weather.py"
 BUILD_DASHBOARD       = BASE_DIR / "build_dashboard.py"
 BUILD_MAP             = BASE_DIR / "build_collector_map.py"
 FORECAST_STABILITY    = BASE_DIR / "forecast_stability_analysis.py"
@@ -260,6 +261,26 @@ def _run_scheduler_and_rebuild():
         return
 
     try:
+        print("[forecast] ▶ Running build_weather.py …")
+        r_weather = subprocess.run(
+            [sys.executable, str(BUILD_WEATHER)],
+            cwd=str(BASE_DIR),
+            capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
+            timeout=120,
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+        )
+        out_w = (r_weather.stdout or "") + (r_weather.stderr or "")
+        if out_w:
+            print(out_w[-2000:])
+        print(f"[forecast] build_weather.py exit={r_weather.returncode}")
+
+        # Upload boolean_weather.json to GCS
+        bw_path = BASE_DIR / "boolean_weather.json"
+        if bw_path.exists() and _gcs_bucket:
+            _upload_to_gcs(bw_path, "boolean_weather.json")
+            print("[forecast] Uploaded boolean_weather.json → GCS")
+
         print("[forecast] ▶ Running walk_scheduler.py …")
         r = subprocess.run(
             [sys.executable, str(SCHEDULER)],
@@ -349,17 +370,16 @@ def _poll_forecast_pdfs() -> tuple[int, str | None]:
 
     pdfs = _list_all_forecast_pdfs()
 
-    new_pdfs = [f for f in pdfs if state.get(f["id"]) != f.get("modifiedTime")]
-    if not new_pdfs:
+    if not pdfs:
         with _DRIVE_LOCK:
             _forecast_last_poll = _now_iso()
         return 0, None
 
     FORECAST_DIR.mkdir(exist_ok=True)
     downloaded = 0
-    for f in new_pdfs:
+    for f in pdfs:
         dest = FORECAST_DIR / f["name"]
-        print(f"[forecast] New PDF: {f['name']} — downloading …")
+        print(f"[forecast] Downloading PDF: {f['name']} (always re-download) …")
         if _drive_download_file(service, f["id"], dest):
             state[f["id"]] = f["modifiedTime"]
             downloaded += 1
