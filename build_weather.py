@@ -419,11 +419,13 @@ def build_weather() -> Path:
             boot_added += 1
         print(f"  Bootstrap: added {boot_added} historical entries to frozen file")
 
-    # ── Current week detection (most recently updated active PDF) ─────────────
+    # ── Current week detection: latest filename end-date wins ────────────────
+    # "Last Updated" is only for per-slot conflict resolution, NOT week range.
+    # The furthest-out active PDF defines the current week.
     best_week_start: Optional[date] = None
     best_week_end: Optional[date] = None
     if active_processed_files:
-        active_processed_files.sort(key=lambda x: (x[2], x[1]), reverse=True)
+        active_processed_files.sort(key=lambda x: x[1], reverse=True)  # end_date DESC
         best_week_start = active_processed_files[0][0]
         best_week_end   = active_processed_files[0][1]
 
