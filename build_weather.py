@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 """
-build_weather.py — Parse all forecast PDFs and produce boolean_weather.json.
+build_weather.py — Parse all forecast PDFs and produce two weather JSON files.
 
-Reads every PDF in Forecast/ that overlaps with the past 2 weeks, extracts
-cloud-coverage data, resolves conflicts via "Last Updated:" dates, and
-writes a unified boolean weather lookup.
+  frozen_boolean_weather.json  — entries for dates > 2 weeks old (append-only)
+  unfrozen_boolean_weather.json — entries for dates within 2 weeks (rebuilt each run)
 
-Entries older than 2 weeks are frozen (never overwritten) and kept forever.
+On the first run (no frozen file exists), ALL PDFs are parsed to bootstrap
+the frozen file. On every subsequent run only "active" PDFs (whose filename
+end-date is within 2 weeks) are re-parsed. Entries in the unfrozen file that
+age past 2 weeks are automatically shifted into the frozen file.
+
+A combined boolean_weather.json is also written for backward-compat with
+walk_scheduler.py.
 
 Usage:
     python build_weather.py
@@ -37,7 +42,9 @@ import pdfplumber
 
 BASE_DIR         = Path(__file__).parent
 FORECAST_DIR     = BASE_DIR / "Forecast"
-OUTPUT_PATH      = BASE_DIR / "boolean_weather.json"
+FROZEN_PATH      = BASE_DIR / "frozen_boolean_weather.json"
+UNFROZEN_PATH    = BASE_DIR / "unfrozen_boolean_weather.json"
+OUTPUT_PATH      = BASE_DIR / "boolean_weather.json"   # combined, for scheduler compat
 CLOUD_THRESHOLD  = 33          # ≤ this % cloud cover = good weather
 FREEZE_WINDOW    = 14          # days — entries older than this are frozen
 CURRENT_YEAR     = date.today().year
@@ -271,188 +278,240 @@ def _parse_forecast_text_fallback(pdf_path: Path) -> Dict[Tuple[date, str], bool
 # MAIN: BUILD boolean_weather.json
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _load_json_weather(path: Path) -> Tuple[Dict[str, bool], Dict[str, dict]]:
+    """Load weather + _meta from a boolean weather JSON file. Returns empty dicts on failure."""
+    if not path.exists():
+        return {}, {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return dict(data.get("weather", {})), dict(data.get("_meta", {}))
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"  [WARN] Could not load {path.name}: {e}")
+        return {}, {}
+
+
 def build_weather() -> Path:
     """
-    Main entry point. Reads all relevant forecast PDFs and produces
-    boolean_weather.json with conflict resolution and freeze logic.
-
-    Returns the output path.
+    Main entry point. Produces:
+      frozen_boolean_weather.json  — append-only, entries for dates > 2 weeks old
+      unfrozen_boolean_weather.json — rebuilt each run, entries within 2 weeks
+      boolean_weather.json          — combined merge of both (for scheduler compat)
     """
     today = date.today()
     freeze_cutoff = today - timedelta(days=FREEZE_WINDOW)
+    bootstrap = not FROZEN_PATH.exists()
 
     print()
-    print("╔══════════════════════════════════════════════════╗")
-    print("║   Build Weather — boolean_weather.json           ║")
-    print(f"║   Run date: {today.strftime('%B %d, %Y'):<38}║")
-    print(f"║   Freeze cutoff: {freeze_cutoff} (entries before are frozen) ║")
-    print("╚══════════════════════════════════════════════════╝")
+    print("╔══════════════════════════════════════════════════════╗")
+    print("║   Build Weather                                      ║")
+    print(f"║   Run date    : {today.strftime('%B %d, %Y'):<38}║")
+    print(f"║   Freeze cutoff: {freeze_cutoff}  ({'BOOTSTRAP — parsing all PDFs' if bootstrap else 'incremental'}) ║")
+    print("╚══════════════════════════════════════════════════════╝")
     print()
 
-    # ── Load existing frozen entries ──────────────────────────────────────────
-    existing_weather: Dict[str, bool] = {}
-    existing_meta: Dict[str, dict] = {}
-    if OUTPUT_PATH.exists():
-        try:
-            with open(OUTPUT_PATH, encoding="utf-8") as f:
-                existing = json.load(f)
-            existing_weather = existing.get("weather", {})
-            existing_meta = existing.get("_meta", {})
-            print(f"  Loaded existing boolean_weather.json: {len(existing_weather)} entries")
-        except (json.JSONDecodeError, OSError) as e:
-            print(f"  [WARN] Could not load existing boolean_weather.json: {e}")
+    # ── Load existing frozen + unfrozen data ─────────────────────────────────
+    frozen_weather, frozen_meta = _load_json_weather(FROZEN_PATH)
+    unfrozen_weather, unfrozen_meta = _load_json_weather(UNFROZEN_PATH)
+    if frozen_weather:
+        print(f"  Loaded {FROZEN_PATH.name}: {len(frozen_weather)} entries")
+    if unfrozen_weather:
+        print(f"  Loaded {UNFROZEN_PATH.name}: {len(unfrozen_weather)} entries")
 
-    # Separate frozen entries (date < freeze_cutoff)
-    frozen_weather: Dict[str, bool] = {}
-    frozen_meta: Dict[str, dict] = {}
-    for key, val in existing_weather.items():
+    # ── Age-out shift: move stale unfrozen entries → frozen ──────────────────
+    aged_count = 0
+    for key in list(unfrozen_weather.keys()):
         d_str = key.rsplit("_", 1)[0]
         try:
             d = date.fromisoformat(d_str)
         except ValueError:
             continue
         if d < freeze_cutoff:
-            frozen_weather[key] = val
-            if key in existing_meta:
-                frozen_meta[key] = existing_meta[key]
+            if key not in frozen_weather:   # never overwrite existing frozen entries
+                frozen_weather[key] = unfrozen_weather[key]
+                if key in unfrozen_meta:
+                    frozen_meta[key] = unfrozen_meta[key]
+                aged_count += 1
+            del unfrozen_weather[key]
+            unfrozen_meta.pop(key, None)
+    if aged_count:
+        print(f"  Aged-out {aged_count} entries from unfrozen → frozen")
 
-    print(f"  Frozen entries (before {freeze_cutoff}): {len(frozen_weather)}")
-
-    # ── Scan forecast PDFs ────────────────────────────────────────────────────
+    # ── Scan PDFs ─────────────────────────────────────────────────────────────
     if not FORECAST_DIR.is_dir():
         print(f"  [ERROR] Forecast directory not found: {FORECAST_DIR}")
-        # Still write frozen data
-        _write_output(frozen_weather, frozen_meta, freeze_cutoff, None, None)
+        _write_frozen_json(frozen_weather, frozen_meta, freeze_cutoff)
+        _write_unfrozen_json({}, {}, freeze_cutoff, None, None)
+        _write_combined_json(frozen_weather, frozen_meta, {}, {}, freeze_cutoff, None, None)
         return OUTPUT_PATH
 
     pdf_files = sorted(FORECAST_DIR.glob("*.pdf"))
     print(f"  Found {len(pdf_files)} PDF(s) in Forecast/")
 
-    # ── Parse each PDF: collect (date, tod) → (is_good, last_updated, source) ─
-    # For each key, we collect ALL candidates and then pick the one with the
-    # most recent "Last Updated" date.
-    CandidateEntry = Tuple[bool, date, str]  # (is_good, last_updated, source_filename)
-    candidates: Dict[str, List[CandidateEntry]] = defaultdict(list)
-
-    # Track all processed files for "current week" detection
-    processed_files: List[Tuple[date, date, date, str]] = []  # (start, end, last_updated, name)
-
-    skipped = 0
-    processed = 0
+    # Candidates for unfrozen entries (active PDFs, d >= freeze_cutoff)
+    # Candidates for frozen bootstrap entries (old PDFs, d < freeze_cutoff)
+    CandidateEntry = Tuple[bool, date, str]  # (is_good, last_updated, source)
+    active_candidates:    Dict[str, List[CandidateEntry]] = defaultdict(list)
+    bootstrap_candidates: Dict[str, List[CandidateEntry]] = defaultdict(list)
+    active_processed_files: List[Tuple[date, date, date, str]] = []
 
     for pdf_path in pdf_files:
-        # Parse filename for date range
         start, end = parse_week_folder_name(pdf_path.stem)
         if start is None or end is None:
             print(f"    [SKIP] Can't parse date range: {pdf_path.name}")
-            skipped += 1
             continue
 
-        # Copy to temp to avoid locking
+        is_active = (end >= freeze_cutoff)
+
+        # Non-active PDFs are only parsed during bootstrap
+        if not is_active and not bootstrap:
+            print(f"    [FROZEN FILE] Skipping {pdf_path.name} (end={end} < cutoff)")
+            continue
+
         tmp = safe_copy(pdf_path, pdf_path.name)
 
-        # Get "Last Updated" date
         last_updated = _extract_last_updated(tmp)
         if last_updated is None:
-            # Fallback: use file modification time
-            mtime = pdf_path.stat().st_mtime
-            last_updated = date.fromtimestamp(mtime)
-            print(f"    [INFO] No 'Last Updated' in {pdf_path.name}, using file mtime: {last_updated}")
+            last_updated = date.fromtimestamp(pdf_path.stat().st_mtime)
+            print(f"    [INFO] No 'Last Updated' in {pdf_path.name}, using mtime: {last_updated}")
 
-        # Check relevance: does ANY date in this file's range OR "Last Updated"
-        # fall within [freeze_cutoff, future]?
-        file_dates_relevant = (end >= freeze_cutoff) or (last_updated >= freeze_cutoff)
-        if not file_dates_relevant:
-            skipped += 1
-            continue
-
-        # Skip per-borough PDFs
         if _is_per_borough(tmp):
             print(f"    [SKIP] Per-borough format: {pdf_path.name}")
-            skipped += 1
             continue
 
-        # Parse cloud coverage
         weather_data = parse_forecast_pdf(pdf_path)
         if not weather_data:
             print(f"    [WARN] No weather data extracted: {pdf_path.name}")
-            skipped += 1
             continue
 
-        processed += 1
-        entry_count = 0
+        n_active = n_boot = 0
         for (d, tod), is_good in weather_data.items():
             key = f"{d}_{tod}"
-            # Only collect entries that are NOT frozen
             if d >= freeze_cutoff:
-                candidates[key].append((is_good, last_updated, pdf_path.name))
-                entry_count += 1
+                if is_active:
+                    active_candidates[key].append((is_good, last_updated, pdf_path.name))
+                    n_active += 1
+            else:
+                if bootstrap:
+                    bootstrap_candidates[key].append((is_good, last_updated, pdf_path.name))
+                    n_boot += 1
 
-        print(f"    ✓ {pdf_path.name}: {entry_count} entries, Last Updated: {last_updated}")
-        processed_files.append((start, end, last_updated, pdf_path.name))
+        label = "[ACTIVE]" if is_active else "[BOOTSTRAP-OLD]"
+        print(f"    ✓ {pdf_path.name} {label}: {n_active} active + {n_boot} frozen entries, "
+              f"Last Updated: {last_updated}")
+        if is_active:
+            active_processed_files.append((start, end, last_updated, pdf_path.name))
 
-    # Determine "current week" — use the file with the latest "Last Updated" date.
-    # Tiebreaker: latest end-date in the filename.
-    best_week_start: Optional[date] = None
-    best_week_end: Optional[date] = None
-    if processed_files:
-        # Sort by (last_updated DESC, end_date DESC) — most recent "Last Updated" wins
-        processed_files.sort(key=lambda x: (x[2], x[1]), reverse=True)
-        best_week_start = processed_files[0][0]
-        best_week_end = processed_files[0][1]
-
-    print(f"\n  Processed: {processed}, Skipped: {skipped}")
-
-    # ── Resolve conflicts: prefer most recent "Last Updated" ──────────────────
+    # ── Conflict resolution: active candidates → unfrozen ────────────────────
     fresh_weather: Dict[str, bool] = {}
     fresh_meta: Dict[str, dict] = {}
-
-    for key, entries in candidates.items():
-        # Sort by last_updated descending — most recent wins
+    for key, entries in active_candidates.items():
         entries.sort(key=lambda e: e[1], reverse=True)
-        is_good, last_updated, source = entries[0]
+        is_good, lu, source = entries[0]
         fresh_weather[key] = is_good
-        fresh_meta[key] = {
-            "source": source,
-            "last_updated": str(last_updated),
-        }
+        fresh_meta[key] = {"source": source, "last_updated": str(lu)}
 
-    print(f"  Fresh entries (within 2-week window): {len(fresh_weather)}")
+    # ── Bootstrap: apply old-PDF entries → frozen (never overwrite existing) ──
+    if bootstrap:
+        boot_added = 0
+        for key, entries in bootstrap_candidates.items():
+            if key in frozen_weather:
+                continue
+            entries.sort(key=lambda e: e[1], reverse=True)
+            is_good, lu, source = entries[0]
+            frozen_weather[key] = is_good
+            frozen_meta[key] = {"source": source, "last_updated": str(lu)}
+            boot_added += 1
+        print(f"  Bootstrap: added {boot_added} historical entries to frozen file")
 
-    # ── Merge frozen + fresh ──────────────────────────────────────────────────
-    merged_weather = {**frozen_weather, **fresh_weather}
-    merged_meta = {**frozen_meta, **fresh_meta}
+    # ── Current week detection (most recently updated active PDF) ─────────────
+    best_week_start: Optional[date] = None
+    best_week_end: Optional[date] = None
+    if active_processed_files:
+        active_processed_files.sort(key=lambda x: (x[2], x[1]), reverse=True)
+        best_week_start = active_processed_files[0][0]
+        best_week_end   = active_processed_files[0][1]
 
-    _write_output(merged_weather, merged_meta, freeze_cutoff,
-                  best_week_start, best_week_end)
+    print(f"\n  Unfrozen (active) entries : {len(fresh_weather)}")
+    print(f"  Frozen entries total       : {len(frozen_weather)}")
+
+    # ── Write all three output files ──────────────────────────────────────────
+    _write_frozen_json(frozen_weather, frozen_meta, freeze_cutoff)
+    _write_unfrozen_json(fresh_weather, fresh_meta, freeze_cutoff, best_week_start, best_week_end)
+    _write_combined_json(frozen_weather, frozen_meta, fresh_weather, fresh_meta,
+                         freeze_cutoff, best_week_start, best_week_end)
     return OUTPUT_PATH
 
 
-def _write_output(
+def _write_frozen_json(
+    weather: Dict[str, bool],
+    meta: Dict[str, dict],
+    freeze_cutoff: date,
+) -> None:
+    """Write frozen_boolean_weather.json (append-only historical store)."""
+    output = {
+        "generated": datetime.now().isoformat(),
+        "frozen_before": str(freeze_cutoff),
+        "weather": dict(sorted(weather.items())),
+        "_meta": dict(sorted(meta.items())),
+    }
+    with open(FROZEN_PATH, "w", encoding="utf-8") as f:
+        json.dump(output, f, indent=2)
+    good = sum(1 for v in weather.values() if v)
+    bad  = sum(1 for v in weather.values() if not v)
+    print(f"  ✓ Wrote {FROZEN_PATH.name}: {len(weather)} entries ({good} good, {bad} bad)")
+
+
+def _write_unfrozen_json(
     weather: Dict[str, bool],
     meta: Dict[str, dict],
     freeze_cutoff: date,
     week_start: Optional[date],
     week_end: Optional[date],
 ) -> None:
-    """Write boolean_weather.json."""
+    """Write unfrozen_boolean_weather.json (active/recent, rebuilt each run)."""
     output = {
         "generated": datetime.now().isoformat(),
         "frozen_before": str(freeze_cutoff),
         "current_week_start": str(week_start) if week_start else None,
-        "current_week_end": str(week_end) if week_end else None,
+        "current_week_end":   str(week_end)   if week_end   else None,
         "weather": dict(sorted(weather.items())),
         "_meta": dict(sorted(meta.items())),
     }
-
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+    with open(UNFROZEN_PATH, "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2)
-
     good = sum(1 for v in weather.values() if v)
-    bad = sum(1 for v in weather.values() if not v)
-    print(f"\n  ✓ Wrote {OUTPUT_PATH.name}: {len(weather)} entries ({good} good, {bad} bad)")
+    bad  = sum(1 for v in weather.values() if not v)
+    print(f"  ✓ Wrote {UNFROZEN_PATH.name}: {len(weather)} entries ({good} good, {bad} bad)")
     if week_start and week_end:
         print(f"    Current week: {week_start} → {week_end}")
+
+
+def _write_combined_json(
+    frozen_weather: Dict[str, bool],
+    frozen_meta: Dict[str, dict],
+    fresh_weather: Dict[str, bool],
+    fresh_meta: Dict[str, dict],
+    freeze_cutoff: date,
+    week_start: Optional[date],
+    week_end: Optional[date],
+) -> None:
+    """Write boolean_weather.json — merged frozen+unfrozen for scheduler compat.
+    Unfrozen (fresh) entries win over frozen on any overlap."""
+    merged_weather = {**frozen_weather, **fresh_weather}
+    merged_meta    = {**frozen_meta,    **fresh_meta}
+    output = {
+        "generated": datetime.now().isoformat(),
+        "frozen_before": str(freeze_cutoff),
+        "current_week_start": str(week_start) if week_start else None,
+        "current_week_end":   str(week_end)   if week_end   else None,
+        "weather": dict(sorted(merged_weather.items())),
+        "_meta": dict(sorted(merged_meta.items())),
+    }
+    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+        json.dump(output, f, indent=2)
+    good = sum(1 for v in merged_weather.values() if v)
+    bad  = sum(1 for v in merged_weather.values() if not v)
+    print(f"  ✓ Wrote {OUTPUT_PATH.name}: {len(merged_weather)} entries ({good} good, {bad} bad)")
     print()
 
 

@@ -276,11 +276,14 @@ def _run_scheduler_and_rebuild():
             print(out_w[-2000:])
         print(f"[forecast] build_weather.py exit={r_weather.returncode}")
 
-        # Upload boolean_weather.json to GCS
-        bw_path = BASE_DIR / "boolean_weather.json"
-        if bw_path.exists() and _gcs_bucket:
-            _upload_to_gcs(bw_path, "boolean_weather.json")
-            print("[forecast] Uploaded boolean_weather.json → GCS")
+        # Upload weather JSON files to GCS
+        for _wfname in ("frozen_boolean_weather.json",
+                        "unfrozen_boolean_weather.json",
+                        "boolean_weather.json"):
+            _wfpath = BASE_DIR / _wfname
+            if _wfpath.exists() and _gcs_bucket:
+                _upload_to_gcs(_wfpath, _wfname)
+        print("[forecast] Uploaded weather JSON files → GCS")
 
         print("[forecast] ▶ Running walk_scheduler.py …")
         r = subprocess.run(
@@ -388,9 +391,11 @@ def _poll_forecast_pdfs() -> tuple[int, str | None]:
 
     if downloaded:
         _save_forecast_state(state)
-        # Run scheduler pipeline in a background thread so poll returns quickly
-        t = threading.Thread(target=_run_scheduler_and_rebuild, daemon=True)
-        t.start()
+
+    # Always trigger rebuild after a successful poll — corrected PDFs already
+    # on disk should be re-processed even if no new downloads occurred
+    t = threading.Thread(target=_run_scheduler_and_rebuild, daemon=True)
+    t.start()
 
     with _DRIVE_LOCK:
         _forecast_last_poll = _now_iso()
@@ -973,6 +978,11 @@ def _restore_gcs_state():
     # schedule_output.json — use the baked copy from the Docker image.
     # The forecast monitor will regenerate and upload to GCS when new forecasts arrive.
     print("[gcs-restore] Using baked schedule_output.json from Docker image")
+    # Weather JSON files
+    for _wfname in ("frozen_boolean_weather.json",
+                    "unfrozen_boolean_weather.json",
+                    "boolean_weather.json"):
+        _download_from_gcs(_wfname, BASE_DIR / _wfname)
     # schedule_confirmations.json — confirm/deny state
     _download_from_gcs("schedule_confirmations.json", CONFIRMATIONS_FILE)
     print("[gcs-restore] State restored from GCS")

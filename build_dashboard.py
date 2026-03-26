@@ -75,13 +75,25 @@ if _sched_path.exists():
 else:
     baked_schedule_json = "null"
 
-# ── Bake boolean_weather.json into the dashboard ─────────────────────────────
-_weather_path = BASE / "boolean_weather.json"
-if _weather_path.exists():
-    with open(_weather_path, encoding="utf-8") as _wf:
-        baked_weather_json = _wf.read()
-else:
-    baked_weather_json = "null"
+# ── Bake weather into the dashboard (merge frozen + unfrozen; unfrozen wins) ─
+_frozen_path   = BASE / "frozen_boolean_weather.json"
+_unfrozen_path = BASE / "unfrozen_boolean_weather.json"
+_merged_weather: dict = {"weather": {}, "_meta": {}}
+for _wp in (_frozen_path, _unfrozen_path):   # unfrozen loaded second → wins on overlap
+    if _wp.exists():
+        try:
+            _wd = json.loads(_wp.read_text(encoding="utf-8"))
+            _merged_weather["weather"].update(_wd.get("weather", {}))
+            _merged_weather["_meta"].update(_wd.get("_meta", {}))
+            if "current_week_start" in _wd:
+                _merged_weather["current_week_start"] = _wd["current_week_start"]
+            if "current_week_end" in _wd:
+                _merged_weather["current_week_end"] = _wd["current_week_end"]
+            if "frozen_before" in _wd:
+                _merged_weather["frozen_before"] = _wd["frozen_before"]
+        except (json.JSONDecodeError, OSError):
+            pass
+baked_weather_json = json.dumps(_merged_weather) if _merged_weather["weather"] else "null"
 
 # ── Bake availability heatmap data ───────────────────────────────────────────
 import sys as _sys
