@@ -10,9 +10,6 @@ the frozen file. On every subsequent run only "active" PDFs (whose filename
 end-date is within 2 weeks) are re-parsed. Entries in the unfrozen file that
 age past 2 weeks are automatically shifted into the frozen file.
 
-A combined boolean_weather.json is also written for backward-compat with
-walk_scheduler.py.
-
 Usage:
     python build_weather.py
 """
@@ -44,7 +41,6 @@ BASE_DIR         = Path(__file__).parent
 FORECAST_DIR     = BASE_DIR / "Forecast"
 FROZEN_PATH      = BASE_DIR / "frozen_boolean_weather.json"
 UNFROZEN_PATH    = BASE_DIR / "unfrozen_boolean_weather.json"
-OUTPUT_PATH      = BASE_DIR / "boolean_weather.json"   # combined, for scheduler compat
 CLOUD_THRESHOLD  = 33          # ≤ this % cloud cover = good weather
 FREEZE_WINDOW    = 14          # days — entries older than this are frozen
 CURRENT_YEAR     = date.today().year
@@ -437,9 +433,7 @@ def build_weather() -> Path:
     # ── Write all three output files ──────────────────────────────────────────
     _write_frozen_json(frozen_weather, frozen_meta, freeze_cutoff)
     _write_unfrozen_json(fresh_weather, fresh_meta, freeze_cutoff, best_week_start, best_week_end)
-    _write_combined_json(frozen_weather, frozen_meta, fresh_weather, fresh_meta,
-                         freeze_cutoff, best_week_start, best_week_end)
-    return OUTPUT_PATH
+    return UNFROZEN_PATH
 
 
 def _write_frozen_json(
@@ -485,34 +479,6 @@ def _write_unfrozen_json(
     if week_start and week_end:
         print(f"    Current week: {week_start} → {week_end}")
 
-
-def _write_combined_json(
-    frozen_weather: Dict[str, bool],
-    frozen_meta: Dict[str, dict],
-    fresh_weather: Dict[str, bool],
-    fresh_meta: Dict[str, dict],
-    freeze_cutoff: date,
-    week_start: Optional[date],
-    week_end: Optional[date],
-) -> None:
-    """Write boolean_weather.json — merged frozen+unfrozen for scheduler compat.
-    Unfrozen (fresh) entries win over frozen on any overlap."""
-    merged_weather = {**frozen_weather, **fresh_weather}
-    merged_meta    = {**frozen_meta,    **fresh_meta}
-    output = {
-        "generated": datetime.now().isoformat(),
-        "frozen_before": str(freeze_cutoff),
-        "current_week_start": str(week_start) if week_start else None,
-        "current_week_end":   str(week_end)   if week_end   else None,
-        "weather": dict(sorted(merged_weather.items())),
-        "_meta": dict(sorted(merged_meta.items())),
-    }
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
-        json.dump(output, f, indent=2)
-    good = sum(1 for v in merged_weather.values() if v)
-    bad  = sum(1 for v in merged_weather.values() if not v)
-    print(f"  ✓ Wrote {OUTPUT_PATH.name}: {len(merged_weather)} entries ({good} good, {bad} bad)")
-    print()
 
 
 # ─────────────────────────────────────────────────────────────────────────────

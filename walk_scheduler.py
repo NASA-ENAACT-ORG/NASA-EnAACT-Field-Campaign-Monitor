@@ -1090,8 +1090,8 @@ def score_combos(
         if is_good:
             good_weather_by_tod[tod].append(d)
 
-    def good_days_for(tod: str, boro: str) -> List[date]:
-        """Return good-weather days for the given TOD."""
+    def good_days_for(tod: str) -> List[date]:
+        """Return good-weather days for the given TOD (city-wide unified)."""
         return sorted(good_weather_by_tod.get(tod, []))
 
     # Pre-compute: which (collector, tod) combinations have available days?
@@ -1114,8 +1114,8 @@ def score_combos(
             if count >= TARGET_COMPLETIONS:
                 continue
 
-            # Good-weather days for this TOD, using this route's borough
-            gw_days = sorted(good_days_for(tod, boro))
+            # Good-weather days for this TOD (city-wide unified weather)
+            gw_days = good_days_for(tod)
             # PRIMARY filter: must have at least one good-weather day
             if not gw_days:
                 continue
@@ -2207,25 +2207,31 @@ def main() -> None:
     print(f"  {total} walks logged across {len(completions)} unique route+TOD+season combos\n")
 
     # ── Step 2 ──────────────────────────────────────────────────────────────
-    print("▶ Step 2  Loading weather from boolean_weather.json …")
-    bw_path = BASE_DIR / "boolean_weather.json"
-    if not bw_path.exists():
-        print(f"  [ERROR] {bw_path.name} not found — run build_weather.py first.")
+    print("▶ Step 2  Loading weather from frozen + unfrozen weather files …")
+    _frozen_path   = BASE_DIR / "frozen_boolean_weather.json"
+    _unfrozen_path = BASE_DIR / "unfrozen_boolean_weather.json"
+    if not _unfrozen_path.exists():
+        print(f"  [ERROR] {_unfrozen_path.name} not found — run build_weather.py first.")
         sys.exit(1)
-    with open(bw_path, encoding="utf-8") as _bwf:
-        _bw = json.load(_bwf)
     weather: Dict[Tuple[date, str], bool] = {}
-    for _key, _is_good in _bw.get("weather", {}).items():
-        _d_str, _tod = _key.rsplit("_", 1)
-        weather[(date.fromisoformat(_d_str), _tod)] = _is_good
-    # Extract week start/end from boolean_weather.json
-    _bw_ws = _bw.get("current_week_start")
-    _bw_we = _bw.get("current_week_end")
+    for _wp in (_frozen_path, _unfrozen_path):   # unfrozen loaded second → wins on overlap
+        if not _wp.exists():
+            continue
+        with open(_wp, encoding="utf-8") as _wf:
+            _wd = json.load(_wf)
+        for _key, _is_good in _wd.get("weather", {}).items():
+            _d_str, _tod = _key.rsplit("_", 1)
+            weather[(date.fromisoformat(_d_str), _tod)] = _is_good
+    # week_start/end only live in the unfrozen file
+    with open(_unfrozen_path, encoding="utf-8") as _wf:
+        _uw = json.load(_wf)
+    _bw_ws = _uw.get("current_week_start")
+    _bw_we = _uw.get("current_week_end")
     if _bw_ws and _bw_we:
         week_start = date.fromisoformat(_bw_ws)
         week_end   = date.fromisoformat(_bw_we)
     else:
-        print("  [ERROR] boolean_weather.json missing current_week_start / current_week_end")
+        print("  [ERROR] unfrozen_boolean_weather.json missing current_week_start / current_week_end")
         sys.exit(1)
     good = sum(1 for v in weather.values() if v)
     print(f"  {good}/{len(weather)} day+TOD slots have good weather (≤{CLOUD_THRESHOLD}% cloud, city-wide)")

@@ -277,9 +277,7 @@ def _run_scheduler_and_rebuild():
         print(f"[forecast] build_weather.py exit={r_weather.returncode}")
 
         # Upload weather JSON files to GCS
-        for _wfname in ("frozen_boolean_weather.json",
-                        "unfrozen_boolean_weather.json",
-                        "boolean_weather.json"):
+        for _wfname in ("frozen_boolean_weather.json", "unfrozen_boolean_weather.json"):
             _wfpath = BASE_DIR / _wfname
             if _wfpath.exists() and _gcs_bucket:
                 _upload_to_gcs(_wfpath, _wfname)
@@ -979,9 +977,7 @@ def _restore_gcs_state():
     # The forecast monitor will regenerate and upload to GCS when new forecasts arrive.
     print("[gcs-restore] Using baked schedule_output.json from Docker image")
     # Weather JSON files
-    for _wfname in ("frozen_boolean_weather.json",
-                    "unfrozen_boolean_weather.json",
-                    "boolean_weather.json"):
+    for _wfname in ("frozen_boolean_weather.json", "unfrozen_boolean_weather.json"):
         _download_from_gcs(_wfname, BASE_DIR / _wfname)
     # schedule_confirmations.json — confirm/deny state
     _download_from_gcs("schedule_confirmations.json", CONFIRMATIONS_FILE)
