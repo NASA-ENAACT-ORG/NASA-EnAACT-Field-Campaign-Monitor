@@ -1507,8 +1507,8 @@ let tlWeekIdx=0;   // index into tlWeeks array (0 = most recent)
 const TOD_ORDER={AM:0,MD:1,PM:2};
 
 // ── Helper: snap any date to the Sunday that starts its week ──────────────────
-function toWeekSunday(d){
-  const s=new Date(d); s.setDate(d.getDate()-d.getDay()); s.setHours(0,0,0,0); return s;
+function toWeekMonday(d){
+  const s=new Date(d); s.setDate(d.getDate()-((d.getDay()+6)%7)); s.setHours(0,0,0,0); return s;
 }
 
 // ── Build sorted list of distinct Sun-Sat weeks across completed+scheduled walks ──
@@ -1517,7 +1517,7 @@ function buildTlWeeks(){
   // Completed walks from log — key by the Sunday of the walk's week
   for(const w of allWalks){
     const d=new Date(w.date.getFullYear(),w.date.getMonth(),w.date.getDate());
-    const sun=toWeekSunday(d);
+    const sun=toWeekMonday(d);
     const key=sun.toISOString().slice(0,10);
     if(!byWeek[key])byWeek[key]={weekStart:key,walks:[],source:'log'};
     byWeek[key].walks.push({
@@ -1531,7 +1531,7 @@ function buildTlWeeks(){
   if(schedData&&schedData.assignments&&schedData.assignments.length){
     for(const a of schedData.assignments){
       const ad=new Date(a.date+'T00:00:00');
-      const sun=toWeekSunday(ad);
+      const sun=toWeekMonday(ad);
       const key=sun.toISOString().slice(0,10);
       if(!byWeek[key])byWeek[key]={weekStart:key,walks:[],source:'schedule'};
       else if(byWeek[key].source==='log')byWeek[key].source='schedule';
@@ -1541,7 +1541,7 @@ function buildTlWeeks(){
     // Tag recal_day to the week it falls in
     if(schedData.recal_day){
       const rd=new Date(schedData.recal_day+'T00:00:00');
-      const key=toWeekSunday(rd).toISOString().slice(0,10);
+      const key=toWeekMonday(rd).toISOString().slice(0,10);
       if(byWeek[key])byWeek[key].recal_day=schedData.recal_day;
     }
   }
@@ -1553,7 +1553,7 @@ function buildTlWeeks(){
 // Returns the index of the current (this week's Sunday) entry in a weeks array
 function findCurrentWeekIdx(weeks){
   const today=new Date(); today.setHours(0,0,0,0);
-  const sun=toWeekSunday(today);
+  const sun=toWeekMonday(today);
   const key=sun.toISOString().slice(0,10);
   const exact=weeks.findIndex(w=>w.weekStart===key);
   if(exact>=0)return exact;
