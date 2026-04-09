@@ -1,20 +1,20 @@
-"""
-serve.py — Server for the NYC Walk Scheduler dashboard.
+﻿"""
+serve.py â€” Server for the NYC Walk Scheduler dashboard.
 
 Usage:
     python serve.py              # serves on 0.0.0.0:8765 (or $PORT)
     python serve.py --port 9000  # custom port
 
 Endpoints:
-  GET  /                        → redirect to /dashboard.html
-  GET  /<filename>              → serve static file
-  GET  /api/status              → JSON with file mod times, Drive status
-  POST /api/rerun               → run scheduler (both backpacks) + rebuild dashboards, stream output
-  POST /api/rerun/a             → run scheduler for Backpack A (CCNY) only + rebuild dashboards
-  POST /api/rerun/b             → run scheduler for Backpack B (LaGCC) only + rebuild dashboards
-  POST /api/rebuild             → rebuild dashboards only, stream output
-  POST /api/forecast-stability  → run forecast stability analysis, stream output
-  POST /api/drive/poll          → manually trigger one Google Drive poll cycle
+  GET  /                        â†’ redirect to /dashboard.html
+  GET  /<filename>              â†’ serve static file
+  GET  /api/status              â†’ JSON with file mod times, Drive status
+  POST /api/rerun               â†’ run scheduler (both backpacks) + rebuild dashboards, stream output
+  POST /api/rerun/a             â†’ run scheduler for Backpack A (CCNY) only + rebuild dashboards
+  POST /api/rerun/b             â†’ run scheduler for Backpack B (LaGCC) only + rebuild dashboards
+  POST /api/rebuild             â†’ rebuild dashboards only, stream output
+  POST /api/forecast-stability  â†’ run forecast stability analysis, stream output
+  POST /api/drive/poll          â†’ manually trigger one Google Drive poll cycle
 """
 
 import argparse
@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-# GCS support (optional — only initialized if GCS_BUCKET is set)
+# GCS support (optional â€” only initialized if GCS_BUCKET is set)
 _gcs_client = None
 _gcs_bucket = None
 
@@ -45,14 +45,11 @@ RECAL_LOG             = BASE_DIR / "Recal_Log.txt"
 SEEN_FILES_PATH       = BASE_DIR / "drive_seen_files.json"
 CONFIRMATIONS_FILE    = BASE_DIR / "schedule_confirmations.json"
 SCHEDULE_OUTPUT       = BASE_DIR / "schedule_output.json"
-FORECAST_DIR          = BASE_DIR / "Forecast"
 
-# ── Drive config ───────────────────────────────────────────────────────────────
-# DRIVE_FORECASTS_FOLDER_ID — Google Drive folder where forecast PDFs are uploaded
-DRIVE_FORECASTS_FOLDER_ID   = os.environ.get("DRIVE_FORECASTS_FOLDER_ID", "")
+# â”€â”€ Drive config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
-# ── Confirmation helpers ───────────────────────────────────────────────────────
+# â”€â”€ Confirmation helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 _CONFIRM_LOCK = threading.Lock()
 
 def _load_confirmations() -> dict:
@@ -79,19 +76,17 @@ STATUS_FILES = {
     "collector_map":   BASE_DIR / "collector_map.html",
 }
 
-# ── Drive polling state ────────────────────────────────────────────────────────
+# â”€â”€ Drive polling state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 DRIVE_FOLDER_ID       = os.environ.get("GOOGLE_DRIVE_WALKS_FOLDER_ID", "")
 DRIVE_POLL_INTERVAL   = int(os.environ.get("DRIVE_POLL_INTERVAL", "300"))
-FORECAST_POLL_INTERVAL = int(os.environ.get("FORECAST_POLL_INTERVAL", "300"))  # 5 min default
 _DRIVE_LOCK           = threading.Lock()
 _drive_last_poll      = None
 _drive_new_today      = 0
-_forecast_last_poll   = None
 _scheduler_running    = threading.Lock()  # prevents concurrent scheduler runs
 
 
-# ── GCS helpers ───────────────────────────────────────────────────────────────
+# â”€â”€ GCS helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _init_gcs():
     """Initialize GCS client if GCS_BUCKET is configured."""
@@ -105,7 +100,7 @@ def _init_gcs():
         from google.cloud import storage
         _gcs_client = storage.Client()
         _gcs_bucket = _gcs_client.bucket(bucket_name)
-        print(f"[gcs] Initialized — bucket: {bucket_name}")
+        print(f"[gcs] Initialized â€” bucket: {bucket_name}")
         return True
     except Exception as e:
         print(f"[gcs] Warning: Failed to initialize GCS: {e}")
@@ -120,7 +115,7 @@ def _download_from_gcs(gcs_path: str, local_path: Path) -> bool:
         blob = _gcs_bucket.blob(gcs_path)
         if blob.exists():
             blob.download_to_filename(str(local_path))
-            print(f"[gcs] Downloaded: {gcs_path} → {local_path}")
+            print(f"[gcs] Downloaded: {gcs_path} â†’ {local_path}")
             return True
     except Exception as e:
         print(f"[gcs] Download error ({gcs_path}): {e}")
@@ -140,7 +135,7 @@ def _upload_to_gcs(local_path: Path, gcs_path: str) -> bool:
         return False
 
 
-# ── Shared Google Drive helpers ────────────────────────────────────────────────
+# â”€â”€ Shared Google Drive helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _get_drive_service():
     """Return an authenticated Drive v3 service, or None if not configured."""
@@ -173,79 +168,15 @@ def _drive_find_folder(service, parent_id: str, name: str) -> str | None:
         return None
 
 
-def _drive_list_files(service, folder_id: str, mime: str = "application/pdf") -> list:
-    """List files in a Drive folder. Returns list of file dicts."""
-    try:
-        q = f"mimeType='{mime}' and '{folder_id}' in parents and trashed=false"
-        r = service.files().list(
-            q=q, fields="files(id,name,modifiedTime)", pageSize=200,
-            orderBy="modifiedTime desc"
-        ).execute()
-        return r.get("files", [])
-    except Exception as e:
-        print(f"[drive] List files error: {e}")
-        return []
-
-
-def _drive_download_file(service, file_id: str, dest: Path) -> bool:
-    """Download a Drive file to a local path. Returns True on success."""
-    try:
-        from googleapiclient.http import MediaIoBaseDownload
-        import io
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        req = service.files().get_media(fileId=file_id)
-        fh = io.BytesIO()
-        dl = MediaIoBaseDownload(fh, req)
-        done = False
-        while not done:
-            _, done = dl.next_chunk()
-        fh.seek(0)
-        dest.write_bytes(fh.read())
-        return True
-    except Exception as e:
-        print(f"[drive] Download {file_id} → {dest.name} error: {e}")
-        return False
-
-
-# ── Forecast state (persisted in GCS so it survives container restarts) ────────
-
-_FORECAST_STATE_GCS = "forecast_state.json"
-_FORECAST_STATE_LOCAL = BASE_DIR / ".forecast_state.json"
-
-
-def _load_forecast_state() -> dict:
-    """Load dict of {file_id: modifiedTime} for already-processed forecast PDFs."""
-    if _gcs_bucket:
-        _download_from_gcs(_FORECAST_STATE_GCS, _FORECAST_STATE_LOCAL)
-    try:
-        return json.loads(_FORECAST_STATE_LOCAL.read_text())
-    except Exception:
-        return {}
-
-
-def _save_forecast_state(state: dict):
-    _FORECAST_STATE_LOCAL.write_text(json.dumps(state, indent=2))
-    if _gcs_bucket:
-        _upload_to_gcs(_FORECAST_STATE_LOCAL, _FORECAST_STATE_GCS)
-
-
-def _reset_forecast_state():
-    """Wipe the forecast state so the next poll re-detects all PDFs as new."""
-    _save_forecast_state({})
-    print("[forecast] State reset — all PDFs will be re-detected on next poll")
-
-
-# ── Scheduler + rebuild pipeline ───────────────────────────────────────────────
-
 def _run_scheduler_and_rebuild():
-    """Run walk_scheduler.py → build_dashboard.py, upload results to GCS.
+    """Run walk_scheduler.py â†’ build_dashboard.py, upload results to GCS.
     Protected by _scheduler_running lock to prevent concurrent runs."""
     if not _scheduler_running.acquire(blocking=False):
-        print("[forecast] Scheduler already running — skipping this trigger")
+        print("[forecast] Scheduler already running â€” skipping this trigger")
         return
 
     try:
-        print("[forecast] ▶ Running build_weather.py …")
+        print("[forecast] â–¶ Running build_weather.py â€¦")
         r_weather = subprocess.run(
             [sys.executable, str(BUILD_WEATHER)],
             cwd=str(BASE_DIR),
@@ -264,9 +195,9 @@ def _run_scheduler_and_rebuild():
             _wfpath = BASE_DIR / _wfname
             if _wfpath.exists() and _gcs_bucket:
                 _upload_to_gcs(_wfpath, _wfname)
-        print("[forecast] Uploaded weather.json → GCS")
+        print("[forecast] Uploaded weather.json â†’ GCS")
 
-        print("[forecast] ▶ Running walk_scheduler.py …")
+        print("[forecast] â–¶ Running walk_scheduler.py â€¦")
         r = subprocess.run(
             [sys.executable, str(SCHEDULER)],
             cwd=str(BASE_DIR),
@@ -283,9 +214,9 @@ def _run_scheduler_and_rebuild():
 
         if SCHEDULE_OUTPUT.exists() and _gcs_bucket:
             _upload_to_gcs(SCHEDULE_OUTPUT, "schedule_output.json")
-            print("[forecast] Uploaded schedule_output.json → GCS")
+            print("[forecast] Uploaded schedule_output.json â†’ GCS")
 
-        print("[forecast] ▶ Rebuilding dashboard …")
+        print("[forecast] â–¶ Rebuilding dashboard â€¦")
         r2 = subprocess.run(
             [sys.executable, str(BUILD_DASHBOARD)],
             cwd=str(BASE_DIR),
@@ -305,7 +236,7 @@ def _run_scheduler_and_rebuild():
                 html_path = BASE_DIR / html_name
                 if html_path.exists():
                     _upload_to_gcs(html_path, html_name)
-            print("[forecast] Uploaded rebuilt HTML files → GCS")
+            print("[forecast] Uploaded rebuilt HTML files â†’ GCS")
     except subprocess.TimeoutExpired:
         print("[forecast] Scheduler timed out (6 min limit)")
     except Exception as e:
@@ -314,93 +245,7 @@ def _run_scheduler_and_rebuild():
         _scheduler_running.release()
 
 
-# ── Forecast monitor — polls Drive for new forecast PDFs ──────────────────────
-
-def _poll_forecast_pdfs() -> tuple[int, str | None]:
-    """Check DRIVE_FORECASTS_FOLDER_ID for new/updated forecast PDFs.
-    Downloads any new ones and triggers the scheduler+rebuild pipeline.
-    Returns (new_count, error_msg)."""
-    global _forecast_last_poll
-
-    if not DRIVE_FORECASTS_FOLDER_ID:
-        return 0, "DRIVE_FORECASTS_FOLDER_ID not set"
-
-    service = _get_drive_service()
-    if service is None:
-        return 0, "Drive auth failed (GOOGLE_SERVICE_ACCOUNT_JSON missing or invalid)"
-
-    state = _load_forecast_state()  # {file_id: modifiedTime}
-
-    # Collect PDFs: top-level + one level of month subfolders (e.g. "March 2026/")
-    def _list_all_forecast_pdfs() -> list:
-        results: list = []
-        try:
-            resp = service.files().list(
-                q=f"'{DRIVE_FORECASTS_FOLDER_ID}' in parents and trashed=false",
-                fields="files(id,name,mimeType,modifiedTime)",
-                pageSize=200,
-            ).execute()
-            items = resp.get("files", [])
-        except Exception as e:
-            print(f"[forecast] Error listing root folder: {e}")
-            return results
-        for item in items:
-            if item.get("mimeType") == "application/pdf":
-                results.append(item)
-            elif item.get("mimeType") == "application/vnd.google-apps.folder":
-                # Recurse one level into month subfolders
-                sub = _drive_list_files(service, item["id"], mime="application/pdf")
-                results.extend(sub)
-        return results
-
-    pdfs = _list_all_forecast_pdfs()
-
-    if not pdfs:
-        with _DRIVE_LOCK:
-            _forecast_last_poll = _now_iso()
-        return 0, None
-
-    FORECAST_DIR.mkdir(exist_ok=True)
-    downloaded = 0
-    for f in pdfs:
-        dest = FORECAST_DIR / f["name"]
-        print(f"[forecast] Downloading PDF: {f['name']} (always re-download) …")
-        if _drive_download_file(service, f["id"], dest):
-            state[f["id"]] = f["modifiedTime"]
-            downloaded += 1
-            print(f"[forecast] ✓ {f['name']} saved to Forecast/")
-
-    if downloaded:
-        _save_forecast_state(state)
-
-    # Always trigger rebuild after a successful poll — corrected PDFs already
-    # on disk should be re-processed even if no new downloads occurred
-    t = threading.Thread(target=_run_scheduler_and_rebuild, daemon=True)
-    t.start()
-
-    with _DRIVE_LOCK:
-        _forecast_last_poll = _now_iso()
-
-    return downloaded, None
-
-
-def _forecast_monitor_thread():
-    """Daemon thread: polls Drive for new forecast PDFs on a fixed interval."""
-    print(f"[forecast] Monitor started (interval: {FORECAST_POLL_INTERVAL}s,"
-          f" folder: {DRIVE_FORECASTS_FOLDER_ID or 'NOT SET'})")
-    while True:
-        try:
-            count, err = _poll_forecast_pdfs()
-            if err:
-                print(f"[forecast] Poll skipped: {err}")
-            elif count:
-                print(f"[forecast] {count} new forecast PDF(s) detected — scheduler triggered")
-        except Exception as e:
-            print(f"[forecast] Unexpected error: {e}")
-        time.sleep(FORECAST_POLL_INTERVAL)
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# â”€â”€ Forecast monitor â€” polls Drive for new forecast PDFs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _mtime_iso(path: Path) -> str | None:
     try:
@@ -414,7 +259,7 @@ def _now_iso() -> str:
 
 
 def _stream_script(wfile, script: Path, label: str, extra_args: list = None) -> int:
-    header = f"\n── {label} ──\n"
+    header = f"\nâ”€â”€ {label} â”€â”€\n"
     _write_chunk(wfile, header.encode())
 
     proc = subprocess.Popen(
@@ -447,7 +292,7 @@ def _write_chunk(wfile, data: bytes):
     wfile.flush()
 
 
-# ── Drive polling ─────────────────────────────────────────────────────────────
+# â”€â”€ Drive polling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 _WALK_LOG_RE = re.compile(
     r'^([ABX])_([A-Z]{2,4})_([A-Z]{2})_([A-Z]{2,3})_(\d{8})_(AM|MD|PM)$',
@@ -485,7 +330,7 @@ def _save_seen_ids(ids: set):
 
 def _rebuild_walk_log(entries: list):
     """Rewrite Walks_Log.txt from scratch with all discovered walk entries.
-    Never writes RECAL lines — those live exclusively in Recal_Log.txt."""
+    Never writes RECAL lines â€” those live exclusively in Recal_Log.txt."""
     content = "\n".join(entries) + "\n" if entries else ""
     WALKS_LOG.write_text(content, encoding="utf-8")
     print(f"[drive] Rebuilt Walks_Log.txt: {len(entries)} walk entries")
@@ -586,7 +431,7 @@ def _run_drive_poll(source: str = "background"):
             _drive_new_today += new_count
 
     if log_changed:
-        print(f"[drive] Walk log changed — triggering dashboard rebuild")
+        print(f"[drive] Walk log changed â€” triggering dashboard rebuild")
         _trigger_rebuild()
     else:
         print(f"[drive] Walk log unchanged ({len(deduped)} entries)")
@@ -609,14 +454,14 @@ def _drive_poll_thread():
         time.sleep(DRIVE_POLL_INTERVAL)
 
 
-# ── Request handler ───────────────────────────────────────────────────────────
+# â”€â”€ Request handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, fmt, *args):  # suppress per-request console noise
         pass
 
-    # ── GET ──────────────────────────────────────────────────────────────────
+    # â”€â”€ GET â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path.lstrip("/")
@@ -637,13 +482,11 @@ class Handler(BaseHTTPRequestHandler):
             payload = {name: _mtime_iso(p) for name, p in STATUS_FILES.items()}
             payload["drive_last_poll"] = drive_last
             payload["drive_new_files_today"] = drive_today
-            payload["forecast_last_poll"] = _forecast_last_poll
-            payload["forecast_folder_configured"] = bool(DRIVE_FORECASTS_FOLDER_ID)
             body = json.dumps(payload, indent=2).encode()
             self._send(200, "application/json", body)
             return
 
-        # /api/confirmations — current confirm/deny state for schedule assignments
+        # /api/confirmations â€” current confirm/deny state for schedule assignments
         if path == "api/confirmations":
             body = json.dumps(_load_confirmations()).encode()
             self._send(200, "application/json", body)
@@ -667,13 +510,13 @@ class Handler(BaseHTTPRequestHandler):
         ct = content_types.get(file_path.suffix.lower(), "application/octet-stream")
         self._send(200, ct, file_path.read_bytes())
 
-    # ── POST ─────────────────────────────────────────────────────────────────
+    # â”€â”€ POST â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     def do_POST(self):
         endpoint = self.path.split("?")[0]
 
         # Authenticate /api/drive/poll and /api/rerun with GAS_SECRET bearer token.
         # If GAS_SECRET is not set, these endpoints remain open (local dev compatible).
-        # /api/rebuild is not gated — it is only triggered by the browser UI.
+        # /api/rebuild is not gated â€” it is only triggered by the browser UI.
         _gas_secret = os.environ.get("GAS_SECRET", "")
         if _gas_secret and endpoint in ("/api/drive/poll", "/api/rerun"):
             auth_header = self.headers.get("Authorization", "")
@@ -718,7 +561,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             data = _load_confirmations()
             if status == "pending":
-                data.pop(assign_id, None)   # reset → remove entry
+                data.pop(assign_id, None)   # reset â†’ remove entry
             else:
                 data[assign_id] = {
                     "status":    status,
@@ -727,27 +570,7 @@ class Handler(BaseHTTPRequestHandler):
                 }
             _save_confirmations(data)
             self._send(200, "application/json",
-                       json.dumps({"ok": True, "confirmations": data}).encode())
-        elif endpoint == "/api/reset-forecast-state":
-            # Clears the forecast state so the next 5-min poll re-detects all PDFs.
-            # Protected by SCHEDULER_PIN.
-            _sched_pin = os.environ.get("SCHEDULER_PIN", "")
-            try:
-                length = int(self.headers.get("Content-Length", 0))
-                body_bytes = self.rfile.read(length) if length else b"{}"
-                payload = json.loads(body_bytes)
-            except Exception:
-                self._send(400, "application/json",
-                           json.dumps({"error": "bad request"}).encode())
-                return
-            if _sched_pin and payload.get("pin", "") != _sched_pin:
-                self._send(403, "application/json",
-                           json.dumps({"error": "wrong pin"}).encode())
-                return
-            _reset_forecast_state()
-            self._send(200, "application/json",
-                       json.dumps({"ok": True, "message": "Forecast state cleared — next poll will re-detect all PDFs"}).encode())
-        elif endpoint == "/api/reassign":
+                       json.dumps({"ok": True, "confirmations": data}).encode())        elif endpoint == "/api/reassign":
             # Triggered by the UI when a scheduler rejects an assignment and wants
             # a replacement picked.  Protected by SCHEDULER_PIN (same as /api/confirm).
             _sched_pin = os.environ.get("SCHEDULER_PIN", "")
@@ -776,7 +599,7 @@ class Handler(BaseHTTPRequestHandler):
                 body = json.dumps({"status": "ok", "new_files": count}).encode()
                 self._send(200, "application/json", body)
         elif endpoint == "/api/force-rebuild":
-            # Force immediate rebuild: download all PDFs, build weather, run scheduler, rebuild dashboard
+            # Force immediate rebuild: build weather, run scheduler, rebuild dashboard
             # Protected by SCHEDULER_PIN
             _sched_pin = os.environ.get("SCHEDULER_PIN", "")
             try:
@@ -795,7 +618,7 @@ class Handler(BaseHTTPRequestHandler):
             t = threading.Thread(target=_run_scheduler_and_rebuild, daemon=True)
             t.start()
             self._send(200, "application/json",
-                       json.dumps({"status": "ok", "message": "Rebuild started — check back in 30 seconds"}).encode())
+                       json.dumps({"status": "ok", "message": "Rebuild started â€” check back in 30 seconds"}).encode())
         else:
             self._send(404, "text/plain", b"Unknown endpoint")
 
@@ -815,7 +638,7 @@ class Handler(BaseHTTPRequestHandler):
             _stream_script(self.wfile, BUILD_DASHBOARD, "build_dashboard.py")
             _stream_script(self.wfile, BUILD_MAP,       "build_collector_map.py")
 
-            done = "\n[All done — reload the page to see updated dashboards]\n"
+            done = "\n[All done â€” reload the page to see updated dashboards]\n"
             _write_chunk(self.wfile, done.encode("utf-8"))
         except Exception as e:
             err = f"\n[Server error: {e}]\n".encode("utf-8")
@@ -863,7 +686,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
-# ── Entry point ───────────────────────────────────────────────────────────────
+# â”€â”€ Entry point â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _restore_gcs_state():
     """Download persistent state from GCS. Called both at container start
@@ -871,15 +694,15 @@ def _restore_gcs_state():
     _init_gcs()
     if not _gcs_bucket:
         return
-    # Walks_Log.txt — always refresh from GCS (may be newer than baked copy)
+    # Walks_Log.txt â€” always refresh from GCS (may be newer than baked copy)
     _download_from_gcs("Walks_Log.txt", WALKS_LOG)
-    # schedule_output.json — use the baked copy from the Docker image.
+    # schedule_output.json â€” use the baked copy from the Docker image.
     # The forecast monitor will regenerate and upload to GCS when new forecasts arrive.
     print("[gcs-restore] Using baked schedule_output.json from Docker image")
     # Weather JSON file
     for _wfname in ("weather.json",):
         _download_from_gcs(_wfname, BASE_DIR / _wfname)
-    # schedule_confirmations.json — confirm/deny state
+    # schedule_confirmations.json â€” confirm/deny state
     _download_from_gcs("schedule_confirmations.json", CONFIRMATIONS_FILE)
     print("[gcs-restore] State restored from GCS")
 
@@ -898,13 +721,13 @@ def main():
     # Initialize GCS (optional)
     _init_gcs()
 
-    # ── Restore persistent state from GCS on startup ───────────────────────────
+    # â”€â”€ Restore persistent state from GCS on startup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if _gcs_bucket:
-        # Walks_Log.txt — source of truth for walk history
+        # Walks_Log.txt â€” source of truth for walk history
         if not WALKS_LOG.exists():
             _download_from_gcs("Walks_Log.txt", WALKS_LOG)
         else:
-            # Always refresh — GCS copy may be newer than the baked image copy
+            # Always refresh â€” GCS copy may be newer than the baked image copy
             _download_from_gcs("Walks_Log.txt", WALKS_LOG)
 
         # schedule_output.json and schedule_confirmations.json are already
@@ -915,33 +738,18 @@ def main():
 
         print("[startup] GCS state restored")
 
-    # ── Start Drive walk-log polling thread ────────────────────────────────────
+    # â”€â”€ Start Drive walk-log polling thread â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if DRIVE_POLL_INTERVAL > 0:
         t = threading.Thread(target=_drive_poll_thread, daemon=True)
         t.start()
         print(f"  Walk-log poll : active (every {DRIVE_POLL_INTERVAL}s)")
     else:
-        print(f"  Walk-log poll : DISABLED — relying on GAS push triggers")
-
-    # ── Start forecast monitor thread ──────────────────────────────────────────
-    if DRIVE_FORECASTS_FOLDER_ID and FORECAST_POLL_INTERVAL > 0:
-        # Reset forecast state so the monitor re-detects all PDFs and re-runs
-        # the scheduler with the latest code. The GCS copy may have been saved
-        # by a previous container that used buggy forecast selection logic.
-        # TODO: remove this one-time reset after the next successful deploy
-        _reset_forecast_state()
-        print("[startup] Forecast state reset — monitor will re-process all PDFs")
-        ft = threading.Thread(target=_forecast_monitor_thread, daemon=True)
-        ft.start()
-        print(f"  Forecast monitor : active (every {FORECAST_POLL_INTERVAL}s)")
-    else:
-        print(f"  Forecast monitor : DISABLED"
-              f" (set DRIVE_FORECASTS_FOLDER_ID + FORECAST_POLL_INTERVAL in GCP env)")
+        print(f"  Walk-log poll : DISABLED â€” relying on GAS push triggers")
 
     server = ThreadingHTTPServer(("0.0.0.0", args.port), Handler)
     url = f"http://localhost:{args.port}"
     print(f"")
-    print(f"  NYC Walk Scheduler — server")
+    print(f"  NYC Walk Scheduler â€” server")
     print(f"  Dashboard  : {url}")
     print(f"  Rerun API  : POST {url}/api/rerun")
     print(f"  Rebuild API: POST {url}/api/rebuild")
@@ -959,3 +767,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

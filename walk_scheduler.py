@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 walk_scheduler.py — NYC Field Data Campaign Walk Scheduler
 ============================================================
@@ -41,11 +41,8 @@ Collector_Schedule/, Route_KMLs/) automatically — no arguments needed.
 UPDATING WEEKLY DATA
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-• New forecast week: drop the PDF directly into Forecast/ with a
-  filename like "Mar 15 - Mar 21.pdf" (revision suffix optional, e.g.
-  "Mar 15 - Mar 21 R2.pdf").  The script picks the most recently
-  modified file whose week end-date has not yet fully passed —
-  no subfolders or revision numbering required.
+• New forecast week: update the forecast Google Sheet and run
+  build_weather.py to refresh weather.json.
 
 • New walk completions: append lines to Walks_Log.txt using either
   the old format  Backpack_Collector_Boro_Neigh_MM_DD_YYYY_TOD
@@ -2429,3 +2426,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
