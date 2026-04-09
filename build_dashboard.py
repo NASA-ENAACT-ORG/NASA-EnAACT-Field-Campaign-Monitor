@@ -866,6 +866,33 @@ const ROUTES_GEO = __ROUTES_JSON__;
 const COLLECTOR_HOMES = __COLLECTOR_HOMES__;
 const BAKED_SCHEDULE = __BAKED_SCHEDULE__;
 const BAKED_WEATHER = __BAKED_WEATHER__;
+let RUNTIME_SCHEDULE = BAKED_SCHEDULE;
+let RUNTIME_WEATHER = BAKED_WEATHER;
+
+function _schedStamp(s){
+  if(!s) return '';
+  return String(s.generated_at || s.generated || s.week_end || '');
+}
+async function _fetchJsonFresh(path){
+  const sep = path.includes('?') ? '&' : '?';
+  const resp = await fetch(path + sep + '_ts=' + Date.now(), {cache:'no-store'});
+  if(!resp.ok) throw new Error(String(resp.status));
+  return await resp.json();
+}
+async function refreshRuntimeData(){
+  try{
+    const latestSchedule = await _fetchJsonFresh('schedule_output.json');
+    if(latestSchedule && latestSchedule.assignments){
+      RUNTIME_SCHEDULE = latestSchedule;
+    }
+  }catch(_e){}
+  try{
+    const latestWeather = await _fetchJsonFresh('weather.json');
+    if(latestWeather && latestWeather.weather){
+      RUNTIME_WEATHER = latestWeather;
+    }
+  }catch(_e){}
+}
 // Campus affiliation → pin color  (purple = CCNY, red = LaGCC, amber = staff)
 const COLLECTOR_PIN_COLOR = {
   'SOT':'#7c3aed','AYA':'#7c3aed','JEN':'#7c3aed','TAH':'#7c3aed','ANG':'#7c3aed',
@@ -1741,7 +1768,7 @@ function renderCalendar(){
       const isRecal=wk.recal_day===dateStr;
       const walks=(byDayTod[dateStr]||{})[ctod]||[];
       const weatherKey=`${dateStr}_${ctod}`;
-      const isBadWeather=BAKED_WEATHER&&BAKED_WEATHER.weather&&BAKED_WEATHER.weather[weatherKey]===false;
+      const isBadWeather=RUNTIME_WEATHER&&RUNTIME_WEATHER.weather&&RUNTIME_WEATHER.weather[weatherKey]===false;
 
       let cellContent='';
       // Weather indicator overlay for bad weather
@@ -1850,7 +1877,7 @@ function renderAvailHeatmap(){
 
 // ─── EVENTS ───
 function bindEvents(){
-  document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',async()=>{
     document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
     document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
     b.classList.add('active');
@@ -1858,17 +1885,27 @@ function bindEvents(){
     if(b.dataset.view==='map-view')setTimeout(()=>map&&map.invalidateSize(),50);
     else if(b.dataset.view==='schedule-view'){
       setTimeout(async()=>{
+        await refreshRuntimeData();
+        if(RUNTIME_SCHEDULE&&RUNTIME_SCHEDULE.assignments
+           &&_schedStamp(RUNTIME_SCHEDULE)!==_schedStamp(schedData)){
+          loadScheduleJSON(JSON.stringify(RUNTIME_SCHEDULE));
+        }
         await fetchConfirmations();
         initSchedMap();
         setTimeout(()=>schedMap.invalidateSize(),150);
         applyScheduleColors();
         renderSchedulePanel();
         renderTimelineBar();
-        if(!schedData&&BAKED_SCHEDULE&&BAKED_SCHEDULE.assignments){
-          loadScheduleJSON(JSON.stringify(BAKED_SCHEDULE));
+        if(!schedData&&RUNTIME_SCHEDULE&&RUNTIME_SCHEDULE.assignments){
+          loadScheduleJSON(JSON.stringify(RUNTIME_SCHEDULE));
         }
       },50);
     } else if(b.dataset.view==='calendar-view'){
+      await refreshRuntimeData();
+      if(RUNTIME_SCHEDULE&&RUNTIME_SCHEDULE.assignments
+         &&_schedStamp(RUNTIME_SCHEDULE)!==_schedStamp(schedData)){
+        loadScheduleJSON(JSON.stringify(RUNTIME_SCHEDULE));
+      }
       calWeekIdx=tlWeekIdx;
       fetchConfirmations().then(()=>renderCalendar());
     } else if(b.dataset.view==='availability-view'){
@@ -2024,7 +2061,7 @@ function bindEvents(){
         toast('Rebuild started \u2014 page will refresh when complete.','success');
         let attempts=0;
         const maxAttempts=30;
-        const origMtime=BAKED_SCHEDULE&&BAKED_SCHEDULE.generated?BAKED_SCHEDULE.generated:null;
+        const origMtime=schedData&&schedData.generated?schedData.generated:null;
         const poll=setInterval(async()=>{
           attempts++;
           try{
@@ -2058,6 +2095,7 @@ function bindEvents(){
 }
 // ─── INIT ───
 async function init(){
+  await refreshRuntimeData();
   let src=null;
   try{
     const r=await fetch('Walks_Log.txt');
@@ -2065,8 +2103,8 @@ async function init(){
   }catch(e){}
   await fetchConfirmations();
   let schedLoaded=false;
-  if(BAKED_SCHEDULE&&BAKED_SCHEDULE.assignments){
-    schedData=BAKED_SCHEDULE;schedLoaded=true;loadScheduleJSON(JSON.stringify(BAKED_SCHEDULE));
+  if(RUNTIME_SCHEDULE&&RUNTIME_SCHEDULE.assignments){
+    schedData=RUNTIME_SCHEDULE;schedLoaded=true;loadScheduleJSON(JSON.stringify(RUNTIME_SCHEDULE));
   }
   try{
     allWalks=parseLog(logText);
