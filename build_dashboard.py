@@ -271,7 +271,7 @@ select option{background:var(--bg3)}
 /* Weather Bad indicator */
 .weather-bad{position:absolute;inset:0;background:rgba(255,140,0,.24);border-radius:5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;z-index:1;pointer-events:none}
 .weather-bad .bad-label{font-size:9px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.3px;margin-bottom:1px}
-.weather-bad .no-sign{font-size:32px;line-height:1;color:#ef4444;display:flex;align-items:center;justify-content:center}
+.weather-bad .no-sign{font-size:15px;line-height:1;color:#ef4444;font-weight:800;letter-spacing:.6px;display:flex;align-items:center;justify-content:center}
 .weather-bad .weather-label{font-size:8px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.2px}
 .cal-cell.bad-weather{position:relative;z-index:0}
 /* â”€â”€ Availability heatmap view â”€â”€ */
@@ -1401,6 +1401,19 @@ function buildTlWeeks(){
       if(byWeek[key])byWeek[key].recal_day=schedData.recal_day;
     }
   }
+  // Include weather-only weeks so calendar navigation stays continuous even
+  // when a week has no completed walks and no scheduled assignments.
+  if(schedData&&schedData.weather){
+    for(const weatherKey of Object.keys(schedData.weather)){
+      const cut=weatherKey.lastIndexOf('_');
+      if(cut<0)continue;
+      const dateStr=weatherKey.slice(0,cut);
+      const wd=new Date(dateStr+'T00:00:00');
+      if(Number.isNaN(wd.getTime()))continue;
+      const key=toWeekMonday(wd).toISOString().slice(0,10);
+      if(!byWeek[key])byWeek[key]={weekStart:key,walks:[],source:'weather'};
+    }
+  }
   // Always include the current week so the calendar anchors to today even when the schedule is stale
   const _todayMon=toWeekMonday(new Date());
   const _todayKey=_todayMon.toISOString().slice(0,10);
@@ -1520,9 +1533,9 @@ function renderTimelineBar(){
   const ws=new Date(wk.weekStart+'T00:00:00');
   const we=new Date(ws); we.setDate(ws.getDate()+6);
   const fmtOpts={month:'short',day:'numeric'};
-  const wkStr=`${ws.toLocaleDateString('en-US',fmtOpts)} â€“ ${we.toLocaleDateString('en-US',{...fmtOpts,year:'numeric'})}`;
-  const srcBadge=wk.source==='schedule'?' ðŸ“…':' ðŸ“‹';
-  const nowBadge=tlWeekIdx===0?' â—€ current':'';
+  const wkStr=`${ws.toLocaleDateString('en-US',fmtOpts)} - ${we.toLocaleDateString('en-US',{...fmtOpts,year:'numeric'})}`;
+  const srcBadge=wk.source==='schedule'?' [scheduled]':wk.source==='weather'?' [weather]':' [completed]';
+  const nowBadge=tlWeekIdx===0?' [current]':'';
   if(wkLbl)wkLbl.textContent=wkStr+srcBadge+nowBadge;
 
   // Detail label for selected step
@@ -1530,11 +1543,11 @@ function renderTimelineBar(){
     const c=sorted[schedStep];
     const d=new Date(c.date+'T00:00:00');
     const ds=d.toLocaleDateString('en-US',{weekday:'short',month:'numeric',day:'numeric'});
-    const src=c.source==='scheduled'?'ðŸ—“ scheduled':'âœ“ completed';
-    if(detail)detail.textContent=`${schedStep+1}/${sorted.length}  ${ds} Â· ${c.tod} Â· BP ${c.backpack} Â· ${ROUTE_LABELS[c.route]||c.route} Â· ${c.collector||'â€”'} Â· ${src}`;
+    const src=c.source==='scheduled'?'scheduled':'completed';
+    if(detail)detail.textContent=`${schedStep+1}/${sorted.length}  ${ds} | ${c.tod} | BP ${c.backpack} | ${ROUTE_LABELS[c.route]||c.route} | ${c.collector||'-'} | ${src}`;
   } else {
     const n=sorted.length, comp=sorted.filter(w=>w.source==='completed').length, sched=sorted.filter(w=>w.source==='scheduled').length;
-    if(detail)detail.textContent=`${n} walk${n!==1?'s':''} this week${comp?` Â· ${comp} completed`:''}${sched?` Â· ${sched} scheduled`:''}  â€” click a dot or press â–¶`;
+    if(detail)detail.textContent=`${n} walk${n!==1?'s':''} this week${comp?` | ${comp} completed`:''}${sched?` | ${sched} scheduled`:''} - click a dot or press Play`;
   }
 
   // Build day columns â€” derive day name from actual date, not from offset index,
@@ -1737,10 +1750,10 @@ function renderCalendar(){
 
 
   if(title)title.textContent=
-    ws.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' â€“ '+
+    ws.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' - '+
     we.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
   if(srcBadge)srcBadge.textContent=
-    wk.source==='schedule'?'ðŸ“… Scheduled week':'ðŸ“‹ Completed walks';
+    wk.source==='schedule'?'Scheduled week':wk.source==='weather'?'Weather-only week':'Completed walks';
 
   const prevBtn=document.getElementById('cal-prev');
   const nextBtn=document.getElementById('cal-next');
@@ -1788,7 +1801,7 @@ function renderCalendar(){
       let cellContent='';
       // Weather indicator overlay for bad weather
       if(isBadWeather){
-        cellContent+=`<div class="weather-bad"><div class="bad-label">BAD</div><div class="no-sign">ðŸš«</div><div class="weather-label">WEATHER</div></div>`;
+        cellContent+=`<div class="weather-bad"><div class="bad-label">BAD</div><div class="no-sign">NO GO</div><div class="weather-label">WEATHER</div></div>`;
       }
       // Recalibration tag in AM cell
       if(isRecal&&ctod==='AM'){
