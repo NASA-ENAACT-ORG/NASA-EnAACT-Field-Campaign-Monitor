@@ -75,25 +75,23 @@ if _sched_path.exists():
 else:
     baked_schedule_json = "null"
 
-# ── Bake weather into the dashboard (merge frozen + unfrozen; unfrozen wins) ─
-_frozen_path   = BASE / "frozen_boolean_weather.json"
-_unfrozen_path = BASE / "unfrozen_boolean_weather.json"
-_merged_weather: dict = {"weather": {}, "_meta": {}}
-for _wp in (_frozen_path, _unfrozen_path):   # unfrozen loaded second → wins on overlap
-    if _wp.exists():
-        try:
-            _wd = json.loads(_wp.read_text(encoding="utf-8"))
-            _merged_weather["weather"].update(_wd.get("weather", {}))
-            _merged_weather["_meta"].update(_wd.get("_meta", {}))
-            if "current_week_start" in _wd:
-                _merged_weather["current_week_start"] = _wd["current_week_start"]
-            if "current_week_end" in _wd:
-                _merged_weather["current_week_end"] = _wd["current_week_end"]
-            if "frozen_before" in _wd:
-                _merged_weather["frozen_before"] = _wd["frozen_before"]
-        except (json.JSONDecodeError, OSError):
-            pass
-baked_weather_json = json.dumps(_merged_weather) if _merged_weather["weather"] else "null"
+# ── Bake weather into the dashboard (single weather.json file) ──────────────
+_weather_path = BASE / "weather.json"
+_baked_weather: dict = {"weather": {}, "_meta": {}}
+if _weather_path.exists():
+    try:
+        _wd = json.loads(_weather_path.read_text(encoding="utf-8"))
+        _baked_weather["weather"] = _wd.get("weather", {})
+        _baked_weather["_meta"]   = _wd.get("_meta", {})
+        if "current_week_start" in _wd:
+            _baked_weather["current_week_start"] = _wd["current_week_start"]
+        if "current_week_end" in _wd:
+            _baked_weather["current_week_end"] = _wd["current_week_end"]
+        if "history_start" in _wd:
+            _baked_weather["history_start"] = _wd["history_start"]
+    except (json.JSONDecodeError, OSError):
+        pass
+baked_weather_json = json.dumps(_baked_weather) if _baked_weather["weather"] else "null"
 
 # ── Bake availability heatmap data ───────────────────────────────────────────
 import sys as _sys
@@ -1376,8 +1374,11 @@ function buildTlWeeks(){
       if(byWeek[key])byWeek[key].recal_day=schedData.recal_day;
     }
   }
+  // Always include the current week so the calendar anchors to today even when the schedule is stale
+  const _todayMon=toWeekMonday(new Date());
+  const _todayKey=_todayMon.toISOString().slice(0,10);
+  if(!byWeek[_todayKey])byWeek[_todayKey]={weekStart:_todayKey,walks:[],source:'log'};
   // Sort descending (index 0 = most recent / furthest future)
-  // Future weeks only appear if they have assignment data — no blank placeholders
   return Object.values(byWeek).sort((a,b)=>b.weekStart.localeCompare(a.weekStart));
 }
 

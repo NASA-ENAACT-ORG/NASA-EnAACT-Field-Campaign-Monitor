@@ -7,7 +7,7 @@ This document covers everything needed to keep the server running after the orig
 ## Architecture Overview
 
 ```
-[Traccar Client on phones] ──GPS push──▶ [serve.py on Fly.io] ◀── [Browser / Dashboard]
+[serve.py on Fly.io] ◀── [Browser / Dashboard]
 [Google Drive folder]      ──onChange──▶ [GAS drive_watcher]
                                               │ POST /api/drive/poll
                                          [serve.py on Fly.io]
@@ -17,7 +17,7 @@ This document covers everything needed to keep the server running after the orig
                                          Walks_Log.txt
 ```
 
-- **serve.py** is the single always-running process. It serves the dashboard, receives GPS data, and accepts push triggers from Google Apps Script.
+- **serve.py** is the single always-running process. It serves the dashboard and accepts push triggers from Google Apps Script.
 - **gas/drive_watcher.js** is a Google Apps Script that fires an `onChange` trigger whenever a new file appears in the Drive folder. It calls `/api/drive/poll` immediately — replacing the old 60-second polling loop.
 - **Walks_Log.txt** is the source of truth for completed walks. Drive polling auto-appends to it.
 - **dashboard.html** is regenerated whenever the Drive poller detects new files or when "Rerun Scheduler" is clicked.
@@ -83,31 +83,6 @@ fly ssh console   # SSH into the running machine if needed
 ```
 
 The app URL will be `https://enact-walk-dashboard.fly.dev` (or whatever name was chosen at launch).
-
----
-
-## GPS Tracking: Traccar Client Setup
-
-**App**: Traccar Client (free, Android/iOS) — install on the two field phones.
-
-**Settings in the app:**
-- **Device identifier**: `BP_A` (for Backpack A) or `BP_B` (for Backpack B)
-- **Server URL**: `https://your-app.fly.dev/api/gps`
-- **Frequency**: 5–10 seconds
-- **Token** (add as URL parameter): append `?token=YOUR_GPS_AUTH_TOKEN` to the server URL
-
-Or the full URL format:
-```
-https://your-app.fly.dev/api/gps?id=BP_A&lat={lat}&lon={lon}&speed={speed}&batt={batt}&token=YOUR_GPS_AUTH_TOKEN
-```
-
-Traccar Client handles the `{lat}`, `{lon}` etc. substitutions automatically.
-
-**To verify GPS is working:**
-```
-curl "https://your-app.fly.dev/api/gps/status"
-```
-Should return positions for BP_A and BP_B with non-null lat/lon.
 
 ---
 
@@ -204,7 +179,6 @@ If the trigger stops firing (can happen after GAS project updates), re-run `setu
 
 | Problem | Fix |
 |---|---|
-| GPS badges show "offline" | Check that Traccar Client is running on the phone and the server URL/token are correct |
 | Drive badge shows "not configured" | `GOOGLE_DRIVE_FOLDER_ID` or `GOOGLE_SERVICE_ACCOUNT_JSON` is not set |
 | Drive sync finds no new files | Check that files are named correctly and the service account has Viewer access to the folder |
 | Dashboard not updating after Drive sync | Files were found but names don't match the walk format — check filenames |

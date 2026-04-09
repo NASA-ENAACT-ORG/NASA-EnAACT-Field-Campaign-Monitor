@@ -107,8 +107,8 @@ KML_DIR       = BASE_DIR / "Route_KMLs"
 
 CURRENT_SEASON      = "Spring"
 CLOUD_THRESHOLD     = 33          # ≤ this % cloud cover = good weather
-TARGET_COMPLETIONS  = 8
-MIN_COMPLETIONS     = 6
+TARGET_COMPLETIONS  = 6
+MIN_COMPLETIONS     = 4
 TODS                = ["AM", "MD", "PM"]
 CURRENT_YEAR        = date.today().year    # used for date inference throughout
 CLAUDE_MODEL        = "claude-haiku-4-5-20251001"
@@ -2108,7 +2108,7 @@ def build_weekly_calendar(
     _generate_schedule_map(assignments, route_coords, week_start, week_end)
 
     # ── JSON export for dashboard ─────────────────────────────────────────────
-    # Weather is now in boolean_weather.json (built by build_weather.py)
+    # Weather is now in weather.json (built by build_weather.py)
     schedule_data = {
         "generated":    str(date.today()),
         "generated_at": datetime.now().isoformat(),
@@ -2207,31 +2207,26 @@ def main() -> None:
     print(f"  {total} walks logged across {len(completions)} unique route+TOD+season combos\n")
 
     # ── Step 2 ──────────────────────────────────────────────────────────────
-    print("▶ Step 2  Loading weather from frozen + unfrozen weather files …")
-    _frozen_path   = BASE_DIR / "frozen_boolean_weather.json"
-    _unfrozen_path = BASE_DIR / "unfrozen_boolean_weather.json"
-    if not _unfrozen_path.exists():
-        print(f"  [ERROR] {_unfrozen_path.name} not found — run build_weather.py first.")
+    print("▶ Step 2  Loading weather from weather.json …")
+    _weather_path = BASE_DIR / "weather.json"
+    if not _weather_path.exists():
+        print(f"  [ERROR] {_weather_path.name} not found — run build_weather.py first.")
         sys.exit(1)
+    with open(_weather_path, encoding="utf-8") as _wf:
+        _wd = json.load(_wf)
     weather: Dict[Tuple[date, str], bool] = {}
-    for _wp in (_frozen_path, _unfrozen_path):   # unfrozen loaded second → wins on overlap
-        if not _wp.exists():
-            continue
-        with open(_wp, encoding="utf-8") as _wf:
-            _wd = json.load(_wf)
-        for _key, _is_good in _wd.get("weather", {}).items():
-            _d_str, _tod = _key.rsplit("_", 1)
-            weather[(date.fromisoformat(_d_str), _tod)] = _is_good
-    # week_start/end only live in the unfrozen file
-    with open(_unfrozen_path, encoding="utf-8") as _wf:
-        _uw = json.load(_wf)
-    _bw_ws = _uw.get("current_week_start")
-    _bw_we = _uw.get("current_week_end")
+    for _key, _is_good in _wd.get("weather", {}).items():
+        _d_str, _tod = _key.rsplit("_", 1)
+        weather[(date.fromisoformat(_d_str), _tod)] = _is_good
+    _bw_ws = _wd.get("current_week_start")
+    _bw_we = _wd.get("current_week_end")
     if _bw_ws and _bw_we:
         week_start = date.fromisoformat(_bw_ws)
         week_end   = date.fromisoformat(_bw_we)
     else:
-        print("  [ERROR] unfrozen_boolean_weather.json missing current_week_start / current_week_end")
+        print("  [ERROR] weather.json missing current_week_start / current_week_end — "
+              "no active forecast tab covers today. Add a current-week tab to the spreadsheet "
+              "and re-run build_weather.py.")
         sys.exit(1)
     good = sum(1 for v in weather.values() if v)
     print(f"  {good}/{len(weather)} day+TOD slots have good weather (≤{CLOUD_THRESHOLD}% cloud, city-wide)")
@@ -2252,6 +2247,17 @@ def main() -> None:
         try:
             with open(existing_path, encoding="utf-8") as _f:
                 _existing = json.load(_f)
+            # Merge student schedule (weather-exempt preserved slots)
+            _student_path = Path(__file__).parent / "student_schedule_output.json"
+            if _student_path.exists():
+                try:
+                    with open(_student_path, encoding="utf-8") as _sf:
+                        _student_data = json.load(_sf)
+                    for _sa in _student_data.get("assignments", []):
+                        _sa["weather_exempt"] = True
+                        _existing.setdefault("assignments", []).append(_sa)
+                except Exception as _se:
+                    print(f"  [Note] Could not read student schedule: {_se}")
             for _a in _existing.get("assignments", []):
                 _d   = date.fromisoformat(_a["date"])
                 _tod = _a["tod"]
@@ -2268,8 +2274,9 @@ def main() -> None:
                 # Check weather: HARD CONSTRAINT - must have good weather (cloud cover ≤ 33%)
                 is_good_weather = weather.get((_d, _tod), False)
 
-                # HARD REQUIREMENT: only keep if weather is good, regardless of preservation status
-                if not is_good_weather:
+                # HARD REQUIREMENT: only keep if weather is good, unless slot is weather-exempt
+                # (student collection slots are weather_exempt and always preserved)
+                if not is_good_weather and not _a.get("weather_exempt", False):
                     print(f"  ✗  Rejected (BAD WEATHER): {_a['route']} {_tod} {_a['date']} → {_a['collector']}")
                     continue
 

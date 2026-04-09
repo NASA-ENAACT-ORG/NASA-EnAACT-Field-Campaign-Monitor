@@ -1,0 +1,153 @@
+{
+  "generated": "2026-03-26",
+  "type": "student_collection",
+  "date_range_start": "2026-03-30",
+  "date_range_end": "2026-04-10",
+  "assignments": [
+    {
+      "route": "QN_FH",
+      "label": "Queens \u2013 Forest Hills",
+      "boro": "QN",
+      "neigh": "FH",
+      "tod": "AM",
+      "backpack": "STUDENT_BAG",
+      "collector": "Nabidul & Alexander",
+      "date": "2026-03-30",
+      "preserved": true,
+      "weather_exempt": true
+    },
+    {
+      "route": "QN_FH",
+      "label": "Queens \u2013 Forest Hills",
+      "boro": "QN",
+      "neigh": "FH",
+      "tod": "MD",
+      "backpack": "STUDENT_BAG",
+      "collector": "Nabidul & Alexander",
+      "date": "2026-03-30",
+      "preserved": true,
+      "weather_exempt": true
+    },
+    {
+      "route": "QN_FH",
+      "label": "Queens \u2013 Forest Hills",
+      "boro": "QN",
+      "neigh": "FH",
+      "tod": "PM",
+      "backpack": "STUDENT_BAG",
+      "collector": "Nabidul & Alexander",
+      "date": "2026-03-30",
+      "preserved": true,
+      "weather_exempt": true
+    },
+    {
+      "route": "QN_FU",
+      "label": "Queens \u2013 Flushing",
+      "boro": "QN",
+      "neigh": "FU",
+      "tod": "AM",
+      "backpack": "STUDENT_BAG",
+      "collector": "Robert",
+      "date": "2026-04-01",
+      "preserved": true,
+      "weather_exempt": true
+    },
+    {
+      "route": "QN_FU",
+      "label": "Queens \u2013 Flushing",
+      "boro": "QN",
+      "neigh": "FU",
+      "tod": "MD",
+      "backpack": "STUDENT_BAG",
+      "collector": "Robert",
+      "date": "2026-04-01",
+      "preserved": true,
+      "weather_exempt": true
+    },
+    {
+      "route": "QN_FU",
+      "label": "Queens \u2013 Flushing",
+      "boro": "QN",
+      "neigh": "FU",
+      "tod": "PM",
+      "backpack": "STUDENT_BAG",
+      "collector": "Robert",
+      "date": "2026-04-01",
+      "preserved": true,
+      "weather_exempt": true
+    },
+    {
+      "route": "BK_CI",
+      "label": "Brooklyn \u2013 Coney Island",
+      "boro": "BK",
+      "neigh": "CI",
+      "tod": "PM",
+      "backpack": "STUDENT_BAG",
+      "collector": "Max & Khan",
+      "date": "2026-04-02",
+      "preserved": true,
+      "weather_exempt": true
+    },
+    {
+      "route": "BK_CI",
+      "label": "Brooklyn \u2013 Coney Island",
+      "boro": "BK",
+      "neigh": "CI",
+      "tod": "AM",
+      "backpack": "STUDENT_BAG",
+      "collector": "Max & Khan",
+      "date": "2026-04-03",
+      "preserved": true,
+      "weather_exempt": true
+    },
+    {
+      "route": "BK_CI",
+      "label": "Brooklyn \u2013 Coney Island",
+      "boro": "BK",
+      "neigh": "CI",
+      "tod": "MD",
+      "backpack": "STUDENT_BAG",
+      "collector": "Max & Khan",
+      "date": "2026-04-03",
+      "preserved": true,
+      "weather_exempt": true
+    },
+    {
+      "route": "BK_DT",
+      "label": "Brooklyn \u2013 Downtown BK",
+      "boro": "BK",
+      "neigh": "DT",
+      "tod": "MD",
+      "backpack": "STUDENT_BAG",
+      "collector": "Eda & Ethan",
+      "date": "2026-04-04",
+      "preserved": true,
+      "weather_exempt": true
+    },
+    {
+      "route": "BK_DT",
+      "label": "Brooklyn \u2013 Downtown BK",
+      "boro": "BK",
+      "neigh": "DT",
+      "tod": "PM",
+      "backpack": "STUDENT_BAG",
+      "collector": "Eda & Ethan",
+      "date": "2026-04-04",
+      "preserved": true,
+      "weather_exempt": true
+    },
+    {
+      "route": "BK_DT",
+      "label": "Brooklyn \u2013 Downtown BK",
+      "boro": "BK",
+      "neigh": "DT",
+      "tod": "AM",
+      "backpack": "STUDENT_BAG",
+      "collector": "Eda & Ethan",
+      "date": "2026-04-05",
+      "preserved": true,
+      "weather_exempt": true
+    }
+  ],
+  "unassigned": []
+}

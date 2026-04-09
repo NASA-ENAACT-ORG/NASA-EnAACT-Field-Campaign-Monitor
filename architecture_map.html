@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EnAACT — Project Architecture Map</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0f172a; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; height: 100vh; }
+#container { width: 100vw; height: 100vh; position: relative; overflow: hidden; }
+svg { display: block; position: absolute; top: 0; left: 0; }
+#controls {
+  position: fixed; bottom: 24px; right: 24px;
+  display: flex; flex-direction: column; gap: 8px; z-index: 100;
+}
+.ctrl-btn {
+  width: 44px; height: 44px; border-radius: 10px; border: 1px solid #334155;
+  background: #1e293b; color: #e2e8f0; font-size: 20px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s; line-height: 1;
+}
+.ctrl-btn:hover { background: #334155; }
+#legend {
+  position: fixed; top: 16px; left: 16px; background: rgba(15,23,42,0.92);
+  border: 1px solid #334155; border-radius: 12px; padding: 14px 18px;
+  color: #e2e8f0; font-size: 12px; z-index: 100; backdrop-filter: blur(6px);
+  max-width: 220px;
+}
+#legend h3 { margin-bottom: 8px; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; }
+.leg { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.ldot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+#title {
+  position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+  color: #f1f5f9; font-size: 16px; font-weight: 700; z-index: 100;
+  background: rgba(15,23,42,0.92); padding: 8px 22px; border-radius: 10px;
+  border: 1px solid #334155; white-space: nowrap; backdrop-filter: blur(6px);
+}
+#hint {
+  position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+  color: #475569; font-size: 11px; z-index: 100; pointer-events: none;
+}
+#tooltip {
+  position: absolute; pointer-events: none;
+  background: rgba(15,23,42,0.95); border: 1px solid #475569;
+  border-radius: 8px; padding: 10px 14px; color: #e2e8f0;
+  font-size: 12px; max-width: 280px; opacity: 0;
+  transition: opacity 0.15s; z-index: 200; line-height: 1.45;
+}
+#tooltip strong { display: block; margin-bottom: 3px; font-size: 13px; }
+#tooltip .cat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+</style>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+<div id="container"></div>
+
+<div id="title">EnAACT — Project Architecture Map</div>
+
+<div id="legend">
+  <h3>Node Types</h3>
+  <div class="leg"><div class="ldot" style="background:#10b981"></div>External Inputs</div>
+  <div class="leg"><div class="ldot" style="background:#3b82f6"></div>Scripts / Processes</div>
+  <div class="leg"><div class="ldot" style="background:#f59e0b"></div>Intermediate Data</div>
+  <div class="leg"><div class="ldot" style="background:#a855f7"></div>Outputs / Dashboards</div>
+  <div class="leg"><div class="ldot" style="background:#2dd4bf"></div>External Services</div>
+  <h3 style="margin-top:12px">Interactions</h3>
+  <div class="leg" style="font-size:11px;color:#94a3b8">Click node to highlight flow</div>
+  <div class="leg" style="font-size:11px;color:#94a3b8">Drag nodes to reposition</div>
+  <div class="leg" style="font-size:11px;color:#94a3b8">Scroll to zoom, drag to pan</div>
+</div>
+
+<div id="controls">
+  <button class="ctrl-btn" id="zi">+</button>
+  <button class="ctrl-btn" id="zo">&minus;</button>
+  <button class="ctrl-btn" id="zr" title="Reset view">&#8962;</button>
+</div>
+<div id="hint">Scroll to zoom &middot; Drag to pan &middot; Click node to isolate</div>
+<div id="tooltip"></div>
+
+<script>
+// ── Palette ──────────────────────────────────────────────────────────────────
+const COLORS = {
+  input:   { fill: '#065f46', stroke: '#10b981', text: '#d1fae5' },
+  script:  { fill: '#1e3a8a', stroke: '#3b82f6', text: '#dbeafe' },
+  data:    { fill: '#78350f', stroke: '#f59e0b', text: '#fef3c7' },
+  output:  { fill: '#581c87', stroke: '#a855f7', text: '#f3e8ff' },
+  service: { fill: '#134e4a', stroke: '#2dd4bf', text: '#ccfbf1' },
+};
+const CAT_LABELS = {
+  input: 'External Input', script: 'Script / Process',
+  data: 'Intermediate Data', output: 'Output / Dashboard',
+  service: 'External Service',
+};
+
+// ── Nodes ────────────────────────────────────────────────────────────────────
+const nodes = [
+  // External Inputs (green)
+  { id: 'drive_walks',     label: 'Google Drive\n(Walks/)',        category: 'input', importance: 3, description: 'Remote folder where collectors upload raw walk data after field sessions.' },
+  { id: 'drive_forecasts', label: 'Google Drive\n(Forecasts/)',    category: 'input', importance: 3, description: 'Remote folder containing weekly weather forecast PDFs uploaded by the team.' },
+  { id: 'availability',    label: 'Availability\n.xlsx',          category: 'input', importance: 2, description: 'Excel workbook with per-collector availability slots (day × TOD).' },
+  { id: 'preferred',       label: 'Preferred\nRoutes.xlsx',       category: 'input', importance: 2, description: 'Excel file with collector route affinity/preference scores.' },
+  { id: 'coll_schedule',   label: 'Collector\nSchedule/',         category: 'input', importance: 2, description: 'Folder of calendar screenshots/PDFs parsed by Claude Vision to extract availability.' },
+  { id: 'route_kmls',      label: 'Route_KMLs/',                  category: 'input', importance: 2, description: 'KML files defining route linestrings, endpoints, and collector home locations.' },
+  { id: 'subway_gtfs',     label: 'Subway_gtfs/',                 category: 'input', importance: 2, description: 'MTA GTFS static feed (stops, routes, trips, stop_times) for subway travel times.' },
+  { id: 'recal_log',       label: 'Recal_Log\n.txt',              category: 'input', importance: 1, description: 'Text file tracking instrument recalibration dates (one date per line).' },
+
+  // Scripts (blue)
+  { id: 'serve',           label: 'serve.py',                     category: 'script', importance: 5, description: 'Central HTTP server. Serves dashboards, receives GPS data, orchestrates all other scripts via API endpoints.' },
+  { id: 'scheduler',       label: 'walk_\nscheduler.py',          category: 'script', importance: 5, description: 'Core scheduling engine. Scores route/collector combos using weather, availability, transit, and walk history.' },
+  { id: 'build_dash',      label: 'build_\ndashboard.py',         category: 'script', importance: 4, description: 'Generates the main interactive dashboard HTML with embedded walk log, schedule, weather, and map data.' },
+  { id: 'build_weather',   label: 'build_\nweather.py',           category: 'script', importance: 3, description: 'Parses all forecast PDFs into boolean weather JSONs. Manages frozen (archive) vs unfrozen (active) split.' },
+  { id: 'build_heatmap',   label: 'build_avail_\nheatmap.py',     category: 'script', importance: 2, description: 'Parses Availability.xlsx and generates the collector availability heatmap HTML.' },
+  { id: 'build_collmap',   label: 'build_\ncollector_map.py',     category: 'script', importance: 3, description: 'Generates split-screen Leaflet map showing walk counts per collector with color-coded pins.' },
+  { id: 'forecast_stab',   label: 'forecast_\nstability.py',      category: 'script', importance: 2, description: 'Analyzes how cloud-cover predictions drift over time relative to forecast lead time.' },
+  { id: 'transit_matrix',  label: 'transit_\nmatrix.py',          category: 'script', importance: 2, description: 'Precomputes subway travel time matrices between all routes and collector homes using GTFS Dijkstra search.' },
+  { id: 'drive_sync',      label: 'drive_\nsync.py',              category: 'script', importance: 3, description: 'Polls Google Drive every 60s for new walk uploads and rebuilds Walks_Log.txt from the folder tree.' },
+  { id: 'forecast_mon',    label: 'forecast_\nmonitor.py',        category: 'script', importance: 3, description: 'Polls Google Drive every 5 min for new forecast PDFs and triggers scheduler + dashboard rebuild.' },
+
+  // Intermediate Data (amber)
+  { id: 'walks_log',       label: 'Walks_Log\n.txt',              category: 'data', importance: 4, description: 'Master walk history. Written by drive_sync.py, consumed by scheduler, dashboard, and collector map builders.' },
+  { id: 'schedule_json',   label: 'schedule_\noutput.json',       category: 'data', importance: 4, description: 'Weekly walk assignments output by the scheduler. Baked into dashboard and collector map at build time.' },
+  { id: 'forecast_state',  label: '.forecast_\nstate.json',       category: 'data', importance: 2, description: 'Tracks which forecast PDFs have been processed (by modification time) to avoid re-processing.' },
+  { id: 'frozen_weather',  label: 'frozen_boolean\n_weather.json', category: 'data', importance: 2, description: 'Append-only archive of weather booleans for dates ≥14 days old. Never re-parsed.' },
+  { id: 'unfrozen_weather',label: 'unfrozen_bool\n_weather.json',  category: 'data', importance: 2, description: 'Active-window weather booleans (<14 days). Rebuilt on every forecast parse to capture revisions.' },
+  { id: 'transit_json',    label: 'transit_\nmatrix.json',        category: 'data', importance: 2, description: 'Precomputed route-to-route and collector-to-route subway travel times by time-of-day.' },
+  { id: 'routes_json',     label: 'routes_\ndata.json',           category: 'data', importance: 2, description: 'Route coordinates and metadata extracted from KML files. Used for map rendering.' },
+  { id: 'forecast_local',  label: 'Forecast/\n(local PDFs)',      category: 'data', importance: 3, description: 'Local copies of forecast PDFs downloaded from Google Drive by forecast_monitor.py.' },
+
+  // Outputs (purple)
+  { id: 'dashboard_html',  label: 'dashboard\n.html',             category: 'output', importance: 4, description: 'Main interactive dashboard with walks, schedule, weather, availability, and Leaflet maps.' },
+  { id: 'collmap_html',    label: 'collector_\nmap.html',         category: 'output', importance: 3, description: 'Split-screen map showing collector pins with walk counts and route assignments.' },
+  { id: 'heatmap_html',    label: 'availability_\nheatmap.html',  category: 'output', importance: 2, description: 'Interactive heatmap of collector availability by day and time-of-day.' },
+  { id: 'schedmap_html',   label: 'schedule_\nmap.html',          category: 'output', importance: 2, description: 'Folium map visualization of current weekly walk assignments.' },
+  { id: 'api_endpoints',   label: 'API\nEndpoints',               category: 'output', importance: 2, description: 'JSON API responses: /api/status, /api/gps/status, /api/gps/trail, /api/rerun, /api/rebuild, etc.' },
+
+  // External Services (teal)
+  { id: 'gcs',             label: 'Google Cloud\nStorage',        category: 'service', importance: 2, description: 'Persistent state bucket. Syncs Walks_Log.txt, schedule, weather JSONs across Cloud Run restarts.' },
+  { id: 'cloud_run',       label: 'Google\nCloud Run',            category: 'service', importance: 3, description: 'Hosting platform. Runs the Docker container with serve.py, auto-scales, manages secrets.' },
+  { id: 'anthropic',       label: 'Anthropic\nClaude API',        category: 'service', importance: 2, description: 'Vision API for parsing collector schedule images. Text API for route analysis in the scheduler.' },
+];
+
+// ── Links (directed edges) ───────────────────────────────────────────────────
+const links = [
+  // Drive → sync scripts
+  { source: 'drive_walks',     target: 'drive_sync' },
+  { source: 'drive_forecasts', target: 'forecast_mon' },
+
+  // Sync scripts → intermediate data
+  { source: 'drive_sync',      target: 'walks_log' },
+  { source: 'forecast_mon',    target: 'forecast_local' },
+  { source: 'forecast_mon',    target: 'forecast_state' },
+
+  // Forecast monitor triggers
+  { source: 'forecast_mon',    target: 'scheduler' },
+  { source: 'forecast_mon',    target: 'build_dash' },
+
+  // Inputs → walk_scheduler
+  { source: 'walks_log',       target: 'scheduler' },
+  { source: 'forecast_local',  target: 'scheduler' },
+  { source: 'availability',    target: 'scheduler' },
+  { source: 'preferred',       target: 'scheduler' },
+  { source: 'coll_schedule',   target: 'scheduler' },
+  { source: 'route_kmls',      target: 'scheduler' },
+  { source: 'transit_json',    target: 'scheduler' },
+  { source: 'recal_log',       target: 'scheduler' },
+
+  // Scheduler outputs
+  { source: 'scheduler',       target: 'schedule_json' },
+  { source: 'scheduler',       target: 'schedmap_html' },
+  { source: 'scheduler',       target: 'anthropic' },
+
+  // Forecast local → parsers
+  { source: 'forecast_local',  target: 'build_weather' },
+  { source: 'forecast_local',  target: 'forecast_stab' },
+
+  // build_weather outputs
+  { source: 'build_weather',   target: 'frozen_weather' },
+  { source: 'build_weather',   target: 'unfrozen_weather' },
+
+  // transit_matrix.py
+  { source: 'subway_gtfs',     target: 'transit_matrix' },
+  { source: 'route_kmls',      target: 'transit_matrix' },
+  { source: 'transit_matrix',  target: 'transit_json' },
+
+  // build_dashboard inputs
+  { source: 'schedule_json',   target: 'build_dash' },
+  { source: 'routes_json',     target: 'build_dash' },
+  { source: 'frozen_weather',  target: 'build_dash' },
+  { source: 'unfrozen_weather',target: 'build_dash' },
+  { source: 'walks_log',       target: 'build_dash' },
+  { source: 'build_heatmap',   target: 'build_dash' },
+
+  // build_dashboard output
+  { source: 'build_dash',      target: 'dashboard_html' },
+
+  // build_availability_heatmap
+  { source: 'availability',    target: 'build_heatmap' },
+  { source: 'build_heatmap',   target: 'heatmap_html' },
+
+  // build_collector_map
+  { source: 'routes_json',     target: 'build_collmap' },
+  { source: 'walks_log',       target: 'build_collmap' },
+  { source: 'route_kmls',      target: 'build_collmap' },
+  { source: 'schedule_json',   target: 'build_collmap' },
+  { source: 'build_collmap',   target: 'collmap_html' },
+
+  // forecast_stability output (stdout via serve.py)
+  { source: 'forecast_stab',   target: 'api_endpoints' },
+
+  // serve.py connections
+  { source: 'serve',           target: 'api_endpoints' },
+  { source: 'serve',           target: 'gcs' },
+  { source: 'gcs',             target: 'serve' },
+  { source: 'serve',           target: 'cloud_run' },
+
+  // serve.py triggers (orchestration)
+  { source: 'serve',           target: 'scheduler' },
+  { source: 'serve',           target: 'build_dash' },
+  { source: 'serve',           target: 'build_collmap' },
+  { source: 'serve',           target: 'build_weather' },
+  { source: 'serve',           target: 'forecast_stab' },
+  { source: 'serve',           target: 'drive_sync' },
+];
+
+// ── Setup ────────────────────────────────────────────────────────────────────
+const width = window.innerWidth || document.documentElement.clientWidth || 1400;
+const height = window.innerHeight || document.documentElement.clientHeight || 900;
+
+const svg = d3.select('#container').append('svg')
+  .attr('width', width).attr('height', height);
+
+// Arrow marker
+svg.append('defs').selectAll('marker')
+  .data(['arrow', 'arrow-hi'])
+  .enter().append('marker')
+    .attr('id', d => d)
+    .attr('viewBox', '0 -5 10 10')
+    .attr('refX', 10)
+    .attr('refY', 0)
+    .attr('markerWidth', 7)
+    .attr('markerHeight', 7)
+    .attr('orient', 'auto')
+  .append('path')
+    .attr('d', 'M0,-4L10,0L0,4')
+    .attr('fill', d => d === 'arrow' ? '#475569' : '#94a3b8');
+
+const g = svg.append('g');
+
+// Zoom
+const zoomBehavior = d3.zoom()
+  .scaleExtent([0.12, 5])
+  .on('zoom', (e) => g.attr('transform', e.transform));
+svg.call(zoomBehavior);
+
+// Zoom controls
+document.getElementById('zi').onclick = () => svg.transition().duration(300).call(zoomBehavior.scaleBy, 1.4);
+document.getElementById('zo').onclick = () => svg.transition().duration(300).call(zoomBehavior.scaleBy, 0.7);
+document.getElementById('zr').onclick = () => svg.transition().duration(500).call(zoomBehavior.transform, d3.zoomIdentity.translate(width*0.05, height*0.05).scale(0.9));
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function radius(d) { return 20 + d.importance * 7; }
+
+// Category clustering targets
+function catX(d) {
+  const m = { input: 0.12, script: 0.42, data: 0.62, output: 0.85, service: 0.88 };
+  return width * (m[d.category] || 0.5);
+}
+function catY(d) {
+  const m = { input: 0.5, script: 0.5, data: 0.5, output: 0.55, service: 0.18 };
+  return height * (m[d.category] || 0.5);
+}
+
+// ── Force Simulation ─────────────────────────────────────────────────────────
+const simulation = d3.forceSimulation(nodes)
+  .force('link', d3.forceLink(links).id(d => d.id).distance(130).strength(0.35))
+  .force('charge', d3.forceManyBody().strength(-500))
+  .force('collision', d3.forceCollide().radius(d => radius(d) + 12))
+  .force('x', d3.forceX().x(d => catX(d)).strength(0.08))
+  .force('y', d3.forceY().y(d => catY(d)).strength(0.06))
+  .alphaDecay(0.018);
+
+// ── Draw Links ───────────────────────────────────────────────────────────────
+const link = g.append('g')
+  .selectAll('line')
+  .data(links).enter().append('line')
+    .attr('stroke', '#334155')
+    .attr('stroke-width', 1.5)
+    .attr('stroke-opacity', 0.55)
+    .attr('marker-end', 'url(#arrow)');
+
+// ── Draw Nodes ───────────────────────────────────────────────────────────────
+const node = g.append('g')
+  .selectAll('g')
+  .data(nodes).enter().append('g')
+    .style('cursor', 'pointer');
+
+// Circle
+node.append('circle')
+  .attr('r', d => radius(d))
+  .attr('fill', d => COLORS[d.category].fill)
+  .attr('stroke', d => COLORS[d.category].stroke)
+  .attr('stroke-width', 2.5)
+  .attr('stroke-opacity', 0.9);
+
+// Glow on important nodes
+node.filter(d => d.importance >= 4).append('circle')
+  .attr('r', d => radius(d) + 6)
+  .attr('fill', 'none')
+  .attr('stroke', d => COLORS[d.category].stroke)
+  .attr('stroke-width', 1)
+  .attr('stroke-opacity', 0.2);
+
+// Labels (multi-line via tspan)
+node.each(function(d) {
+  const el = d3.select(this).append('text')
+    .attr('text-anchor', 'middle')
+    .attr('fill', COLORS[d.category].text)
+    .attr('font-size', Math.min(11, radius(d) * 0.34) + 'px')
+    .attr('font-weight', 600)
+    .attr('pointer-events', 'none');
+
+  const lines = d.label.split('\n');
+  const lineHeight = 13;
+  const startY = -((lines.length - 1) * lineHeight) / 2;
+
+  lines.forEach((line, i) => {
+    el.append('tspan')
+      .attr('x', 0)
+      .attr('dy', i === 0 ? startY : lineHeight)
+      .text(line);
+  });
+});
+
+// ── Drag ─────────────────────────────────────────────────────────────────────
+node.call(d3.drag()
+  .on('start', (e, d) => {
+    if (!e.active) simulation.alphaTarget(0.3).restart();
+    d.fx = d.x; d.fy = d.y;
+  })
+  .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
+  .on('end', (e, d) => {
+    if (!e.active) simulation.alphaTarget(0);
+    d.fx = null; d.fy = null;
+  })
+);
+
+// ── Tick ─────────────────────────────────────────────────────────────────────
+simulation.on('tick', () => {
+  link
+    .attr('x1', d => d.source.x)
+    .attr('y1', d => d.source.y)
+    .attr('x2', d => {
+      const dx = d.target.x - d.source.x;
+      const dy = d.target.y - d.source.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      return d.target.x - (dx / dist) * radius(d.target);
+    })
+    .attr('y2', d => {
+      const dx = d.target.x - d.source.x;
+      const dy = d.target.y - d.source.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      return d.target.y - (dy / dist) * radius(d.target);
+    });
+
+  node.attr('transform', d => `translate(${d.x},${d.y})`);
+});
+
+// Pre-tick warmup: compute layout so first paint has positioned nodes
+simulation.stop();
+for (let i = 0; i < 200; i++) simulation.tick();
+simulation.on('tick')();
+simulation.alpha(0.05).restart();
+
+// ── Tooltip ──────────────────────────────────────────────────────────────────
+const tooltip = d3.select('#tooltip');
+
+node.on('mouseenter', (e, d) => {
+  tooltip.style('opacity', 1)
+    .html(`<strong>${d.label.replace(/\n/g, ' ')}</strong>
+           <div class="cat-label" style="color:${COLORS[d.category].stroke}">${CAT_LABELS[d.category]}</div>
+           ${d.description}`);
+})
+.on('mousemove', (e) => {
+  tooltip.style('left', (e.pageX + 16) + 'px')
+         .style('top', (e.pageY - 12) + 'px');
+})
+.on('mouseleave', () => tooltip.style('opacity', 0));
+
+// ── Click-to-Highlight ──────────────────────────────────────────────────────
+let selectedId = null;
+
+function resetHighlight() {
+  node.select('circle:first-child').attr('opacity', 1);
+  node.selectAll('text').attr('opacity', 1);
+  node.selectAll('circle:nth-child(2)').attr('opacity', 1);
+  link.attr('stroke-opacity', 0.55).attr('stroke', '#334155').attr('stroke-width', 1.5).attr('marker-end', 'url(#arrow)');
+}
+
+node.on('click', (e, d) => {
+  e.stopPropagation();
+  if (selectedId === d.id) { selectedId = null; resetHighlight(); return; }
+  selectedId = d.id;
+
+  const connected = new Set([d.id]);
+  links.forEach(l => {
+    const sid = typeof l.source === 'object' ? l.source.id : l.source;
+    const tid = typeof l.target === 'object' ? l.target.id : l.target;
+    if (sid === d.id) connected.add(tid);
+    if (tid === d.id) connected.add(sid);
+  });
+
+  node.select('circle:first-child')
+    .attr('opacity', n => connected.has(n.id) ? 1 : 0.1);
+  node.selectAll('text')
+    .attr('opacity', n => connected.has(n.id) ? 1 : 0.06);
+  node.selectAll('circle:nth-child(2)')
+    .attr('opacity', n => connected.has(n.id) ? 1 : 0.05);
+
+  link
+    .attr('stroke-opacity', l => {
+      const sid = typeof l.source === 'object' ? l.source.id : l.source;
+      const tid = typeof l.target === 'object' ? l.target.id : l.target;
+      return (sid === d.id || tid === d.id) ? 0.85 : 0.04;
+    })
+    .attr('stroke', l => {
+      const sid = typeof l.source === 'object' ? l.source.id : l.source;
+      const tid = typeof l.target === 'object' ? l.target.id : l.target;
+      return (sid === d.id || tid === d.id) ? '#94a3b8' : '#334155';
+    })
+    .attr('stroke-width', l => {
+      const sid = typeof l.source === 'object' ? l.source.id : l.source;
+      const tid = typeof l.target === 'object' ? l.target.id : l.target;
+      return (sid === d.id || tid === d.id) ? 2.5 : 1.5;
+    })
+    .attr('marker-end', l => {
+      const sid = typeof l.source === 'object' ? l.source.id : l.source;
+      const tid = typeof l.target === 'object' ? l.target.id : l.target;
+      return (sid === d.id || tid === d.id) ? 'url(#arrow-hi)' : 'url(#arrow)';
+    });
+});
+
+svg.on('click', () => { selectedId = null; resetHighlight(); });
+
+// ── Resize ───────────────────────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  const w = window.innerWidth, h = window.innerHeight;
+  svg.attr('width', w).attr('height', h);
+  simulation.force('x', d3.forceX().x(d => {
+    const m = { input: 0.12, script: 0.42, data: 0.62, output: 0.85, service: 0.88 };
+    return w * (m[d.category] || 0.5);
+  }).strength(0.08));
+  simulation.force('y', d3.forceY().y(d => {
+    const m = { input: 0.5, script: 0.5, data: 0.5, output: 0.55, service: 0.18 };
+    return h * (m[d.category] || 0.5);
+  }).strength(0.06));
+  simulation.alpha(0.3).restart();
+});
+
+// Initial zoom to fit
+svg.call(zoomBehavior.transform, d3.zoomIdentity.translate(width * 0.05, height * 0.05).scale(0.9));
+</script>
+</body>
+</html>

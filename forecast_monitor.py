@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
 """
-forecast_monitor.py — Monitor Google Drive forecasts and auto-trigger scheduler
+forecast_monitor.py — Monitor a Google Sheets forecast spreadsheet and auto-trigger scheduler
 ========================================================================================
-Periodically polls the Google Drive folder (Forecast/) for new forecast
-PDFs and automatically triggers the walk scheduler when new forecasts are detected.
-Forecast PDFs are stored flat in the Forecasts/ folder, named by date range
-(e.g., "Mar 23 - Mar 27.pdf").
+Periodically polls the Google Sheets spreadsheet for changes (via its Drive
+modification time) and automatically triggers the walk scheduler when the
+sheet is updated.
 
-When new forecasts are found:
-1. Downloads the new forecast PDF
-2. Copies to local Forecast/ folder
-3. Runs walk_scheduler.py
-4. Runs build_dashboard.py
-5. Logs all activity to forecast_monitor.log
+When a change is detected:
+1. Runs build_weather.py  (reads fresh data from the spreadsheet)
+2. Runs walk_scheduler.py
+3. Runs build_dashboard.py
+4. Logs all activity to forecast_monitor.log
 
-Runs every 5 minutes and tracks processed forecasts in .forecast_state.json.
+Runs every 5 minutes and tracks the sheet's last-modified time in .forecast_state.json.
 
 SETUP:
 1. Ensure drive-service-account.json exists in the same folder as this script
 2. Install dependencies: pip install google-auth google-auth-httplib2 google-api-python-client
-3. Ensure walk_scheduler.py and build_dashboard.py are in the same folder
+3. Ensure build_weather.py, walk_scheduler.py and build_dashboard.py are in the same folder
 
 RUN:
 python forecast_monitor.py
@@ -33,14 +31,11 @@ import logging
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Set, Optional, Tuple
+from typing import Dict, Optional
 
 # Google Drive API imports
 from google.oauth2.service_account import Credentials
-from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
-import io
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CONFIGURATION & LOGGING
@@ -49,18 +44,18 @@ import io
 BASE_DIR = Path(__file__).parent
 SERVICE_ACCOUNT_JSON = BASE_DIR / "drive-service-account.json"
 LOG_FILE = BASE_DIR / "forecast_monitor.log"
-FORECAST_DIR = BASE_DIR / "Forecast"
 STATE_FILE = BASE_DIR / ".forecast_state.json"
 
-# Walk scheduler scripts
+SPREADSHEET_ID = "1-AQk9LXHlzeakHBvwdhFLeDrZojkZj3vG2h6cAOumm4"
+
+BUILD_WEATHER  = BASE_DIR / "build_weather.py"
 WALK_SCHEDULER = BASE_DIR / "walk_scheduler.py"
 BUILD_DASHBOARD = BASE_DIR / "build_dashboard.py"
 
-# Google Drive API scopes
+# Drive API scope (read file metadata only)
 SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 
 
-# Setup logging
 logging.basicConfig(
     level=logging.INFO,
     format="[%(asctime)s] %(levelname)s: %(message)s",
@@ -94,114 +89,33 @@ def authenticate_drive():
         sys.exit(1)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# FOLDER NAVIGATION & FORECAST DETECTION
+# SPREADSHEET CHANGE DETECTION
 # ─────────────────────────────────────────────────────────────────────────────
 
-def find_folder_by_name(service, parent_id: str, folder_name: str) -> Optional[str]:
-    """Find a folder by name within a parent folder. Returns folder ID or None."""
-    try:
-        query = f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' and '{parent_id}' in parents and trashed=false"
-        results = service.files().list(
-            q=query,
-            spaces="drive",
-            fields="files(id, name)",
-            pageSize=1
-        ).execute()
-
-        files = results.get("files", [])
-        if files:
-            return files[0]["id"]
-        return None
-    except Exception as e:
-        logger.warning(f"Error finding folder '{folder_name}': {e}")
-        return None
-
-def find_folder_by_name_global(service, folder_name: str) -> Optional[str]:
-    """Find a folder by name anywhere visible to the service account (including shared)."""
-    try:
-        query = f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
-        results = service.files().list(
-            q=query,
-            spaces="drive",
-            fields="files(id, name)",
-            pageSize=1
-        ).execute()
-
-        files = results.get("files", [])
-        if files:
-            logger.info(f"Found '{folder_name}' via global search (id: {files[0]['id']})")
-            return files[0]["id"]
-        return None
-    except Exception as e:
-        logger.warning(f"Error in global search for '{folder_name}': {e}")
-        return None
-
-def list_files_in_folder(service, parent_id: str, mime_type: str = "application/pdf") -> List[Tuple[str, str, int]]:
-    """List all files of a given MIME type in a folder. Returns list of (filename, file_id, mtime) tuples."""
-    try:
-        query = f"mimeType='{mime_type}' and '{parent_id}' in parents and trashed=false"
-        results = service.files().list(
-            q=query,
-            spaces="drive",
-            fields="files(id, name, modifiedTime)",
-            pageSize=1000,
-            orderBy="modifiedTime desc"
-        ).execute()
-
-        files = results.get("files", [])
-        file_list = []
-        for f in files:
-            try:
-                mod_time = datetime.fromisoformat(f["modifiedTime"].replace("Z", "+00:00"))
-                mtime_ts = int(mod_time.timestamp())
-                file_list.append((f["name"], f["id"], mtime_ts))
-            except (ValueError, KeyError):
-                logger.debug(f"Skipping file with invalid timestamp: {f.get('name')}")
-                continue
-        return file_list
-    except Exception as e:
-        logger.warning(f"Error listing files in parent {parent_id}: {e}")
-        return []
-
-def find_forecasts(service) -> Dict[str, Tuple[str, str, int]]:
+def get_sheet_mtime(drive_service) -> Optional[int]:
     """
-    Find all forecast PDFs in the Forecast/ folder (flat, no subfolders).
-
-    PDFs are named by date range, e.g. "Mar 23 - Mar 27.pdf".
-
-    Returns: {filename: (filename, file_id, mtime_ts), ...}
+    Return the spreadsheet's last-modified time as a Unix integer timestamp,
+    or None if the file cannot be reached.
     """
-    forecasts = {}
-
-    # Find Forecast folder directly (search root first, then globally for shared drives)
-    logger.info("Searching for Forecast folder...")
-    forecasts_id = find_folder_by_name(service, "root", "Forecast")
-    if not forecasts_id:
-        forecasts_id = find_folder_by_name_global(service, "Forecast")
-    if not forecasts_id:
-        logger.warning("Forecast folder not found in Google Drive")
-        return forecasts
-
-    # List PDFs directly in Forecasts/
-    logger.info("Listing forecast PDFs...")
-    pdfs = list_files_in_folder(service, forecasts_id, mime_type="application/pdf")
-
-    for filename, file_id, mtime_ts in pdfs:
-        forecasts[filename] = (filename, file_id, mtime_ts)
-        logger.debug(f"Found forecast: {filename} (mtime: {mtime_ts})")
-
-    logger.info(f"Found {len(forecasts)} forecast PDF(s)")
-    return forecasts
+    try:
+        result = drive_service.files().get(
+            fileId=SPREADSHEET_ID,
+            fields="modifiedTime",
+            supportsAllDrives=True
+        ).execute()
+        mod_time = datetime.fromisoformat(result["modifiedTime"].replace("Z", "+00:00"))
+        return int(mod_time.timestamp())
+    except Exception as e:
+        logger.warning(f"Could not read spreadsheet modifiedTime: {e}")
+        return None
 
 # ─────────────────────────────────────────────────────────────────────────────
 # STATE MANAGEMENT
 # ─────────────────────────────────────────────────────────────────────────────
 
-def load_forecast_state() -> Dict[str, int]:
-    """Load the state of processed forecasts. Returns {borough: mtime_ts}."""
+def load_forecast_state() -> Dict:
     if not STATE_FILE.exists():
         return {}
-
     try:
         with open(STATE_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -209,71 +123,17 @@ def load_forecast_state() -> Dict[str, int]:
         logger.warning(f"Error loading forecast state: {e}")
         return {}
 
-def save_forecast_state(state: Dict[str, int]):
-    """Save the current state of processed forecasts."""
+
+def save_forecast_state(mtime_ts: int):
     try:
         with open(STATE_FILE, "w", encoding="utf-8") as f:
-            json.dump(state, f, indent=2)
-        logger.debug(f"Saved forecast state: {state}")
+            json.dump({"spreadsheet_mtime": mtime_ts}, f, indent=2)
+        logger.debug(f"Saved forecast state: spreadsheet_mtime={mtime_ts}")
     except Exception as e:
         logger.error(f"Error saving forecast state: {e}")
 
-def has_new_forecasts(current: Dict[str, Tuple[str, str, int]], previous: Dict[str, int]) -> bool:
-    """Check if any forecast PDF is new or updated since last sync."""
-    for filename, (_, file_id, mtime_ts) in current.items():
-        prev_mtime = previous.get(filename, -1)
-        if mtime_ts > prev_mtime:
-            logger.info(f"New forecast detected: {filename} (mtime: {mtime_ts} > {prev_mtime})")
-            return True
-    return False
-
 # ─────────────────────────────────────────────────────────────────────────────
-# FORECAST DOWNLOAD & MANAGEMENT
-# ─────────────────────────────────────────────────────────────────────────────
-
-def download_file(service, file_id: str, file_name: str, destination: Path) -> bool:
-    """Download a file from Google Drive and save it locally."""
-    try:
-        request = service.files().get_media(fileId=file_id)
-        fh = io.BytesIO()
-        downloader = MediaIoBaseDownload(fh, request)
-
-        done = False
-        while not done:
-            status, done = downloader.next_chunk()
-
-        fh.seek(0)
-        with open(destination, "wb") as f:
-            f.write(fh.read())
-
-        logger.info(f"Downloaded {file_name} to {destination}")
-        return True
-    except Exception as e:
-        logger.error(f"Error downloading {file_name}: {e}")
-        return False
-
-def sync_forecasts(service, forecasts: Dict[str, Tuple[str, str, int]]) -> bool:
-    """Download forecast PDFs to the local Forecast/ folder."""
-    if not forecasts:
-        logger.info("No forecasts to sync")
-        return False
-
-    # Ensure Forecast directory exists
-    FORECAST_DIR.mkdir(exist_ok=True)
-
-    success = True
-    for filename, (_, file_id, mtime_ts) in forecasts.items():
-        # Ensure local filename ends with .pdf
-        local_name = filename if filename.lower().endswith(".pdf") else f"{filename}.pdf"
-        dest = FORECAST_DIR / local_name
-        logger.info(f"Downloading forecast: {filename} (always re-download)")
-        if not download_file(service, file_id, filename, dest):
-            success = False
-
-    return success
-
-# ─────────────────────────────────────────────────────────────────────────────
-# SCHEDULER EXECUTION
+# SCRIPT EXECUTION
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _get_env_with_api_key() -> dict:
@@ -287,139 +147,95 @@ def _get_env_with_api_key() -> dict:
                 env["ANTHROPIC_API_KEY"] = value
                 logger.debug("Loaded ANTHROPIC_API_KEY from Windows User environment")
         except Exception:
-            pass  # Not on Windows or key not there — subprocess will fail with its own error
+            pass
     return env
 
-def run_scheduler():
-    """Run walk_scheduler.py and return success status."""
-    if not WALK_SCHEDULER.exists():
-        logger.error(f"walk_scheduler.py not found at {WALK_SCHEDULER}")
+
+def _run_script(script_path: Path, label: str) -> bool:
+    """Run a Python script and return True on success."""
+    if not script_path.exists():
+        logger.error(f"{label} not found at {script_path}")
         return False
 
-    logger.info("Running walk_scheduler.py...")
+    logger.info(f"Running {label}...")
     try:
         result = subprocess.run(
-            [sys.executable, str(WALK_SCHEDULER)],
+            [sys.executable, str(script_path)],
             cwd=str(BASE_DIR),
             capture_output=True,
             text=True,
-            timeout=300,  # 5 minute timeout
+            timeout=300,
             env=_get_env_with_api_key(),
         )
-
         if result.returncode == 0:
-            logger.info("walk_scheduler.py completed successfully")
-            # Log the output
+            logger.info(f"{label} completed successfully")
             if result.stdout:
-                logger.debug(f"Scheduler output: {result.stdout[:500]}")
+                logger.debug(f"{label} output: {result.stdout[:500]}")
             return True
         else:
-            logger.error(f"walk_scheduler.py failed with code {result.returncode}")
+            logger.error(f"{label} failed with code {result.returncode}")
             if result.stderr:
                 logger.error(f"Error: {result.stderr[:500]}")
             return False
     except subprocess.TimeoutExpired:
-        logger.error("walk_scheduler.py timed out (>5 minutes)")
+        logger.error(f"{label} timed out (>5 minutes)")
         return False
     except Exception as e:
-        logger.error(f"Error running walk_scheduler.py: {e}")
-        return False
-
-def run_build_dashboard():
-    """Run build_dashboard.py and return success status."""
-    if not BUILD_DASHBOARD.exists():
-        logger.error(f"build_dashboard.py not found at {BUILD_DASHBOARD}")
-        return False
-
-    logger.info("Running build_dashboard.py...")
-    try:
-        result = subprocess.run(
-            [sys.executable, str(BUILD_DASHBOARD)],
-            cwd=str(BASE_DIR),
-            capture_output=True,
-            text=True,
-            timeout=300  # 5 minute timeout
-        )
-
-        if result.returncode == 0:
-            logger.info("build_dashboard.py completed successfully")
-            if result.stdout:
-                logger.debug(f"Dashboard output: {result.stdout[:500]}")
-            return True
-        else:
-            logger.error(f"build_dashboard.py failed with code {result.returncode}")
-            if result.stderr:
-                logger.error(f"Error: {result.stderr[:500]}")
-            return False
-    except subprocess.TimeoutExpired:
-        logger.error("build_dashboard.py timed out (>5 minutes)")
-        return False
-    except Exception as e:
-        logger.error(f"Error running build_dashboard.py: {e}")
+        logger.error(f"Error running {label}: {e}")
         return False
 
 # ─────────────────────────────────────────────────────────────────────────────
 # MAIN SYNC LOOP
 # ─────────────────────────────────────────────────────────────────────────────
 
-def sync_once(service) -> bool:
-    """Run one sync cycle. Returns True if scheduler was triggered."""
+def sync_once(drive_service) -> bool:
+    """Run one sync cycle. Returns True if scripts were triggered."""
     try:
-        # Load previous state
         prev_state = load_forecast_state()
+        prev_mtime = prev_state.get("spreadsheet_mtime", -1)
 
-        # Find current forecasts on Google Drive
-        current_forecasts = find_forecasts(service)
-
-        if not current_forecasts:
-            logger.info("No forecasts found on Google Drive")
+        current_mtime = get_sheet_mtime(drive_service)
+        if current_mtime is None:
+            logger.info("Could not read spreadsheet; skipping cycle")
             return False
 
-        # Check for new forecasts
-        if not has_new_forecasts(current_forecasts, prev_state):
-            logger.info("No new forecasts detected")
+        if current_mtime <= prev_mtime:
+            logger.info("No changes detected in spreadsheet")
             return False
 
-        logger.info("New forecasts detected! Starting sync...")
+        logger.info(f"Spreadsheet change detected (mtime: {current_mtime} > {prev_mtime})")
 
-        # Download forecasts to local folder
-        if not sync_forecasts(service, current_forecasts):
-            logger.warning("Failed to download some forecasts, but continuing...")
+        weather_ok   = _run_script(BUILD_WEATHER,   "build_weather.py")
+        scheduler_ok = _run_script(WALK_SCHEDULER,  "walk_scheduler.py")
+        dashboard_ok = _run_script(BUILD_DASHBOARD, "build_dashboard.py")
 
-        # Run scheduler and dashboard
-        scheduler_ok = run_scheduler()
-        dashboard_ok = run_build_dashboard()
-
-        if scheduler_ok and dashboard_ok:
-            # Update state with latest mtimes
-            new_state = {filename: mtime_ts for filename, (_, _, mtime_ts) in current_forecasts.items()}
-            save_forecast_state(new_state)
+        if weather_ok and scheduler_ok and dashboard_ok:
+            save_forecast_state(current_mtime)
             logger.info("✓ Sync completed successfully")
             return True
         else:
-            logger.error("Scheduler or dashboard build failed")
+            logger.error("One or more scripts failed — state not updated")
             return False
 
     except Exception as e:
         logger.error(f"Sync cycle failed: {e}")
         return False
 
+
 def main():
-    """Main loop: check for new forecasts every 5 minutes."""
     logger.info("=" * 80)
     logger.info("Forecast Monitor Service Started")
-    logger.info(f"Polling Google Drive every 5 minutes")
+    logger.info(f"Spreadsheet ID: {SPREADSHEET_ID}")
+    logger.info("Polling Google Drive every 5 minutes")
     logger.info("=" * 80)
 
-    service = authenticate_drive()
+    drive_service = authenticate_drive()
 
     try:
         while True:
             logger.info("Starting forecast check...")
-            sync_once(service)
+            sync_once(drive_service)
             logger.info("Forecast check complete. Waiting 5 minutes...\n")
-
-            # Wait 5 minutes before next check
             time.sleep(300)
     except KeyboardInterrupt:
         logger.info("Forecast Monitor Service stopped by user")
@@ -427,6 +243,7 @@ def main():
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

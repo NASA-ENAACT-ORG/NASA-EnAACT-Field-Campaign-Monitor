@@ -1,14 +1,26 @@
 #!/usr/bin/env python3
 """
-build_weather.py — Parse all forecast PDFs and produce two weather JSON files.
+build_weather.py — Read forecast tabs from Google Sheets and produce a single weather JSON file.
 
-  frozen_boolean_weather.json  — entries for dates > 2 weeks old (append-only)
-  unfrozen_boolean_weather.json — entries for dates within 2 weeks (rebuilt each run)
+  weather.json — all entries for dates >= HISTORY_START, rebuilt each run.
 
-On the first run (no frozen file exists), ALL PDFs are parsed to bootstrap
-the frozen file. On every subsequent run only "active" PDFs (whose filename
-end-date is within 2 weeks) are re-parsed. Entries in the unfrozen file that
-age past 2 weeks are automatically shifted into the frozen file.
+Each tab in the spreadsheet covers a 5- or 7-day rolling window (e.g. "Apr 7 - Apr 13").
+Tab layout:
+  - Column A: date (may include day-of-week prefix, e.g. "Sunday\n4/6/26")
+  - Column B: AM average cloud %
+  - Column C: MD average cloud %
+  - Column D: PM average cloud %
+  - "Last Updated" cell: dynamically located — the LOWEST non-empty row in column B
+    (NOT always B24)
+
+Design rules (2026-04-08 rewrite):
+  • Single output file. No frozen/unfrozen split, no age-out shift.
+  • Hard history floor: HISTORY_START = 2026-03-16. Entries before this are ignored.
+  • Tabs whose end-date < HISTORY_START are skipped entirely.
+  • Conflict resolution: when two tabs cover the same (date, tod), the tab with the
+    newest "Last Updated" date wins. Ties → later tab start-date → alphabetical tab title.
+  • Year-crossing fix: tabs like "Dec 29 - Jan 4" correctly roll end-date into next year.
+  • Raw cloud % retained in _meta for each entry.
 
 Usage:
     python build_weather.py
@@ -23,33 +35,29 @@ if sys.stderr and hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 import json
-import os
 import re
-import shutil
 from collections import defaultdict
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import pdfplumber
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CONFIGURATION
 # ─────────────────────────────────────────────────────────────────────────────
 
-BASE_DIR         = Path(__file__).parent
-FORECAST_DIR     = BASE_DIR / "Forecast"
-FROZEN_PATH      = BASE_DIR / "frozen_boolean_weather.json"
-UNFROZEN_PATH    = BASE_DIR / "unfrozen_boolean_weather.json"
-CLOUD_THRESHOLD  = 33          # ≤ this % cloud cover = good weather
-FREEZE_WINDOW    = 14          # days — entries older than this are frozen
-CURRENT_YEAR     = date.today().year
-TODS             = ["AM", "MD", "PM"]
+BASE_DIR             = Path(__file__).parent
+SERVICE_ACCOUNT_JSON = BASE_DIR / "drive-service-account.json"
+WEATHER_PATH         = BASE_DIR / "weather.json"
 
+SPREADSHEET_ID  = "1-AQk9LXHlzeakHBvwdhFLeDrZojkZj3vG2h6cAOumm4"
+CLOUD_THRESHOLD = 33                       # ≤ this % cloud cover = good weather
+HISTORY_START   = date(2026, 3, 16)        # hard floor: no entries before this
+TODS            = ["AM", "MD", "PM"]
 
-# ─────────────────────────────────────────────────────────────────────────────
-# HELPERS
-# ─────────────────────────────────────────────────────────────────────────────
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 
 MONTHS = {
     "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
@@ -57,430 +65,402 @@ MONTHS = {
 }
 
 
-def parse_week_folder_name(name: str) -> Tuple[Optional[date], Optional[date]]:
-    """Parse names like 'Mar 8 - Mar 14' → (start, end). Year = CURRENT_YEAR."""
+# ─────────────────────────────────────────────────────────────────────────────
+# AUTHENTICATION
+# ─────────────────────────────────────────────────────────────────────────────
+
+def authenticate_sheets():
+    """Authenticate with Google Sheets API using service account."""
+    if not SERVICE_ACCOUNT_JSON.exists():
+        print(f"  [ERROR] Service account JSON not found: {SERVICE_ACCOUNT_JSON}")
+        sys.exit(1)
+    creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_JSON, scopes=SCOPES)
+    return build("sheets", "v4", credentials=creds)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PARSING HELPERS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def parse_week_folder_name(
+    name: str,
+    ref_year: Optional[int] = None,
+) -> Tuple[Optional[date], Optional[date]]:
+    """
+    Parse names like 'Mar 8 - Mar 14' or 'Apr 7 - Apr 13' → (start, end).
+
+    Year-crossing fix: if end < start, roll end into next year (e.g. "Dec 29 - Jan 4").
+    If the resulting start-date is more than 180 days in the future relative to today,
+    assume the tab refers to the prior year and roll both dates back.
+    """
+    if ref_year is None:
+        ref_year = date.today().year
+
     halves = re.split(r"\s+-\s+", name.strip(), maxsplit=1)
     if len(halves) < 2:
         return None, None
 
-    def _parse_part(s: str) -> Optional[date]:
+    def _parse_part(s: str, year: int) -> Optional[date]:
         m = re.match(r"([A-Za-z]+)\s+(\d+)", s.strip())
         if m and m.group(1) in MONTHS:
-            return date(CURRENT_YEAR, MONTHS[m.group(1)], int(m.group(2)))
+            try:
+                return date(year, MONTHS[m.group(1)], int(m.group(2)))
+            except ValueError:
+                return None
         return None
 
-    return _parse_part(halves[0]), _parse_part(halves[1])
+    start = _parse_part(halves[0], ref_year)
+    end   = _parse_part(halves[1], ref_year)
+
+    # Year-crossing: end before start → end is in the next year
+    if start and end and end < start:
+        try:
+            end = date(end.year + 1, end.month, end.day)
+        except ValueError:
+            pass
+
+    # Far-future: if start is > 180 days in the future, assume the tab refers
+    # to the prior year (e.g. parsing "Feb 1 - Feb 7" in December should give 2026,
+    # but parsing it in March of 2027 should give 2027 still → that's fine;
+    # this branch only fires if the naive parse pushes us > 6 months out).
+    today = date.today()
+    if start and (start - today).days > 180:
+        try:
+            start = date(start.year - 1, start.month, start.day)
+            if end:
+                end = date(end.year - 1, end.month, end.day)
+        except ValueError:
+            pass
+
+    return start, end
 
 
-def safe_copy(src: Path, suffix: str) -> Path:
-    """Copy a file to the system temp dir to avoid OneDrive locking."""
-    tmp = Path(os.environ.get("TEMP", "/tmp")) / f"build_weather_{suffix}"
-    shutil.copy2(src, tmp)
-    return tmp
+def pct(cell) -> Optional[int]:
+    """Extract integer percentage from a cell value like '15%', '15', or None."""
+    if cell is None or str(cell).strip() == "":
+        return None
+    m = re.search(r"(\d+)", str(cell))
+    return int(m.group(1)) if m else None
+
+
+def _parse_mdy(s: str) -> Optional[date]:
+    """Parse a date string in M/D/YY or M/D/YYYY format."""
+    m = re.search(r"(\d+)/(\d+)/(\d{2,4})", s)
+    if not m:
+        return None
+    try:
+        mo = int(m.group(1))
+        dy = int(m.group(2))
+        yr = int(m.group(3))
+        yr = (2000 + yr) if yr < 100 else yr
+        return date(yr, mo, dy)
+    except ValueError:
+        return None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PDF PARSING
+# SHEETS API HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _extract_last_updated(pdf_path: Path) -> Optional[date]:
-    """Extract the 'Last Updated: M/D/YYYY' date from a forecast PDF."""
-    with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            text = page.extract_text() or ""
-            m = re.search(
-                r"Last\s+Updated[:\s]*(\d+)/(\d+)/(\d{2,4})",
-                text,
-                re.IGNORECASE,
-            )
-            if m:
-                mo = int(m.group(1))
-                dy = int(m.group(2))
-                yr = int(m.group(3))
-                yr = (2000 + yr) if yr < 100 else yr
-                try:
-                    return date(yr, mo, dy)
-                except ValueError:
-                    pass
+def list_forecast_tabs(sheets_service) -> List[str]:
+    """
+    Return tab titles from the spreadsheet that match the week-range name format.
+    Non-matching tabs (e.g. summary sheets) are silently skipped.
+    """
+    result = sheets_service.spreadsheets().get(
+        spreadsheetId=SPREADSHEET_ID,
+        fields="sheets.properties.title",
+    ).execute()
+
+    titles: List[str] = []
+    for sheet in result.get("sheets", []):
+        title = sheet["properties"]["title"]
+        start, end = parse_week_folder_name(title)
+        if start is not None and end is not None:
+            titles.append(title)
+    return titles
+
+
+def _detect_tod_layout(rows: List[list]) -> str:
+    """
+    Inspect the header rows to determine the tab's TOD layout.
+
+    Returns:
+      "3TOD"    — columns B/C/D map to AM / MD / PM respectively.
+                  (Header row mentions Morning + Noon + Afternoon.)
+      "AM_only" — columns B/C/D are three separate hourly AM samples
+                  (e.g. 7 AM / 8 AM / 9 AM). We average them to a single AM value.
+                  (Header row only mentions Morning.)
+    """
+    for row in rows[:8]:  # header always lives in the first few rows
+        if not row or len(row) < 2:
+            continue
+        a = str(row[0]).strip() if row[0] is not None else ""
+        if a:  # header rows have an empty column A
+            continue
+        b = str(row[1]) if len(row) > 1 else ""
+        c = str(row[2]) if len(row) > 2 else ""
+        d = str(row[3]) if len(row) > 3 else ""
+        if "Morning" in b:
+            if "Noon" in c or "Afternoon" in d:
+                return "3TOD"
+            return "AM_only"
+    return "3TOD"  # sensible default for new tabs
+
+
+def _find_last_updated(rows: List[list]) -> Optional[date]:
+    """
+    Locate the 'Last Updated:' cell. It's always the lowest labeled row
+    with a date in column B.
+    """
+    for row_idx in range(len(rows) - 1, -1, -1):
+        row = rows[row_idx]
+        if not row or len(row) < 2:
+            continue
+        a = str(row[0]).strip().lower() if row[0] is not None else ""
+        if "last updated" not in a:
+            continue
+        b_val = str(row[1]).strip() if len(row) > 1 and row[1] is not None else ""
+        if not b_val:
+            continue
+        candidate = _parse_mdy(b_val)
+        if candidate is not None:
+            return candidate
     return None
 
 
-def _is_per_borough(pdf_path: Path) -> bool:
-    """Check if a PDF uses per-borough format (has borough keywords in rows)."""
-    BORO_KEYWORDS = {"bronx", "manhattan", "queens", "brooklyn"}
-    with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            for table in page.extract_tables():
-                for row in table:
-                    if not row or len(row) < 14:
-                        continue
-                    # Check first cell for borough keyword
-                    cell = row[0]
-                    if cell and any(kw in str(cell).strip().lower() for kw in BORO_KEYWORDS):
-                        return True
-    return False
-
-
-def _detect_avg_indices(pdf_path: Path) -> Tuple[int, int, int]:
+def parse_forecast_tab(
+    sheets_service,
+    tab_title: str,
+    tab_start: date,
+) -> Tuple[Dict[Tuple[date, str], Tuple[bool, int]], Optional[date]]:
     """
-    Detect the column indices for AM, MD, PM averages based on the header row.
+    Read weather data from a single tab. Supports four layout variants:
 
-    Returns (am_avg_idx, md_avg_idx, pm_avg_idx).
+      TOD layout:
+        • "3TOD"    — B/C/D = AM/MD/PM
+        • "AM_only" — B/C/D = three AM hour samples (averaged to a single AM value)
 
-    Two known formats:
-      - 13-col (older): headers don't include 3:00 PM / 8:00 PM → avgs at 4, 8, 12
-      - 15-col (newer): headers include 3:00 PM / 8:00 PM → avgs at 4, 9, 14
+      Date layout:
+        • "combined" — column A of the data row contains "Dayname\\nM/D/YY"
+        • "split"    — data row has only "Dayname" in A; next row has "M/D/YY" in A
+
+    Returns:
+      weather       — {(date, tod): (is_good, cloud_pct)}
+      last_updated  — date or None
     """
-    with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            for table in page.extract_tables():
-                for row in table:
-                    if not row:
-                        continue
-                    # Look for the header row with time labels
-                    row_str = " ".join(str(c) for c in row if c)
-                    if "Average" in row_str and ("7:00" in row_str or "AM" in row_str):
-                        ncols = len(row)
-                        if ncols >= 15:
-                            return (4, 9, 14)  # 15-col format
-                        else:
-                            return (4, 8, 12)  # 13-col format
-    # Default to 13-col format
-    return (4, 8, 12)
+    range_data = f"'{tab_title}'!A1:D50"
+    response = sheets_service.spreadsheets().values().get(
+        spreadsheetId=SPREADSHEET_ID,
+        range=range_data,
+        valueRenderOption="FORMATTED_VALUE",
+    ).execute()
+    rows = response.get("values", [])
 
+    tod_layout = _detect_tod_layout(rows)
+    weather: Dict[Tuple[date, str], Tuple[bool, int]] = {}
 
-def parse_forecast_pdf(pdf_path: Path) -> Dict[Tuple[date, str], bool]:
-    """
-    Extract city-wide cloud-coverage data from a forecast PDF.
+    def _emit(d: date, pcts: List[Optional[int]]) -> None:
+        """Map [b, c, d] percentages to TODs according to the detected layout."""
+        if tod_layout == "3TOD":
+            names = ("AM", "MD", "PM")
+            for name, p in zip(names, pcts):
+                if p is not None:
+                    weather[(d, name)] = (p <= CLOUD_THRESHOLD, p)
+        else:  # AM_only — average the three samples into one AM reading
+            vals = [p for p in pcts if p is not None]
+            if vals:
+                avg = round(sum(vals) / len(vals))
+                weather[(d, "AM")] = (avg <= CLOUD_THRESHOLD, avg)
 
-    Returns {(date, tod): True if avg ≤ CLOUD_THRESHOLD}.
-    Only handles city-wide (unified) format — per-borough PDFs should be
-    filtered out before calling this.
-    """
-    tmp = safe_copy(pdf_path, pdf_path.name)
-    am_idx, md_idx, pm_idx = _detect_avg_indices(tmp)
-    weather: Dict[Tuple[date, str], bool] = {}
+    # ── Walk rows: detect (date, percentages) pairs ──────────────────────────
+    i = 0
+    while i < len(rows):
+        row = rows[i]
+        if not row:
+            i += 1
+            continue
 
-    def pct(cell) -> Optional[int]:
-        if cell is None:
-            return None
-        m = re.search(r"(\d+)", str(cell))
-        return int(m.group(1)) if m else None
+        cell_a = str(row[0]) if len(row) > 0 and row[0] is not None else ""
+        percents = [
+            pct(row[1]) if len(row) > 1 else None,
+            pct(row[2]) if len(row) > 2 else None,
+            pct(row[3]) if len(row) > 3 else None,
+        ]
+        has_percents = any(p is not None for p in percents)
 
-    with pdfplumber.open(tmp) as pdf:
-        for page in pdf.pages:
-            for table in page.extract_tables():
-                for row in table:
-                    if not row:
-                        continue
+        # Ignore the "Last Updated:" row even if someone typo'd a % in it
+        if "last updated" in cell_a.strip().lower():
+            i += 1
+            continue
 
-                    # Find which cell holds the date
-                    d = None
-                    date_col = None
-                    for ci, cell in enumerate(row):
-                        if cell is None:
-                            continue
-                        dm = re.search(r"(\d+)/(\d+)/(\d{2,4})", str(cell))
-                        if dm:
-                            try:
-                                mo_ = int(dm.group(1))
-                                dy_ = int(dm.group(2))
-                                yr_ = int(dm.group(3))
-                                yr_ = (2000 + yr_) if yr_ < 100 else yr_
-                                d = date(yr_, mo_, dy_)
-                                date_col = ci
-                            except ValueError:
-                                pass
-                            break
+        date_in_a = _parse_mdy(cell_a)
 
-                    if d is None or date_col is None:
-                        continue
+        if date_in_a and has_percents:
+            # Combined layout: day+date in A, percentages in B/C/D
+            _emit(date_in_a, percents)
+            i += 1
+            continue
 
-                    # For city-wide, date should be at column 0
-                    if date_col != 0:
-                        continue  # per-borough row (date at col 1), skip
+        if has_percents and date_in_a is None:
+            # Split layout: look for the date on the next non-empty row's column A
+            j = i + 1
+            while j < len(rows) and (not rows[j] or len(rows[j]) == 0):
+                j += 1
+            if j < len(rows):
+                next_a = str(rows[j][0]) if len(rows[j]) > 0 and rows[j][0] is not None else ""
+                date_next = _parse_mdy(next_a)
+                if date_next:
+                    _emit(date_next, percents)
+                    i = j + 1
+                    continue
+            i += 1
+            continue
 
-                    # Check row has enough columns
-                    need = max(am_idx, md_idx, pm_idx) + 1
-                    if len(row) < need:
-                        continue
+        i += 1
 
-                    am_avg = pct(row[am_idx])
-                    md_avg = pct(row[md_idx])
-                    pm_avg = pct(row[pm_idx])
+    # ── Locate "Last Updated" cell ───────────────────────────────────────────
+    last_updated = _find_last_updated(rows)
 
-                    if am_avg is not None:
-                        weather[(d, "AM")] = am_avg <= CLOUD_THRESHOLD
-                    if md_avg is not None:
-                        weather[(d, "MD")] = md_avg <= CLOUD_THRESHOLD
-                    if pm_avg is not None:
-                        weather[(d, "PM")] = pm_avg <= CLOUD_THRESHOLD
+    # Sanity check: if parsed year is < 2026, log a warning and fall back to
+    # the tab's start-year (data-entry error in the sheet — user's case: a
+    # cell containing "3/25/25" instead of "3/25/26").
+    if last_updated is not None and last_updated.year < 2026:
+        print(
+            f"    [WARN] {tab_title!r}: last_updated year {last_updated.year} "
+            f"< 2026 — treating as {tab_start.year} (likely data-entry typo)"
+        )
+        try:
+            last_updated = date(tab_start.year, last_updated.month, last_updated.day)
+        except ValueError:
+            last_updated = tab_start
 
-    if not weather:
-        # Fallback: regex-based text extraction
-        weather = _parse_forecast_text_fallback(tmp)
+    if last_updated is None:
+        # No Last Updated cell found — fall back to tab start-date so conflict
+        # resolution still has a value to compare.
+        last_updated = tab_start
 
-    return weather
-
-
-def _parse_forecast_text_fallback(pdf_path: Path) -> Dict[Tuple[date, str], bool]:
-    """
-    Regex-based fallback: match lines like
-    'Sunday\\n3/8/26  98% 99% 99% 99%  85% 80% 86% 84%  40% 16% 11% 22%'
-    """
-    weather: Dict[Tuple[date, str], bool] = {}
-    with pdfplumber.open(pdf_path) as pdf:
-        text = "\n".join(p.extract_text() or "" for p in pdf.pages)
-
-    flat = re.sub(r"\s+", " ", text)
-
-    # 13-col pattern: 3 hourly + 1 avg per TOD (12 percentage values total)
-    pattern_13 = re.compile(
-        r"(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\s+"
-        r"(\d+)/(\d+)/(\d+)\s+"
-        r"\d+%\s+\d+%\s+\d+%\s+(\d+)%\s+"    # 7am 8am 9am AM_avg
-        r"\d+%\s+\d+%\s+\d+%\s+(\d+)%\s+"     # 12pm 1pm 2pm MD_avg
-        r"\d+%\s+\d+%\s+\d+%\s+(\d+)%"        # 5pm 6pm 7pm PM_avg
-    )
-
-    # 15-col pattern: 3 hourly + avg + 4 hourly + avg + 4 hourly + avg
-    pattern_15 = re.compile(
-        r"(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\s+"
-        r"(\d+)/(\d+)/(\d+)\s+"
-        r"\d+%\s+\d+%\s+\d+%\s+(\d+)%\s+"         # 7am 8am 9am AM_avg
-        r"\d+%\s+\d+%\s+\d+%\s+\d+%\s+(\d+)%\s+"  # 12pm 1pm 2pm 3pm MD_avg
-        r"\d+%\s+\d+%\s+\d+%\s+\d+%\s+(\d+)%"     # 5pm 6pm 7pm 8pm PM_avg
-    )
-
-    # Try 15-col first, fall back to 13-col
-    for pattern in [pattern_15, pattern_13]:
-        for m in pattern.finditer(flat):
-            mo, dy, yr_ = int(m.group(1)), int(m.group(2)), int(m.group(3))
-            yr = (2000 + yr_) if yr_ < 100 else yr_
-            try:
-                d = date(yr, mo, dy)
-            except ValueError:
-                continue
-            weather[(d, "AM")] = int(m.group(4)) <= CLOUD_THRESHOLD
-            weather[(d, "MD")] = int(m.group(5)) <= CLOUD_THRESHOLD
-            weather[(d, "PM")] = int(m.group(6)) <= CLOUD_THRESHOLD
-        if weather:
-            break
-
-    return weather
+    return weather, last_updated
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MAIN: BUILD boolean_weather.json
+# MAIN
 # ─────────────────────────────────────────────────────────────────────────────
-
-def _load_json_weather(path: Path) -> Tuple[Dict[str, bool], Dict[str, dict]]:
-    """Load weather + _meta from a boolean weather JSON file. Returns empty dicts on failure."""
-    if not path.exists():
-        return {}, {}
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return dict(data.get("weather", {})), dict(data.get("_meta", {}))
-    except (json.JSONDecodeError, OSError) as e:
-        print(f"  [WARN] Could not load {path.name}: {e}")
-        return {}, {}
-
 
 def build_weather() -> Path:
-    """
-    Main entry point. Produces:
-      frozen_boolean_weather.json  — append-only, entries for dates > 2 weeks old
-      unfrozen_boolean_weather.json — rebuilt each run, entries within 2 weeks
-      boolean_weather.json          — combined merge of both (for scheduler compat)
-    """
+    """Build weather.json from Google Sheets forecast tabs."""
     today = date.today()
-    freeze_cutoff = today - timedelta(days=FREEZE_WINDOW)
-    bootstrap = not FROZEN_PATH.exists()
 
     print()
     print("╔══════════════════════════════════════════════════════╗")
-    print("║   Build Weather                                      ║")
-    print(f"║   Run date    : {today.strftime('%B %d, %Y'):<38}║")
-    print(f"║   Freeze cutoff: {freeze_cutoff}  ({'BOOTSTRAP — parsing all PDFs' if bootstrap else 'incremental'}) ║")
+    print("║   Build Weather (Google Sheets → weather.json)       ║")
+    print(f"║   Run date      : {today.strftime('%B %d, %Y'):<36}║")
+    print(f"║   History start : {str(HISTORY_START):<36}║")
     print("╚══════════════════════════════════════════════════════╝")
     print()
 
-    # ── Load existing frozen + unfrozen data ─────────────────────────────────
-    frozen_weather, frozen_meta = _load_json_weather(FROZEN_PATH)
-    unfrozen_weather, unfrozen_meta = _load_json_weather(UNFROZEN_PATH)
-    if frozen_weather:
-        print(f"  Loaded {FROZEN_PATH.name}: {len(frozen_weather)} entries")
-    if unfrozen_weather:
-        print(f"  Loaded {UNFROZEN_PATH.name}: {len(unfrozen_weather)} entries")
+    sheets_service = authenticate_sheets()
 
-    # ── Age-out shift: move stale unfrozen entries → frozen ──────────────────
-    aged_count = 0
-    for key in list(unfrozen_weather.keys()):
-        d_str = key.rsplit("_", 1)[0]
-        try:
-            d = date.fromisoformat(d_str)
-        except ValueError:
-            continue
-        if d < freeze_cutoff:
-            if key not in frozen_weather:   # never overwrite existing frozen entries
-                frozen_weather[key] = unfrozen_weather[key]
-                if key in unfrozen_meta:
-                    frozen_meta[key] = unfrozen_meta[key]
-                aged_count += 1
-            del unfrozen_weather[key]
-            unfrozen_meta.pop(key, None)
-    if aged_count:
-        print(f"  Aged-out {aged_count} entries from unfrozen → frozen")
+    # ── List forecast tabs ────────────────────────────────────────────────────
+    tab_titles = list_forecast_tabs(sheets_service)
+    print(f"  Found {len(tab_titles)} forecast tab(s) in spreadsheet")
 
-    # ── Scan PDFs ─────────────────────────────────────────────────────────────
-    if not FORECAST_DIR.is_dir():
-        print(f"  [ERROR] Forecast directory not found: {FORECAST_DIR}")
-        _write_frozen_json(frozen_weather, frozen_meta, freeze_cutoff)
-        _write_unfrozen_json({}, {}, freeze_cutoff, None, None)
-        _write_combined_json(frozen_weather, frozen_meta, {}, {}, freeze_cutoff, None, None)
-        return OUTPUT_PATH
+    # Candidate entry:
+    #   (is_good, cloud_pct, last_updated, tab_start, tab_title)
+    CandidateEntry = Tuple[bool, int, date, date, str]
+    candidates: Dict[str, List[CandidateEntry]] = defaultdict(list)
+    processed_tabs: List[Tuple[date, date, date, str]] = []  # (start, end, last_updated, title)
 
-    pdf_files = sorted(FORECAST_DIR.glob("*.pdf"))
-    print(f"  Found {len(pdf_files)} PDF(s) in Forecast/")
-
-    # Candidates for unfrozen entries (active PDFs, d >= freeze_cutoff)
-    # Candidates for frozen bootstrap entries (old PDFs, d < freeze_cutoff)
-    CandidateEntry = Tuple[bool, date, str]  # (is_good, last_updated, source)
-    active_candidates:    Dict[str, List[CandidateEntry]] = defaultdict(list)
-    bootstrap_candidates: Dict[str, List[CandidateEntry]] = defaultdict(list)
-    active_processed_files: List[Tuple[date, date, date, str]] = []
-
-    for pdf_path in pdf_files:
-        start, end = parse_week_folder_name(pdf_path.stem)
+    for tab_title in tab_titles:
+        start, end = parse_week_folder_name(tab_title)
         if start is None or end is None:
-            print(f"    [SKIP] Can't parse date range: {pdf_path.name}")
+            print(f"    [SKIP] Can't parse date range: {tab_title!r}")
             continue
 
-        is_active = (end >= freeze_cutoff)
-
-        # Non-active PDFs are only parsed during bootstrap
-        if not is_active and not bootstrap:
-            print(f"    [FROZEN FILE] Skipping {pdf_path.name} (end={end} < cutoff)")
+        # Hard history floor — skip tabs that end before HISTORY_START
+        if end < HISTORY_START:
+            print(f"    [SKIP < HISTORY_START] {tab_title!r} (end={end})")
             continue
 
-        tmp = safe_copy(pdf_path, pdf_path.name)
-
-        last_updated = _extract_last_updated(tmp)
-        if last_updated is None:
-            last_updated = date.fromtimestamp(pdf_path.stat().st_mtime)
-            print(f"    [INFO] No 'Last Updated' in {pdf_path.name}, using mtime: {last_updated}")
-
-        if _is_per_borough(tmp):
-            print(f"    [SKIP] Per-borough format: {pdf_path.name}")
-            continue
-
-        weather_data = parse_forecast_pdf(pdf_path)
+        weather_data, last_updated = parse_forecast_tab(
+            sheets_service, tab_title, tab_start=start,
+        )
         if not weather_data:
-            print(f"    [WARN] No weather data extracted: {pdf_path.name}")
+            print(f"    [WARN] No weather data extracted from tab: {tab_title!r}")
             continue
 
-        n_active = n_boot = 0
-        for (d, tod), is_good in weather_data.items():
-            key = f"{d}_{tod}"
-            if d >= freeze_cutoff:
-                if is_active:
-                    active_candidates[key].append((is_good, last_updated, pdf_path.name))
-                    n_active += 1
-            else:
-                if bootstrap:
-                    bootstrap_candidates[key].append((is_good, last_updated, pdf_path.name))
-                    n_boot += 1
-
-        label = "[ACTIVE]" if is_active else "[BOOTSTRAP-OLD]"
-        print(f"    ✓ {pdf_path.name} {label}: {n_active} active + {n_boot} frozen entries, "
-              f"Last Updated: {last_updated}")
-        if is_active:
-            active_processed_files.append((start, end, last_updated, pdf_path.name))
-
-    # ── Conflict resolution: active candidates → unfrozen ────────────────────
-    fresh_weather: Dict[str, bool] = {}
-    fresh_meta: Dict[str, dict] = {}
-    for key, entries in active_candidates.items():
-        entries.sort(key=lambda e: e[1], reverse=True)
-        is_good, lu, source = entries[0]
-        fresh_weather[key] = is_good
-        fresh_meta[key] = {"source": source, "last_updated": str(lu)}
-
-    # ── Bootstrap: apply old-PDF entries → frozen (never overwrite existing) ──
-    if bootstrap:
-        boot_added = 0
-        for key, entries in bootstrap_candidates.items():
-            if key in frozen_weather:
+        n_kept = n_dropped = 0
+        for (d, tod), (is_good, cloud_pct) in weather_data.items():
+            if d < HISTORY_START:
+                n_dropped += 1
                 continue
-            entries.sort(key=lambda e: e[1], reverse=True)
-            is_good, lu, source = entries[0]
-            frozen_weather[key] = is_good
-            frozen_meta[key] = {"source": source, "last_updated": str(lu)}
-            boot_added += 1
-        print(f"  Bootstrap: added {boot_added} historical entries to frozen file")
+            key = f"{d}_{tod}"
+            candidates[key].append((is_good, cloud_pct, last_updated, start, tab_title))
+            n_kept += 1
 
-    # ── Current week detection: latest filename end-date wins ────────────────
-    # "Last Updated" is only for per-slot conflict resolution, NOT week range.
-    # The furthest-out active PDF defines the current week.
-    best_week_start: Optional[date] = None
-    best_week_end: Optional[date] = None
-    if active_processed_files:
-        active_processed_files.sort(key=lambda x: x[1], reverse=True)  # end_date DESC
-        best_week_start = active_processed_files[0][0]
-        best_week_end   = active_processed_files[0][1]
+        # Summarise which TODs are present (quick signal for AM-only vs 3TOD)
+        tods_present = sorted({tod for (_d, tod) in weather_data.keys()})
+        dropped_note = f" ({n_dropped} dropped < HISTORY_START)" if n_dropped else ""
+        print(
+            f"    ✓ {tab_title!r}: {n_kept} entries [{','.join(tods_present)}]{dropped_note}, "
+            f"Last Updated: {last_updated}"
+        )
+        processed_tabs.append((start, end, last_updated, tab_title))
 
-    print(f"\n  Unfrozen (active) entries : {len(fresh_weather)}")
-    print(f"  Frozen entries total       : {len(frozen_weather)}")
+    # ── Conflict resolution ──────────────────────────────────────────────────
+    # Newest last_updated wins. Ties broken by tab start-date DESC, then tab
+    # title alphabetical DESC (deterministic).
+    weather_out: Dict[str, bool] = {}
+    meta_out: Dict[str, dict] = {}
+    for key, entries in candidates.items():
+        entries.sort(
+            key=lambda e: (e[2], e[3], e[4]),  # (last_updated, tab_start, tab_title)
+            reverse=True,
+        )
+        is_good, cloud_pct, lu, _tab_start, source = entries[0]
+        weather_out[key] = is_good
+        meta_out[key] = {
+            "source":       source,
+            "last_updated": str(lu),
+            "cloud_pct":    cloud_pct,
+        }
 
-    # ── Write all three output files ──────────────────────────────────────────
-    _write_frozen_json(frozen_weather, frozen_meta, freeze_cutoff)
-    _write_unfrozen_json(fresh_weather, fresh_meta, freeze_cutoff, best_week_start, best_week_end)
-    return UNFROZEN_PATH
+    # ── Current week detection: latest tab end-date wins ─────────────────────
+    current_week_start: Optional[date] = None
+    current_week_end: Optional[date] = None
+    active_tabs = [t for t in processed_tabs if t[1] >= today]
+    if active_tabs:
+        active_tabs.sort(key=lambda x: x[1], reverse=True)  # end DESC
+        current_week_start = active_tabs[0][0]
+        current_week_end   = active_tabs[0][1]
+    else:
+        print(
+            "  [WARN] No active tab covers today — "
+            "current_week_start/current_week_end will be null. "
+            "Add a new tab covering the current week to the spreadsheet."
+        )
 
+    good = sum(1 for v in weather_out.values() if v)
+    bad  = sum(1 for v in weather_out.values() if not v)
+    print()
+    print(f"  Total entries: {len(weather_out)} ({good} good, {bad} bad)")
+    if current_week_start and current_week_end:
+        print(f"  Current week : {current_week_start} → {current_week_end}")
 
-def _write_frozen_json(
-    weather: Dict[str, bool],
-    meta: Dict[str, dict],
-    freeze_cutoff: date,
-) -> None:
-    """Write frozen_boolean_weather.json (append-only historical store)."""
+    # ── Write weather.json ───────────────────────────────────────────────────
     output = {
-        "generated": datetime.now().isoformat(),
-        "frozen_before": str(freeze_cutoff),
-        "weather": dict(sorted(weather.items())),
-        "_meta": dict(sorted(meta.items())),
+        "generated":          datetime.now().isoformat(),
+        "history_start":      str(HISTORY_START),
+        "current_week_start": str(current_week_start) if current_week_start else None,
+        "current_week_end":   str(current_week_end)   if current_week_end   else None,
+        "weather":            dict(sorted(weather_out.items())),
+        "_meta":              dict(sorted(meta_out.items())),
     }
-    with open(FROZEN_PATH, "w", encoding="utf-8") as f:
+    with open(WEATHER_PATH, "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2)
-    good = sum(1 for v in weather.values() if v)
-    bad  = sum(1 for v in weather.values() if not v)
-    print(f"  ✓ Wrote {FROZEN_PATH.name}: {len(weather)} entries ({good} good, {bad} bad)")
 
-
-def _write_unfrozen_json(
-    weather: Dict[str, bool],
-    meta: Dict[str, dict],
-    freeze_cutoff: date,
-    week_start: Optional[date],
-    week_end: Optional[date],
-) -> None:
-    """Write unfrozen_boolean_weather.json (active/recent, rebuilt each run)."""
-    output = {
-        "generated": datetime.now().isoformat(),
-        "frozen_before": str(freeze_cutoff),
-        "current_week_start": str(week_start) if week_start else None,
-        "current_week_end":   str(week_end)   if week_end   else None,
-        "weather": dict(sorted(weather.items())),
-        "_meta": dict(sorted(meta.items())),
-    }
-    with open(UNFROZEN_PATH, "w", encoding="utf-8") as f:
-        json.dump(output, f, indent=2)
-    good = sum(1 for v in weather.values() if v)
-    bad  = sum(1 for v in weather.values() if not v)
-    print(f"  ✓ Wrote {UNFROZEN_PATH.name}: {len(weather)} entries ({good} good, {bad} bad)")
-    if week_start and week_end:
-        print(f"    Current week: {week_start} → {week_end}")
-
+    print(f"  ✓ Wrote {WEATHER_PATH.name}")
+    return WEATHER_PATH
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -488,4 +468,9 @@ def _write_unfrozen_json(
 # ─────────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    # Sanity assertion: year-crossing tab parses correctly
+    _s, _e = parse_week_folder_name("Dec 29 - Jan 4")
+    assert _s is not None and _e is not None and _e > _s, \
+        f"Year-crossing bug: Dec 29 - Jan 4 → {_s} .. {_e}"
+
     build_weather()

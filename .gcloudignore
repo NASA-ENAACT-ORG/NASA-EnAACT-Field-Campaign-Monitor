@@ -62,7 +62,6 @@ Procfile
 # Documentation and project files (optional, reduce size)
 README.md
 LICENSE
-.git/
 
 # Terraform or other IaC (if using)
 *.tfstate

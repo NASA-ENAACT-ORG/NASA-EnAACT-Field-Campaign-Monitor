@@ -8,15 +8,12 @@ Usage:
 Endpoints:
   GET  /                        → redirect to /dashboard.html
   GET  /<filename>              → serve static file
-  GET  /api/status              → JSON with file mod times, GPS positions, Drive status
+  GET  /api/status              → JSON with file mod times, Drive status
   POST /api/rerun               → run scheduler (both backpacks) + rebuild dashboards, stream output
   POST /api/rerun/a             → run scheduler for Backpack A (CCNY) only + rebuild dashboards
   POST /api/rerun/b             → run scheduler for Backpack B (LaGCC) only + rebuild dashboards
   POST /api/rebuild             → rebuild dashboards only, stream output
   POST /api/forecast-stability  → run forecast stability analysis, stream output
-  GET  /api/gps                 → Traccar Client GPS push (id, lat, lon, speed, batt, token)
-  GET  /api/gps/status          → current positions for both backpacks as JSON
-  GET  /api/gps/trail           → recent position history for one backpack (?id=BP_A)
   POST /api/drive/poll          → manually trigger one Google Drive poll cycle
 """
 
@@ -29,7 +26,6 @@ import sys
 import threading
 import time
 import urllib.parse
-from collections import deque
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -82,19 +78,6 @@ STATUS_FILES = {
     "dashboard":       BASE_DIR / "dashboard.html",
     "collector_map":   BASE_DIR / "collector_map.html",
 }
-
-# ── GPS state ─────────────────────────────────────────────────────────────────
-
-GPS_BACKPACK_IDS = ["BP_A", "BP_B"]
-GPS_STALE_SECONDS = int(os.environ.get("GPS_STALE_SECONDS", "300"))
-GPS_AUTH_TOKEN = os.environ.get("GPS_AUTH_TOKEN", "")   # empty = no auth required
-
-_GPS_LOCK = threading.Lock()
-_GPS_POSITIONS = {
-    bp: {"lat": None, "lon": None, "ts": None, "speed": None, "batt": None, "stale": True}
-    for bp in GPS_BACKPACK_IDS
-}
-_GPS_TRAILS = {bp: deque(maxlen=200) for bp in GPS_BACKPACK_IDS}
 
 # ── Drive polling state ────────────────────────────────────────────────────────
 
@@ -276,12 +259,12 @@ def _run_scheduler_and_rebuild():
             print(out_w[-2000:])
         print(f"[forecast] build_weather.py exit={r_weather.returncode}")
 
-        # Upload weather JSON files to GCS
-        for _wfname in ("frozen_boolean_weather.json", "unfrozen_boolean_weather.json"):
+        # Upload weather JSON file to GCS
+        for _wfname in ("weather.json",):
             _wfpath = BASE_DIR / _wfname
             if _wfpath.exists() and _gcs_bucket:
                 _upload_to_gcs(_wfpath, _wfname)
-        print("[forecast] Uploaded weather JSON files → GCS")
+        print("[forecast] Uploaded weather.json → GCS")
 
         print("[forecast] ▶ Running walk_scheduler.py …")
         r = subprocess.run(
@@ -462,30 +445,6 @@ def _write_chunk(wfile, data: bytes):
     wfile.write(data)
     wfile.write(b"\r\n")
     wfile.flush()
-
-
-# ── GPS helpers ───────────────────────────────────────────────────────────────
-
-def _update_gps(bp_id: str, lat: float, lon: float, speed=None, batt=None):
-    ts = _now_iso()
-    with _GPS_LOCK:
-        _GPS_POSITIONS[bp_id] = {
-            "lat": lat, "lon": lon, "ts": ts,
-            "speed": speed, "batt": batt, "stale": False,
-        }
-        _GPS_TRAILS[bp_id].append({"lat": lat, "lon": lon, "ts": ts})
-
-
-def _refresh_stale():
-    """Mark GPS positions as stale if older than GPS_STALE_SECONDS."""
-    now = datetime.now()
-    with _GPS_LOCK:
-        for bp, pos in _GPS_POSITIONS.items():
-            if pos["ts"]:
-                age = (now - datetime.fromisoformat(pos["ts"])).total_seconds()
-                pos["stale"] = age > GPS_STALE_SECONDS
-            else:
-                pos["stale"] = True
 
 
 # ── Drive polling ─────────────────────────────────────────────────────────────
@@ -672,75 +631,16 @@ class Handler(BaseHTTPRequestHandler):
 
         # /api/status
         if path == "api/status":
-            _refresh_stale()
-            with _GPS_LOCK:
-                gps_snap = {bp: dict(pos) for bp, pos in _GPS_POSITIONS.items()}
             with _DRIVE_LOCK:
                 drive_last = _drive_last_poll
                 drive_today = _drive_new_today
             payload = {name: _mtime_iso(p) for name, p in STATUS_FILES.items()}
-            payload["gps_bp_a"] = gps_snap.get("BP_A")
-            payload["gps_bp_b"] = gps_snap.get("BP_B")
             payload["drive_last_poll"] = drive_last
             payload["drive_new_files_today"] = drive_today
             payload["forecast_last_poll"] = _forecast_last_poll
             payload["forecast_folder_configured"] = bool(DRIVE_FORECASTS_FOLDER_ID)
             body = json.dumps(payload, indent=2).encode()
             self._send(200, "application/json", body)
-            return
-
-        # /api/gps — Traccar Client GPS push
-        # Format: GET /api/gps?id=BP_A&lat=40.71&lon=-73.96&speed=1.3&batt=80&token=secret
-        if path == "api/gps":
-            bp_id = params.get("id", [None])[0]
-            lat   = params.get("lat", [None])[0]
-            lon   = params.get("lon", [None])[0]
-            speed = params.get("speed", [None])[0]
-            batt  = params.get("batt", [None])[0]
-            token = params.get("token", [""])[0]
-
-            if GPS_AUTH_TOKEN and token != GPS_AUTH_TOKEN:
-                self._send(403, "text/plain", b"Forbidden")
-                return
-
-            if bp_id not in GPS_BACKPACK_IDS or lat is None or lon is None:
-                self._send(400, "application/json",
-                           json.dumps({"error": "missing or invalid id/lat/lon"}).encode())
-                return
-
-            try:
-                _update_gps(
-                    bp_id,
-                    float(lat), float(lon),
-                    speed=float(speed) if speed else None,
-                    batt=float(batt) if batt else None,
-                )
-            except ValueError:
-                self._send(400, "application/json",
-                           json.dumps({"error": "non-numeric lat/lon/speed/batt"}).encode())
-                return
-
-            self._send(200, "application/json", json.dumps({"status": "ok"}).encode())
-            return
-
-        # /api/gps/status — current positions
-        if path == "api/gps/status":
-            _refresh_stale()
-            with _GPS_LOCK:
-                data = {bp: dict(pos) for bp, pos in _GPS_POSITIONS.items()}
-            self._send(200, "application/json", json.dumps(data).encode())
-            return
-
-        # /api/gps/trail — position history for one backpack
-        if path == "api/gps/trail":
-            bp_id = params.get("id", [None])[0]
-            if bp_id not in GPS_BACKPACK_IDS:
-                self._send(400, "application/json",
-                           json.dumps({"error": "invalid id"}).encode())
-                return
-            with _GPS_LOCK:
-                trail = list(_GPS_TRAILS[bp_id])
-            self._send(200, "application/json", json.dumps(trail).encode())
             return
 
         # /api/confirmations — current confirm/deny state for schedule assignments
@@ -976,8 +876,8 @@ def _restore_gcs_state():
     # schedule_output.json — use the baked copy from the Docker image.
     # The forecast monitor will regenerate and upload to GCS when new forecasts arrive.
     print("[gcs-restore] Using baked schedule_output.json from Docker image")
-    # Weather JSON files
-    for _wfname in ("frozen_boolean_weather.json", "unfrozen_boolean_weather.json"):
+    # Weather JSON file
+    for _wfname in ("weather.json",):
         _download_from_gcs(_wfname, BASE_DIR / _wfname)
     # schedule_confirmations.json — confirm/deny state
     _download_from_gcs("schedule_confirmations.json", CONFIRMATIONS_FILE)
@@ -1046,7 +946,6 @@ def main():
     print(f"  Rerun API  : POST {url}/api/rerun")
     print(f"  Rebuild API: POST {url}/api/rebuild")
     print(f"  Status API : GET  {url}/api/status")
-    print(f"  GPS API    : GET  {url}/api/gps?id=BP_A&lat=...&lon=...")
     print(f"  Drive Poll : POST {url}/api/drive/poll")
     print(f"  Drive folder: {DRIVE_FOLDER_ID or '(not configured)'}")
     print(f"")

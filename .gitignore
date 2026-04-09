@@ -33,6 +33,20 @@ env/
 # Binary Office docs (not well version-controlled)
 Architecture_Overview.docx
 
+# Credentials (NEVER commit)
+ANTHROPIC_API_KEY.txt
+drive-service-account.json
+
+# Generated/runtime output
+forecast_monitor.log
+scheduler_output.txt
+schedule_confirmations.json
+ALGORITHM_VERIFICATION.md
+
+# Local documentation (not tracked)
+GCP_SETUP_GUIDE.md
+LOCAL_TESTING.md
+
 # OS artifacts
 .DS_Store
 Thumbs.db
