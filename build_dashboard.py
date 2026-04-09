@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Generates dashboard.html with embedded route KML data and sample log."""
 import json, re, xml.etree.ElementTree as ET
 from pathlib import Path
@@ -29,7 +29,7 @@ affinity_json = json.dumps({
     "NRS": [],
 })
 
-# â”€â”€ Collector home locations from KML â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# -- Collector home locations from KML ---
 _KML_NAME_TO_CID = {
     "Terra":                    "TER",
     "Aya":                      "AYA",
@@ -67,7 +67,7 @@ if _kml_path.exists():
             }
 collector_homes_json = json.dumps(_collector_homes)
 
-# â”€â”€ Bake schedule_output.json into the dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# -- Bake schedule_output.json into the dashboard ---
 _sched_path = BASE / "schedule_output.json"
 if _sched_path.exists():
     with open(_sched_path, encoding="utf-8") as _sf:
@@ -75,7 +75,7 @@ if _sched_path.exists():
 else:
     baked_schedule_json = "null"
 
-# â”€â”€ Bake weather into the dashboard (single weather.json file) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# -- Bake weather into the dashboard (single weather.json file) ---
 _weather_path = BASE / "weather.json"
 _baked_weather: dict = {"weather": {}, "_meta": {}}
 if _weather_path.exists():
@@ -93,7 +93,7 @@ if _weather_path.exists():
         pass
 baked_weather_json = json.dumps(_baked_weather) if _baked_weather["weather"] else "null"
 
-# â”€â”€ Bake availability heatmap data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# -- Bake availability heatmap data ---
 import sys as _sys
 _sys.path.insert(0, str(BASE))
 from build_availability_heatmap import load_availability, build_heatmap, GROUP_A, GROUP_B, DAYS as _AVAIL_DAYS, TODS as _AVAIL_TODS, FULL_NAMES as _AVAIL_NAMES
@@ -264,7 +264,7 @@ select option{background:var(--bg3)}
 .cal-event.completed{opacity:.5}
 .ce-bp{font-size:8.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin-bottom:2px}
 .cal-event.bpa .ce-bp{color:#f87171}.cal-event.bpb .ce-bp{color:#60a5fa}.cal-event.bpx .ce-bp{color:#fbbf24}
-.cal-event.completed .ce-bp::before{content:'âœ“ '}
+.cal-event.completed .ce-bp::before{content:'[OK] '}
 .ce-route{font-size:11px;font-weight:600;color:var(--text);line-height:1.3}
 .ce-col{font-size:9.5px;color:var(--text2);margin-top:3px}
 .cal-recal-tag{background:rgba(240,165,0,.12);border:1px dashed #f0a500;border-radius:4px;padding:5px 8px;font-size:9.5px;color:#f0a500;text-align:center;font-weight:700;letter-spacing:.3px}
@@ -274,7 +274,7 @@ select option{background:var(--bg3)}
 .weather-bad .no-sign{font-size:15px;line-height:1;color:#ef4444;font-weight:800;letter-spacing:.6px;display:flex;align-items:center;justify-content:center}
 .weather-bad .weather-label{font-size:8px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.2px}
 .cal-cell.bad-weather{position:relative;z-index:0}
-/* â”€â”€ Availability heatmap view â”€â”€ */
+/* -- Availability heatmap view -- */
 #availability-view{flex-direction:column;overflow-y:auto;padding:14px 16px;gap:14px}
 #avail-header{flex-shrink:0}
 #avail-hm-title{font-size:15px;font-weight:700;margin:0 0 4px;letter-spacing:-.3px;font-family:'Space Grotesk',sans-serif}
@@ -323,7 +323,7 @@ select option{background:var(--bg3)}
 .sli{display:flex;align-items:center;gap:7px;font-size:11px;margin-bottom:4px}
 .slsw{width:24px;height:3px;border-radius:2px;flex-shrink:0}
 #sched-btn-row{display:flex;gap:7px;margin:10px 12px;align-items:center}
-/* â”€â”€ Scheduler auth & status â”€â”€ */
+/* -- Scheduler auth & status -- */
 #sched-unlock-btn{padding:4px 10px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:10px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:4px}
 #sched-unlock-btn:hover{border-color:var(--accent);color:var(--text)}
 #sched-unlock-btn.authed{border-color:#3fb950;color:#3fb950;background:rgba(63,185,80,.1)}
@@ -460,14 +460,14 @@ body.scheduler-mode .cal-event .ce-actions{display:flex}
 #toast.show{transform:translateY(0);opacity:1}
 #toast.success{border-color:var(--green);color:var(--green)}
 #toast.error{border-color:var(--red);color:var(--red)}
-/* â”€â”€ Live GPS markers â”€â”€ */
+/* -- Live GPS markers -- */
 .gps-dot{width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 0 rgba(248,81,73,.6);transition:background .3s}
 .gps-dot-a{background:#f85149;animation:gps-pulse-a 1.6s ease-out infinite}
 .gps-dot-b{background:#388bfd;animation:gps-pulse-b 1.6s ease-out infinite}
 .gps-dot-stale{background:#6e7681;animation:none;box-shadow:none}
 @keyframes gps-pulse-a{0%{box-shadow:0 0 0 0 rgba(248,81,73,.5)}70%{box-shadow:0 0 0 8px rgba(248,81,73,0)}100%{box-shadow:0 0 0 0 rgba(248,81,73,0)}}
 @keyframes gps-pulse-b{0%{box-shadow:0 0 0 0 rgba(56,139,253,.5)}70%{box-shadow:0 0 0 8px rgba(56,139,253,0)}100%{box-shadow:0 0 0 0 rgba(56,139,253,0)}}
-/* â”€â”€ Drive / GPS header badges â”€â”€ */
+/* -- Drive / GPS header badges -- */
 #live-badges{display:flex;align-items:center;gap:6px;margin-left:auto}
 .live-badge{font-size:10px;padding:2px 7px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text3);white-space:nowrap;cursor:default}
 .live-badge.ok{border-color:rgba(74,222,128,.4);color:#4ade80}
@@ -475,7 +475,7 @@ body.scheduler-mode .cal-event .ce-actions{display:flex}
 .live-badge.err{border-color:rgba(248,81,73,.4);color:#f85149}
 .drive-sync-btn{font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;transition:background .15s}
 .drive-sync-btn:hover{background:var(--bg4,#2d333b)}
-/* â”€â”€ Hamburger (visible on ALL screen sizes) â”€â”€ */
+/* -- Hamburger (visible on ALL screen sizes) -- */
 .mobile-menu-btn{display:flex;background:transparent;border:1px solid var(--border);color:var(--text);font-size:18px;width:32px;height:32px;border-radius:6px;cursor:pointer;padding:0;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;margin-left:6px}
 .mobile-menu-btn:hover{background:var(--bg3);border-color:var(--accent)}
 .mobile-menu-btn.filters-open{background:var(--bg3);border-color:var(--accent);color:var(--accent)}
@@ -507,7 +507,7 @@ body.scheduler-mode .cal-event .ce-actions{display:flex}
   .tab-group-btns{flex:1;gap:3px}
   .tab-sep{display:none}
   .tab-btn{padding:5px 6px;font-size:11px;flex:1;text-align:center}
-  /* Filter drawer on mobile â€” top offset matches header height */
+  /* Filter drawer on mobile - top offset matches header height */
   #filters{top:auto}
   #route-panel{width:100%;position:fixed;transform:translateX(100%);transition:transform .3s ease;z-index:1100}
   #route-panel.open{transform:translateX(0);width:100%;max-width:85vw}
@@ -555,7 +555,7 @@ body.scheduler-mode .cal-event .ce-actions{display:flex}
 </style>
 </head>
 <body>
-<div id="loading"><div class="spin"></div><p id="load-msg">Loading dashboardâ€¦</p></div>
+<div id="loading"><div class="spin"></div><p id="load-msg">Loading dashboard...</p></div>
 <div id="toast"></div>
 <script>
 window.onerror=function(msg,src,line,col,err){
@@ -567,8 +567,8 @@ setTimeout(function(){
   var ld=document.getElementById('loading');
   if(ld&&ld.style.display!=='none'){
     var p=document.getElementById('load-msg');
-    if(p&&p.textContent==='Loading dashboardâ€¦'){
-      p.textContent='Timeout â€“ check browser console (F12)';
+    if(p&&p.textContent==='Loading dashboard...'){
+      p.textContent='Timeout - check browser console (F12)';
       p.style.color='#d29922';
     }
   }
@@ -666,7 +666,7 @@ setTimeout(function(){
         <select id="ftod"><option value="">All</option><option value="AM">AM</option><option value="MD">Midday</option><option value="PM">PM</option></select>
       </div>
       <div class="fg"><span class="fl">Backpack</span>
-        <select id="fbp"><option value="">All</option><option value="A">A â€” CCNY</option><option value="B">B â€” LaGCC</option><option value="X">X (legacy)</option></select>
+        <select id="fbp"><option value="">All</option><option value="A">A - CCNY</option><option value="B">B - LaGCC</option><option value="X">X (legacy)</option></select>
       </div>
       <div class="fg"><span class="fl">Date From</span><input type="date" id="ffrom"></div>
       <div class="fg"><span class="fl">Date To</span><input type="date" id="fto"></div>
@@ -675,18 +675,18 @@ setTimeout(function(){
         <label class="btn" for="ffile" style="flex:1;justify-content:center">&#x1F4C2; Load Log</label>
       </div>
       <input type="file" id="ffile" accept=".txt" style="display:none">
-      <div id="data-status">loadingâ€¦</div>
+      <div id="data-status">loading...</div>
       <div class="filter-section-head" style="margin-top:4px">Live Status</div>
       <div id="live-badges">
-        <span class="live-badge" id="gps-badge-a" title="Backpack A GPS">BP-A: â€”</span>
-        <span class="live-badge" id="gps-badge-b" title="Backpack B GPS">BP-B: â€”</span>
-        <span class="live-badge" id="drive-badge" title="Google Drive last sync">Drive: â€”</span>
+        <span class="live-badge" id="gps-badge-a" title="Backpack A GPS">BP-A: -</span>
+        <span class="live-badge" id="gps-badge-b" title="Backpack B GPS">BP-B: -</span>
+        <span class="live-badge" id="drive-badge" title="Google Drive last sync">Drive: -</span>
         <button class="drive-sync-btn" id="drive-sync-btn" title="Sync Google Drive now">&#x21BB; Sync</button>
       </div>
     </div>
   </div>
   <div id="content">
-    <!-- â”€â”€ MAP VIEW â”€â”€ -->
+    <!--- MAP VIEW --->
     <div id="map-view" class="view active">
       <div id="map-wrap">
         <div id="map"></div>
@@ -727,7 +727,7 @@ setTimeout(function(){
         </div>
       </div>
     </div>
-    <!-- â”€â”€ COLLECTOR VIEW â”€â”€ -->
+    <!--- COLLECTOR VIEW --->
     <div id="collector-view" class="view">
       <div id="cselector"></div>
       <div id="cdetail">
@@ -735,7 +735,7 @@ setTimeout(function(){
         <div class="dcard" id="dcharts"></div>
       </div>
       <div id="csection">
-        <h3>All Collectors â€” Side by Side
+        <h3>All Collectors - Side by Side
           <div class="wtabs">
             <button class="wtab active" data-win="2w">Last 2 Wks</button>
             <button class="wtab" data-win="mo">This Month</button>
@@ -756,7 +756,7 @@ setTimeout(function(){
         </table>
       </div>
     </div>
-    <!-- â”€â”€ SCHEDULE VIEW â”€â”€ -->
+    <!--- SCHEDULE VIEW --->
     <div id="schedule-view" class="view">
       <div id="sched-map-wrap">
         <div id="sched-map"></div>
@@ -777,7 +777,7 @@ setTimeout(function(){
             <div id="sched-tl-divider"></div>
             <div id="sched-tl-week-nav">
               <button class="tl-wk-btn" id="tl-wk-prev" title="Older week">&#x2190;</button>
-              <div id="sched-tl-week-label">â€”</div>
+              <div id="sched-tl-week-label">-</div>
               <button class="tl-wk-btn" id="tl-wk-next" title="Newer week">&#x2192;</button>
               <button class="tl-wk-btn" id="tl-wk-now" title="Jump to current week" style="margin-left:2px;font-size:9px;width:auto;padding:0 5px">Now</button>
             </div>
@@ -796,16 +796,16 @@ setTimeout(function(){
         </div>
         <input type="file" id="sched-file" accept=".json" style="display:none">
         <div id="sched-panel-body">
-          <div id="sched-no-data">No schedule loaded â€” schedule is auto-generated when new forecast data arrives.</div>
+          <div id="sched-no-data">No schedule loaded - schedule is auto-generated when new forecast data arrives.</div>
         </div>
       </div>
     </div>
-    <!-- â”€â”€ CALENDAR VIEW â”€â”€ -->
+    <!--- CALENDAR VIEW --->
     <div id="calendar-view" class="view">
       <div id="cal-nav">
         <button class="cal-nav-btn" id="cal-prev" title="Previous week">&#x2039;</button>
         <button class="cal-nav-btn" id="cal-next" title="Next week">&#x203A;</button>
-        <h2 id="cal-title">â€”</h2>
+        <h2 id="cal-title">-</h2>
         <button id="cal-today-btn">Today</button>
         <div id="cal-bp-toggles" style="display:flex;gap:4px;margin-left:12px">
           <button class="bp-toggle active" data-backpack="A" title="Toggle Backpack A">BP A</button>
@@ -818,7 +818,7 @@ setTimeout(function(){
         <div id="cal-grid"></div>
       </div>
     </div>
-    <!-- â”€â”€ AVAILABILITY VIEW â”€â”€ -->
+    <!--- AVAILABILITY VIEW --->
     <div id="availability-view" class="view">
       <div id="avail-header">
         <h1 id="avail-hm-title">Collector Availability</h1>
@@ -861,7 +861,7 @@ setTimeout(function(){
 </div>
 
 <script>
-// â”€â”€â”€ DATA â”€â”€â”€
+// --- DATA ---
 const ROUTES_GEO = __ROUTES_JSON__;
 const COLLECTOR_HOMES = __COLLECTOR_HOMES__;
 const BAKED_SCHEDULE = __BAKED_SCHEDULE__;
@@ -893,22 +893,22 @@ async function refreshRuntimeData(){
     }
   }catch(_e){}
 }
-// Campus affiliation â†’ pin color  (purple = CCNY, red = LaGCC, amber = staff)
+// Campus affiliation -> pin color  (purple = CCNY, red = LaGCC, amber = staff)
 const COLLECTOR_PIN_COLOR = {
   'SOT':'#7c3aed','AYA':'#7c3aed','JEN':'#7c3aed','TAH':'#7c3aed','ANG':'#7c3aed',
   'TER':'#dc2626','ALX':'#dc2626','SCT':'#dc2626','JAM':'#dc2626',
 };
 const ROUTE_LABELS = {
-  "MN_HT":"Manhattan â€“ Harlem","MN_WH":"Manhattan â€“ Washington Hts",
-  "MN_UE":"Manhattan â€“ Upper East Side","MN_MT":"Manhattan â€“ Midtown",
-  "MN_LE":"Manhattan â€“ Union Sq / LES","BX_HP":"Bronx â€“ Hunts Point",
-  "BX_NW":"Bronx â€“ Norwood","BK_DT":"Brooklyn â€“ Downtown BK",
-  "BK_WB":"Brooklyn â€“ Williamsburg","BK_BS":"Brooklyn â€“ Bed Stuy",
-  "BK_CH":"Brooklyn â€“ Crown Heights","BK_SP":"Brooklyn â€“ Sunset Park",
-  "BK_CI":"Brooklyn â€“ Coney Island","QN_FU":"Queens â€“ Flushing",
-  "QN_LI":"Queens â€“ Astoria / LIC","QN_JH":"Queens â€“ Jackson Heights",
-  "QN_JA":"Queens â€“ Jamaica","QN_FH":"Queens â€“ Forest Hills",
-  "QN_LA":"Queens â€“ LaGuardia CC","QN_EE":"Queens â€“ East Elmhurst",
+  "MN_HT":"Manhattan - Harlem","MN_WH":"Manhattan - Washington Hts",
+  "MN_UE":"Manhattan - Upper East Side","MN_MT":"Manhattan - Midtown",
+  "MN_LE":"Manhattan - Union Sq / LES","BX_HP":"Bronx - Hunts Point",
+  "BX_NW":"Bronx - Norwood","BK_DT":"Brooklyn - Downtown BK",
+  "BK_WB":"Brooklyn - Williamsburg","BK_BS":"Brooklyn - Bed Stuy",
+  "BK_CH":"Brooklyn - Crown Heights","BK_SP":"Brooklyn - Sunset Park",
+  "BK_CI":"Brooklyn - Coney Island","QN_FU":"Queens - Flushing",
+  "QN_LI":"Queens - Astoria / LIC","QN_JH":"Queens - Jackson Heights",
+  "QN_JA":"Queens - Jamaica","QN_FH":"Queens - Forest Hills",
+  "QN_LA":"Queens - LaGuardia CC","QN_EE":"Queens - East Elmhurst",
 };
 const ALL_ROUTES = new Set(Object.keys(ROUTE_LABELS));
 const COLLECTORS = ["SOT","AYA","ALX","TAH","JAM","JEN","SCT","TER","PRA","NAT","NRS"];
@@ -922,7 +922,7 @@ const SAMPLE_LOG = `__SAMPLE_LOG__`;
 const TARGET=8, MINC=6;
 const TODS=["AM","MD","PM"];
 
-// â”€â”€â”€ STATE â”€â”€â”€
+// --- STATE ---
 let allWalks=[], filteredWalks=[], logText=SAMPLE_LOG;
 let currentRoute=null, currentCollector=COLLECTORS[0], currentWin='2w';
 let filters={season:'',tod:'',backpack:'',from:null,to:null};
@@ -930,7 +930,7 @@ let visibleBackpacks={A:true,B:true,X:true};
 let map=null, routeLayers={}, routeCentroids={}, charts={};
 let collectorHomeLayer=null, collectorHomesVisible=false, collectorHomeMarkers={};
 
-// â”€â”€â”€ UTIL â”€â”€â”€
+// --- UTIL ---
 function getSeason(d){const m=d.getMonth()+1;return m>=3&&m<=5?'Spring':m>=6&&m<=8?'Summer':m>=9&&m<=11?'Fall':'Winter';}
 function today(){return new Date();}
 function fmtDate(d){return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
@@ -944,13 +944,16 @@ function toast(msg,tp=''){
   el.textContent=msg;el.className='show '+tp;
   setTimeout(()=>{el.className='';},3000);
 }
-// â”€â”€â”€ PARSE â”€â”€â”€
+// --- PARSE ---
 function parseLog(txt){
   const ws=[];
   for(const raw of txt.split('\\n')){
     const line=raw.trim();if(!line)continue;
-    const ai=line.indexOf('\u2192');
-    const code=(ai>=0?line.slice(ai+1):line).trim();
+    const aiAscii=line.indexOf('->');
+    const aiUtf=line.indexOf(String.fromCharCode(0x2192));
+    const ai=aiAscii>=0?aiAscii:aiUtf;
+    const cut=aiAscii>=0?2:aiUtf>=0?1:0;
+    const code=(ai>=0?line.slice(ai+cut):line).trim();
     const p=code.split('_');
     if(p.length!==8&&p.length!==6)continue;
     let bp,col,boro,neigh,tod,date;
@@ -969,7 +972,7 @@ function parseLog(txt){
   }
   return ws;
 }
-// â”€â”€â”€ FILTER â”€â”€â”€
+// --- FILTER ---
 function updateCollectorHomePins(){
   for(const[cid,marker]of Object.entries(collectorHomeMarkers)){
     const h=COLLECTOR_HOMES[cid];
@@ -995,7 +998,7 @@ function applyFilters(){
   if(document.getElementById('collector-view').classList.contains('active'))renderCV();
   if(document.getElementById('calendar-view').classList.contains('active'))renderCalendar();
 }
-// â”€â”€â”€ MAP â”€â”€â”€
+// --- MAP ---
 function makeHomeIcon(cid,count){
   const h=COLLECTOR_HOMES[cid];
   const lbl=h?(h.name.startsWith('Prof.')?h.name.split(' ')[1]:h.name.split(' ')[0]):cid;
@@ -1046,7 +1049,7 @@ function initMap(){
       routeLayers[code].push(L2);
     }
   }
-  // â”€â”€ Collector home layer (toggled) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Collector home layer (toggled) ---
   collectorHomeLayer=L.layerGroup();
   for(const[cid,h]of Object.entries(COLLECTOR_HOMES)){
     const initCount=filteredWalks.filter(w=>w.collector===cid).length;
@@ -1089,10 +1092,10 @@ function updateMapStats(){
   for(const c of ALL_ROUTES)cnt[routeStatus(c,filteredWalks).s]++;
   document.getElementById('mstats').innerHTML=
     `<div class="msc"><strong style="color:#15803d">${cnt.green}</strong>At target (8+)</div>
-     <div class="msc"><strong style="color:#4ade80">${cnt.yellow}</strong>Near minimum (6â€“7)</div>
+     <div class="msc"><strong style="color:#4ade80">${cnt.yellow}</strong>Near minimum (6-7)</div>
      <div class="msc"><strong style="color:#f85149">${cnt.red}</strong>Below minimum (&lt;6)</div>`;
 }
-// â”€â”€â”€ ROUTE PANEL â”€â”€â”€
+// --- ROUTE PANEL ---
 function openPanel(code){
   currentRoute=code;
   document.getElementById('route-panel').classList.add('open');
@@ -1108,7 +1111,7 @@ function closePanel(){
 function updateRoutePanel(code){
   const lbl=ROUTE_LABELS[code]||code;
   document.getElementById('pname').textContent=lbl;
-  document.getElementById('pcode').textContent=code+' Â· '+ROUTE_LABELS[code]?.split('â€“')[0]?.trim();
+  document.getElementById('pcode').textContent=code+'  |  '+ROUTE_LABELS[code]?.split('-')[0]?.trim();
   const rw=filteredWalks.filter(w=>w.route===code);
   const byTod={AM:0,MD:0,PM:0};
   for(const w of rw)byTod[w.tod]++;
@@ -1157,7 +1160,7 @@ function updateRoutePanel(code){
     <td><span class="bb">${w.bp}</span></td>
   </tr>`).join('')}</tbody></table>`;
 }
-// â”€â”€â”€ COLLECTOR VIEW â”€â”€â”€
+// --- COLLECTOR VIEW ---
 function getWinsFor(cid,win){
   let base=allWalks.filter(w=>w.collector===cid);
   if(filters.tod)base=base.filter(w=>w.tod===filters.tod);
@@ -1302,16 +1305,16 @@ function renderCV(){
   renderCollectorDetail(currentCollector);
   renderComparison();
 }
-// â”€â”€â”€ UPDATE STATUS â”€â”€â”€
+// --- UPDATE STATUS ---
 function updateStatus(src){
   const n=allWalks.length;
   const el=document.getElementById('data-status');
-  el.textContent=`${n} walks Â· ${src||'embedded sample'}`;
+  el.textContent=`${n} walks  |  ${src||'embedded sample'}`;
   el.style.color=n>0?'var(--green)':'var(--text3)';
 }
-// â”€â”€â”€ SCHEDULE â”€â”€â”€
+// --- SCHEDULE ---
 let schedMap=null, schedData=null, schedLayers={};
-// â”€â”€ Confirmation state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Confirmation state ---
 let schedConfirmations={};   // {assignId: {status,scheduler,timestamp}}
 let schedAuth={unlocked:false, scheduler:null, pin:null};
 
@@ -1320,7 +1323,7 @@ function assignId(a){return `${a.route}_${a.tod}_${a.date}`;}
 function statusBadgeHTML(aid){
   const c=schedConfirmations[aid];
   const st=c?c.status:'pending';
-  const label=st==='confirmed'?'âœ… Confirmed':st==='denied'?'âŒ Denied':'ðŸŸ¡ Pending';
+  const label=st==='confirmed'?'[OK] Confirmed':st==='denied'?'[NO] Denied':'[PENDING] Pending';
   return `<span class="status-badge ${st}">${label}</span>`;
 }
 
@@ -1344,33 +1347,33 @@ async function doConfirm(aid, status){
     // Re-render both panels
     renderSchedulePanel();
     if(document.getElementById('calendar-view').classList.contains('active'))renderCalendar();
-    toast(status==='confirmed'?'Assignment confirmed âœ…':status==='denied'?'Assignment denied âŒ':'Reset to pending','success');
+    toast(status==='confirmed'?'Assignment confirmed [OK]':status==='denied'?'Assignment denied [NO]':'Reset to pending','success');
   }catch(e){toast('Could not reach server','');}
 }
 
 function actionBtns(aid){
-  // Returns inner button HTML only â€” caller wraps with appropriate class
+  // Returns inner button HTML only - caller wraps with appropriate class
   const st=(schedConfirmations[aid]||{}).status||'pending';
   if(st==='pending'){
-    return `<button class="sr-confirm-btn" onclick="event.stopPropagation();doConfirm('${aid}','confirmed')">âœ“ Confirm</button>`
-          +`<button class="sr-deny-btn"    onclick="event.stopPropagation();doConfirm('${aid}','denied')">âœ— Deny</button>`;
+    return `<button class="sr-confirm-btn" onclick="event.stopPropagation();doConfirm('${aid}','confirmed')">[OK] Confirm</button>`
+          +`<button class="sr-deny-btn"    onclick="event.stopPropagation();doConfirm('${aid}','denied')">[NO] Deny</button>`;
   }
-  return `<button class="sr-reset-btn" onclick="event.stopPropagation();doConfirm('${aid}','pending')">â†© Reset</button>`;
+  return `<button class="sr-reset-btn" onclick="event.stopPropagation();doConfirm('${aid}','pending')">[RESET] Reset</button>`;
 }
 let schedStep=-1, schedPlaying=false, schedPlayTimer=null;
 let tlWeekIdx=0;   // index into tlWeeks array (0 = most recent)
 
 const TOD_ORDER={AM:0,MD:1,PM:2};
 
-// â”€â”€ Helper: snap any date to the Sunday that starts its week â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Helper: snap any date to the Sunday that starts its week ---
 function toWeekMonday(d){
   const s=new Date(d); s.setDate(d.getDate()-((d.getDay()+6)%7)); s.setHours(0,0,0,0); return s;
 }
 
-// â”€â”€ Build sorted list of distinct Sun-Sat weeks across completed+scheduled walks â”€â”€
+// -- Build sorted list of distinct Sun-Sat weeks across completed+scheduled walks --
 function buildTlWeeks(){
   const byWeek={};
-  // Completed walks from log â€” key by the Sunday of the walk's week
+  // Completed walks from log - key by the Sunday of the walk's week
   for(const w of allWalks){
     const d=new Date(w.date.getFullYear(),w.date.getMonth(),w.date.getDate());
     const sun=toWeekMonday(d);
@@ -1382,7 +1385,7 @@ function buildTlWeeks(){
       collector:w.collector, source:'completed'
     });
   }
-  // Scheduled assignments â€” each assignment keyed to the Sunday of ITS OWN date
+  // Scheduled assignments - each assignment keyed to the Sunday of ITS OWN date
   // (schedule week_start may span multiple Sun-Sat weeks)
   if(schedData&&schedData.assignments&&schedData.assignments.length){
     for(const a of schedData.assignments){
@@ -1460,14 +1463,14 @@ function initSchedMap(){
       schedLayers[code].push(pl);
     }
   }
-  // CCNY recalibration pin â€” 160 Convent Ave
+  // CCNY recalibration pin - 160 Convent Ave
   const ccnyIcon=L.divIcon({
     className:'',
     html:`<div style="background:#f0a500;border:2px solid #fff;border-radius:50% 50% 50% 0;width:18px;height:18px;transform:rotate(-45deg);box-shadow:0 0 6px #f0a50099"></div>`,
     iconSize:[18,18],iconAnchor:[9,18]
   });
   L.marker([40.8196,-73.9499],{icon:ccnyIcon,zIndexOffset:1000})
-   .bindPopup('<b>CCNY â€” 160 Convent Ave</b><br>Backpack recalibration site<br><span style="color:#f0a500">â˜… Recal day: both backpacks return here</span>')
+   .bindPopup('<b>CCNY - 160 Convent Ave</b><br>Backpack recalibration site<br><span style="color:#f0a500">* Recal day: both backpacks return here</span>')
    .addTo(schedMap);
 }
 
@@ -1550,10 +1553,10 @@ function renderTimelineBar(){
     if(detail)detail.textContent=`${n} walk${n!==1?'s':''} this week${comp?` | ${comp} completed`:''}${sched?` | ${sched} scheduled`:''} - click a dot or press Play`;
   }
 
-  // Build day columns â€” derive day name from actual date, not from offset index,
+  // Build day columns - derive day name from actual date, not from offset index,
   // because week_start may not always be a Monday (schedule weeks start on Friday).
   const DAY_NAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  // Flatten sorted to a lookup: date â†’ list of {walk, globalIdx}
+  // Flatten sorted to a lookup: date -> list of {walk, globalIdx}
   const byDate={};
   sorted.forEach((w,i)=>{
     if(!byDate[w.date])byDate[w.date]=[];
@@ -1582,7 +1585,7 @@ function renderTimelineBar(){
     if(!dotsHtml&&isRecal)dotsHtml='';  // recal label handles it
 
     const lblCls=isToday?'tl-day-lbl tl-today':'tl-day-lbl';
-    const recalHtml=isRecal?`<div class="tl-day-recal">â˜…RECAL</div>`:'';
+    const recalHtml=isRecal?`<div class="tl-day-recal">*RECAL</div>`:'';
     cols.push(`<div class="tl-day"><div class="${lblCls}">${dayLbl}</div><div class="tl-day-dots">${dotsHtml}</div>${recalHtml}</div>`);
     if(d<6)cols.push(`<div class="tl-day-sep"></div>`);
   }
@@ -1649,7 +1652,7 @@ function renderSchedulePanel(){
     meta.textContent='Run the scheduler to load assignments';
     return;
   }
-  meta.textContent=`Week: ${schedData.week_start} â†’ ${schedData.week_end}  Â·  Generated: ${schedData.generated}`;
+  meta.textContent=`Week: ${schedData.week_start} -> ${schedData.week_end}   |   Generated: ${schedData.generated}`;
   const byBP={A:[],B:[]};
   for(const a of schedData.assignments)(byBP[a.backpack]||byBP['A']).push(a);
   byBP.A.sort((a,b)=>a.date.localeCompare(b.date)||a.tod.localeCompare(b.tod));
@@ -1709,7 +1712,7 @@ function loadScheduleJSON(text){
   }
 }
 
-// â”€â”€â”€ CALENDAR â”€â”€â”€
+// --- CALENDAR ---
 let calWeekIdx=0;
 
 function isBadWeatherSlot(dateStr,tod){
@@ -1736,8 +1739,8 @@ function renderCalendar(){
 
   const weeks=buildTlWeeks();
   if(!weeks.length){
-    grid.innerHTML='<div class="cal-empty-week">No walk data or schedule loaded yet â€” run the scheduler or load a log file.</div>';
-    if(title)title.textContent='â€”';
+    grid.innerHTML='<div class="cal-empty-week">No walk data or schedule loaded yet - run the scheduler or load a log file.</div>';
+    if(title)title.textContent='-';
     if(srcBadge)srcBadge.textContent='No data loaded';
     return;
   }
@@ -1760,7 +1763,7 @@ function renderCalendar(){
   if(prevBtn)prevBtn.disabled=idx>=weeks.length-1;
   if(nextBtn)nextBtn.disabled=idx<=0;
 
-  // Build lookup: dateStr â†’ {AM:[], MD:[], PM:[]}
+  // Build lookup: dateStr -> {AM:[], MD:[], PM:[]}
   const byDayTod={};
   for(const w of wk.walks){
     if(!visibleBackpacks[w.backpack])continue;
@@ -1805,7 +1808,7 @@ function renderCalendar(){
       }
       // Recalibration tag in AM cell
       if(isRecal&&ctod==='AM'){
-        cellContent+=`<div class="cal-recal-tag">â˜… Recalibration â€” CCNY</div>`;
+        cellContent+=`<div class="cal-recal-tag">* Recalibration - CCNY</div>`;
       }
       // Walk event cards
       for(const w of walks){
@@ -1813,7 +1816,7 @@ function renderCalendar(){
         const compCls=w.source==='completed'?' completed':'';
         const bpLabel=w.backpack==='A'?'Backpack A':w.backpack==='B'?'Backpack B':'Legacy X';
         const routeLbl=ROUTE_LABELS[w.route]||w.route;
-        const colLbl=CNAMES[w.collector]||w.collector||'â€”';
+        const colLbl=CNAMES[w.collector]||w.collector||'-';
         const aid=w.source==='scheduled'?assignId(w):'';
         const badge=aid?statusBadgeHTML(aid):'';
         const actions=aid?`<div class="ce-actions">${actionBtns(aid)}</div>`:'';
@@ -1838,7 +1841,7 @@ function renderCalendar(){
   grid.innerHTML=html;
 }
 
-// â”€â”€â”€ AVAILABILITY HEATMAP â”€â”€â”€
+// --- AVAILABILITY HEATMAP ---
 const _AVAIL_DAYS=__AVAIL_DAYS_JSON__;
 const _AVAIL_TODS=['AM','MD','PM'];
 const _CELLS_A=__AVAIL_CELLS_A__;
@@ -1881,7 +1884,7 @@ function buildAvailTable(id,data,max){
     const day=_AVAIL_DAYS[idx%_AVAIL_DAYS.length];
     const cell=data[day+'_'+tod]||{count:0,names:[]};
     td.addEventListener('mouseenter',e=>{
-      tipHead.textContent=day+' '+tod+' â€” '+cell.count+'/'+max+' available';
+      tipHead.textContent=day+' '+tod+' - '+cell.count+'/'+max+' available';
       tipNames.innerHTML=cell.names.length?cell.names.map(n=>`<div class="atip-name">${n}</div>`).join(''):'<div class="atip-none">No one available</div>';
       tip.style.display='block';
       const tw=tip.offsetWidth||150,th2=tip.offsetHeight||80,vw=window.innerWidth,vh=window.innerHeight;
@@ -1903,7 +1906,7 @@ function renderAvailHeatmap(){
   _availBuilt=true;
 }
 
-// â”€â”€â”€ EVENTS â”€â”€â”€
+// --- EVENTS ---
 function bindEvents(){
   document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',async()=>{
     document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
@@ -2004,7 +2007,7 @@ function bindEvents(){
     b.classList.add('active');currentWin=b.dataset.win;renderComparison();
   }));
 
-  // â”€â”€ Scheduler auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Scheduler auth ---
   const unlockBtn=document.getElementById('sched-unlock-btn');
   const modalBg=document.getElementById('auth-modal-bg');
   const modalErr=document.getElementById('auth-modal-err');
@@ -2038,7 +2041,7 @@ function bindEvents(){
       const resp=await fetch('/api/confirm',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        // Send a no-op "probe" â€” use a dummy id that won't match any real assignment
+        // Send a no-op "probe" - use a dummy id that won't match any real assignment
         body:JSON.stringify({id:'__probe__',status:'pending',scheduler:who,pin})
       });
       if(resp.status===403){
@@ -2048,7 +2051,7 @@ function bindEvents(){
         return;
       }
     }catch(e){
-      // Server unreachable â€” allow PIN-less mode for static viewing
+      // Server unreachable - allow PIN-less mode for static viewing
     }
     schedAuth={unlocked:true,scheduler:who,pin};
     document.body.classList.add('scheduler-mode');
@@ -2059,7 +2062,7 @@ function bindEvents(){
     if(document.getElementById('calendar-view').classList.contains('active'))renderCalendar();
   });
 
-  // â”€â”€ Force Rebuild Button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Force Rebuild Button ---
   const forceRebuildBtn=document.getElementById('force-rebuild-btn');
   if(forceRebuildBtn){
     forceRebuildBtn.addEventListener('click',async()=>{
@@ -2072,7 +2075,7 @@ function bindEvents(){
         if(pin===null)return;
       }
       forceRebuildBtn.classList.add('rebuilding');
-      forceRebuildBtn.textContent='\u29f3 Building\u2026';
+      forceRebuildBtn.textContent='... Building...';
       try{
         const resp=await fetch('/api/force-rebuild',{
           method:'POST',
@@ -2086,7 +2089,7 @@ function bindEvents(){
           return;
         }
         if(!resp.ok)throw new Error('Server error: '+resp.status);
-        toast('Rebuild started \u2014 page will refresh when complete.','success');
+        toast('Rebuild started - page will refresh when complete.','success');
         let attempts=0;
         const maxAttempts=30;
         const origMtime=schedData&&schedData.generated?schedData.generated:null;
@@ -2099,7 +2102,7 @@ function bindEvents(){
               const newMtime=st.schedule_output&&st.schedule_output.mtime?st.schedule_output.mtime:null;
               if(newMtime&&newMtime!==origMtime){
                 clearInterval(poll);
-                toast('Rebuild complete! Refreshing\u2026','success');
+                toast('Rebuild complete! Refreshing...','success');
                 setTimeout(()=>window.location.reload(),500);
                 return;
               }
@@ -2107,7 +2110,7 @@ function bindEvents(){
           }catch(e){}
           if(attempts>=maxAttempts){
             clearInterval(poll);
-            toast('Build in progress \u2014 please refresh manually.','info');
+            toast('Build in progress - please refresh manually.','info');
             forceRebuildBtn.classList.remove('rebuilding');
             forceRebuildBtn.innerHTML='&#x27F3; Rebuild';
           }
@@ -2121,7 +2124,7 @@ function bindEvents(){
     });
   }
 }
-// â”€â”€â”€ INIT â”€â”€â”€
+// --- INIT ---
 async function init(){
   await refreshRuntimeData();
   let src=null;
@@ -2144,7 +2147,7 @@ async function init(){
     bindEvents();
     const msgs=[src?'Log loaded from disk':'Using embedded sample data'];
     if(schedLoaded)msgs.push('Schedule auto-loaded');
-    toast(msgs.join(' â€” '),'success');
+    toast(msgs.join(' - '),'success');
   }catch(err){
     console.error('Dashboard init error:',err);
     document.querySelector('#loading p').textContent='Error: '+err.message;
@@ -2153,7 +2156,7 @@ async function init(){
   }
   document.getElementById('loading').style.display='none';
 }
-// â”€â”€â”€ LIVE GPS TRACKING â”€â”€â”€
+// --- LIVE GPS TRACKING ---
 let gpsMarkers={}, gpsTrailLayers={};
 
 function makeGpsIcon(bp,stale){
@@ -2163,7 +2166,7 @@ function makeGpsIcon(bp,stale){
 }
 
 function _relTime(isoTs){
-  if(!isoTs)return'â€”';
+  if(!isoTs)return'-';
   const sec=Math.round((Date.now()-new Date(isoTs).getTime())/1000);
   if(sec<5)return'just now';
   if(sec<60)return`${sec}s ago`;
@@ -2200,7 +2203,7 @@ async function refreshGps(){
       badge.textContent=`${lbl}: live${spd}`;
       badge.className='live-badge ok';
     }
-    badge.title=`${bp} | Last: ${pos.ts?new Date(pos.ts).toLocaleTimeString():'â€”'}${pos.batt!=null?' | Batt: '+pos.batt+'%':''}`;
+    badge.title=`${bp} | Last: ${pos.ts?new Date(pos.ts).toLocaleTimeString():'-'}${pos.batt!=null?' | Batt: '+pos.batt+'%':''}`;
     const latLng=L.latLng(pos.lat,pos.lon);
     if(gpsMarkers[bp]){
       gpsMarkers[bp].setLatLng(latLng);
@@ -2208,7 +2211,7 @@ async function refreshGps(){
     }else{
       const label=bp==='BP_A'?'Backpack A':'Backpack B';
       gpsMarkers[bp]=L.marker(latLng,{icon:makeGpsIcon(bp,pos.stale),zIndexOffset:1000})
-        .bindPopup(`<b>${label}</b><br><small>Last: ${pos.ts?new Date(pos.ts).toLocaleTimeString():'â€”'}</small>${pos.speed!=null?'<br><small>Speed: '+pos.speed.toFixed(1)+' m/s</small>':''}${pos.batt!=null?'<br><small>Battery: '+pos.batt+'%</small>':''}`)
+        .bindPopup(`<b>${label}</b><br><small>Last: ${pos.ts?new Date(pos.ts).toLocaleTimeString():'-'}</small>${pos.speed!=null?'<br><small>Speed: '+pos.speed.toFixed(1)+' m/s</small>':''}${pos.batt!=null?'<br><small>Battery: '+pos.batt+'%</small>':''}`)
         .addTo(map);
     }
   }
@@ -2229,7 +2232,7 @@ async function refreshGps(){
   }
 }
 
-// â”€â”€â”€ DRIVE SYNC UI â”€â”€â”€
+// --- DRIVE SYNC UI ---
 async function refreshDriveStatus(){
   try{
     const r=await fetch('/api/status');
@@ -2252,7 +2255,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   const syncBtn=document.getElementById('drive-sync-btn');
   if(syncBtn){
     syncBtn.addEventListener('click',async()=>{
-      syncBtn.disabled=true;syncBtn.textContent='â³';
+      syncBtn.disabled=true;syncBtn.textContent='...';
       try{
         const r=await fetch('/api/drive/poll',{method:'POST'});
         const d=await r.json();
@@ -2264,7 +2267,7 @@ document.addEventListener('DOMContentLoaded',()=>{
           }
         }else{toast('Drive sync error: '+(d.message||'unknown'),'');}
       }catch(e){toast('Drive sync failed: '+e.message,'');}
-      finally{syncBtn.disabled=false;syncBtn.textContent='â†» Sync';}
+      finally{syncBtn.disabled=false;syncBtn.textContent='Sync Sync';}
       refreshDriveStatus();
     });
   }
@@ -2276,7 +2279,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 document.addEventListener('DOMContentLoaded',init);
 
-// Filter drawer toggle â€” hamburger button is always visible on all screen sizes
+// Filter drawer toggle - hamburger button is always visible on all screen sizes
 document.addEventListener('DOMContentLoaded', function() {
   const menuBtn = document.getElementById('mobile-menu-btn');
   const filtersDrawer = document.getElementById('filters');
@@ -2323,7 +2326,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 </script>
-<!-- â”€â”€ Auth modal â”€â”€ -->
+<!--- Auth modal --->
 <div id="auth-modal-bg">
   <div id="auth-modal">
     <h3>&#x1F511; Scheduler Mode</h3>
