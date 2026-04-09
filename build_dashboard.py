@@ -1699,6 +1699,22 @@ function loadScheduleJSON(text){
 // â”€â”€â”€ CALENDAR â”€â”€â”€
 let calWeekIdx=0;
 
+function isBadWeatherSlot(dateStr,tod){
+  const weatherKey=`${dateStr}_${tod}`;
+  if(
+    schedData &&
+    schedData.weather &&
+    Object.prototype.hasOwnProperty.call(schedData.weather,weatherKey)
+  ){
+    return schedData.weather[weatherKey]===false;
+  }
+  return !!(
+    RUNTIME_WEATHER &&
+    RUNTIME_WEATHER.weather &&
+    RUNTIME_WEATHER.weather[weatherKey]===false
+  );
+}
+
 function renderCalendar(){
   const grid=document.getElementById('cal-grid');
   const title=document.getElementById('cal-title');
@@ -1767,8 +1783,7 @@ function renderCalendar(){
       const isWeekend=dd.getDay()===0||dd.getDay()===6;
       const isRecal=wk.recal_day===dateStr;
       const walks=(byDayTod[dateStr]||{})[ctod]||[];
-      const weatherKey=`${dateStr}_${ctod}`;
-      const isBadWeather=RUNTIME_WEATHER&&RUNTIME_WEATHER.weather&&RUNTIME_WEATHER.weather[weatherKey]===false;
+      const isBadWeather=isBadWeatherSlot(dateStr,ctod);
 
       let cellContent='';
       // Weather indicator overlay for bad weather

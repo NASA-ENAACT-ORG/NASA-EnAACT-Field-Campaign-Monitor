@@ -2105,12 +2105,31 @@ def build_weekly_calendar(
     _generate_schedule_map(assignments, route_coords, week_start, week_end)
 
     # ── JSON export for dashboard ─────────────────────────────────────────────
-    # Weather is now in weather.json (built by build_weather.py)
+    # Persist weather alongside the schedule snapshot so calendar rendering can
+    # display bad-weather slots from the same source as assignments.
+    weather_snapshot = {
+        f"{d.isoformat()}_{tod}": is_good
+        for (d, tod), is_good in sorted(
+            weather.items(),
+            key=lambda item: (
+                item[0][0],
+                TODS.index(item[0][1]) if item[0][1] in TODS else 99,
+            ),
+        )
+    }
+    bad_weather_slots = [k for k, v in weather_snapshot.items() if v is False]
+    weather_dates = sorted({d for (d, _tod) in weather.keys()})
+
     schedule_data = {
         "generated":    str(date.today()),
         "generated_at": datetime.now().isoformat(),
         "week_start":   str(week_start),
         "week_end":     str(week_end),
+        "weather_history_start": str(weather_dates[0]) if weather_dates else None,
+        "weather_week_start": str(week_start),
+        "weather_week_end": str(week_end),
+        "weather": weather_snapshot,
+        "bad_weather_slots": bad_weather_slots,
         "recal_day":    str(recal_day) if recal_day else None,
         "assignments": [
             {

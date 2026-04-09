@@ -752,9 +752,104 @@ const ROUTES_GEO = {"BX_NW":{"boro":"BX","name":"Norwood","lines":[[[40.85643,-7
 const COLLECTOR_HOMES = {"TER": {"lat": 40.687309, "lng": -73.941589, "name": "Terra", "non_collector": false}, "AYA": {"lat": 40.6693, "lng": -73.941926, "name": "Aya Nasri", "non_collector": false}, "SCT": {"lat": 40.739522, "lng": -73.877856, "name": "Scott", "non_collector": false}, "ALX": {"lat": 40.67643, "lng": -73.813913, "name": "Alex", "non_collector": false}, "JEN": {"lat": 40.764286, "lng": -73.924059, "name": "Jennifer", "non_collector": false}, "JAM": {"lat": 40.735877, "lng": -73.872864, "name": "James", "non_collector": false}, "ANG": {"lat": 40.764928, "lng": -73.830701, "name": "Angy", "non_collector": true}, "TAH": {"lat": 40.753384, "lng": -73.906652, "name": "Taha", "non_collector": false}, "SOT": {"lat": 40.757137, "lng": -73.971896, "name": "Soteri", "non_collector": false}, "NRS": {"lat": 40.818456, "lng": -73.943499, "name": "Prof. Naresh", "non_collector": false}, "PRA": {"lat": 40.851882, "lng": -73.972726, "name": "Prof. Prathap", "non_collector": false}};
 const BAKED_SCHEDULE = {
   "generated": "2026-04-09",
-  "generated_at": "2026-04-09T09:27:26.481278",
+  "generated_at": "2026-04-09T10:02:14.483112",
   "week_start": "2026-04-09",
   "week_end": "2026-04-15",
+  "weather_history_start": "2026-03-16",
+  "weather_week_start": "2026-04-09",
+  "weather_week_end": "2026-04-15",
+  "weather": {
+    "2026-03-16_AM": true,
+    "2026-03-17_AM": true,
+    "2026-03-18_AM": true,
+    "2026-03-19_AM": false,
+    "2026-03-20_AM": true,
+    "2026-03-21_AM": true,
+    "2026-03-22_AM": false,
+    "2026-03-23_AM": false,
+    "2026-03-24_AM": true,
+    "2026-03-25_AM": false,
+    "2026-03-26_AM": false,
+    "2026-03-27_AM": false,
+    "2026-03-28_AM": true,
+    "2026-03-29_AM": true,
+    "2026-03-30_AM": false,
+    "2026-04-01_AM": false,
+    "2026-04-01_MD": false,
+    "2026-04-01_PM": false,
+    "2026-04-02_AM": false,
+    "2026-04-02_MD": false,
+    "2026-04-02_PM": false,
+    "2026-04-03_AM": true,
+    "2026-04-03_MD": false,
+    "2026-04-03_PM": false,
+    "2026-04-04_AM": true,
+    "2026-04-04_MD": true,
+    "2026-04-04_PM": false,
+    "2026-04-05_AM": false,
+    "2026-04-05_MD": false,
+    "2026-04-05_PM": false,
+    "2026-04-06_AM": true,
+    "2026-04-06_MD": true,
+    "2026-04-06_PM": true,
+    "2026-04-07_AM": false,
+    "2026-04-07_MD": true,
+    "2026-04-07_PM": false,
+    "2026-04-08_AM": true,
+    "2026-04-08_MD": true,
+    "2026-04-08_PM": true,
+    "2026-04-09_AM": true,
+    "2026-04-09_MD": false,
+    "2026-04-09_PM": true,
+    "2026-04-10_AM": true,
+    "2026-04-10_MD": true,
+    "2026-04-10_PM": true,
+    "2026-04-11_AM": false,
+    "2026-04-11_MD": true,
+    "2026-04-11_PM": true,
+    "2026-04-12_AM": true,
+    "2026-04-12_MD": true,
+    "2026-04-12_PM": true,
+    "2026-04-13_AM": false,
+    "2026-04-13_MD": false,
+    "2026-04-13_PM": false,
+    "2026-04-14_AM": false,
+    "2026-04-14_MD": true,
+    "2026-04-14_PM": true,
+    "2026-04-15_AM": false,
+    "2026-04-15_MD": true,
+    "2026-04-15_PM": true
+  },
+  "bad_weather_slots": [
+    "2026-03-19_AM",
+    "2026-03-22_AM",
+    "2026-03-23_AM",
+    "2026-03-25_AM",
+    "2026-03-26_AM",
+    "2026-03-27_AM",
+    "2026-03-30_AM",
+    "2026-04-01_AM",
+    "2026-04-01_MD",
+    "2026-04-01_PM",
+    "2026-04-02_AM",
+    "2026-04-02_MD",
+    "2026-04-02_PM",
+    "2026-04-03_MD",
+    "2026-04-03_PM",
+    "2026-04-04_PM",
+    "2026-04-05_AM",
+    "2026-04-05_MD",
+    "2026-04-05_PM",
+    "2026-04-07_AM",
+    "2026-04-07_PM",
+    "2026-04-09_MD",
+    "2026-04-11_AM",
+    "2026-04-13_AM",
+    "2026-04-13_MD",
+    "2026-04-13_PM",
+    "2026-04-14_AM",
+    "2026-04-15_AM"
+  ],
   "recal_day": "2026-04-13",
   "assignments": [
     {
@@ -1869,6 +1964,22 @@ function loadScheduleJSON(text){
 // â”€â”€â”€ CALENDAR â”€â”€â”€
 let calWeekIdx=0;
 
+function isBadWeatherSlot(dateStr,tod){
+  const weatherKey=`${dateStr}_${tod}`;
+  if(
+    schedData &&
+    schedData.weather &&
+    Object.prototype.hasOwnProperty.call(schedData.weather,weatherKey)
+  ){
+    return schedData.weather[weatherKey]===false;
+  }
+  return !!(
+    RUNTIME_WEATHER &&
+    RUNTIME_WEATHER.weather &&
+    RUNTIME_WEATHER.weather[weatherKey]===false
+  );
+}
+
 function renderCalendar(){
   const grid=document.getElementById('cal-grid');
   const title=document.getElementById('cal-title');
@@ -1937,8 +2048,7 @@ function renderCalendar(){
       const isWeekend=dd.getDay()===0||dd.getDay()===6;
       const isRecal=wk.recal_day===dateStr;
       const walks=(byDayTod[dateStr]||{})[ctod]||[];
-      const weatherKey=`${dateStr}_${ctod}`;
-      const isBadWeather=RUNTIME_WEATHER&&RUNTIME_WEATHER.weather&&RUNTIME_WEATHER.weather[weatherKey]===false;
+      const isBadWeather=isBadWeatherSlot(dateStr,ctod);
 
       let cellContent='';
       // Weather indicator overlay for bad weather
