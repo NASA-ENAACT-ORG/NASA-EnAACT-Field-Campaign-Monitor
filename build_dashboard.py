@@ -1091,7 +1091,7 @@ function updateMapStats(){
   const cnt={green:0,yellow:0,red:0};
   for(const c of ALL_ROUTES)cnt[routeStatus(c,filteredWalks).s]++;
   document.getElementById('mstats').innerHTML=
-    `<div class="msc"><strong style="color:#58a6ff">${filteredWalks.length}</strong>Total walks</div>
+    `<div class="msc"><strong style="color:#58a6ff">${filteredWalks.length}</strong>Total Walks In Selected Window</div>
      <div class="msc"><strong style="color:#15803d">${cnt.green}</strong>At target (8+)</div>
      <div class="msc"><strong style="color:#4ade80">${cnt.yellow}</strong>Near minimum (6-7)</div>
      <div class="msc"><strong style="color:#f85149">${cnt.red}</strong>Below minimum (&lt;6)</div>`;
