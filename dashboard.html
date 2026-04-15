@@ -30,7 +30,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 #header-divider{width:1px;height:32px;background:var(--border);flex-shrink:0}
 #header-title{display:flex;flex-direction:column;gap:1px;flex-shrink:1;min-width:0}
 #header-title h1{margin:0}
-#tabs{display:flex;gap:6px;margin-left:auto;align-items:flex-end}
+#tabs{display:flex;gap:6px;margin-left:auto;align-items:flex-end;position:relative;z-index:600}
 .tab-group{display:flex;flex-direction:column;gap:2px}
 .tab-group-label{font-family:'Space Grotesk',sans-serif;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1.4px;padding:0 5px;color:var(--text3);white-space:nowrap}
 .tab-group-label.monitor{color:#60a5fa;opacity:.75}
@@ -122,11 +122,16 @@ select option{background:var(--bg3)}
 #cal-today-btn{padding:3px 12px;border-radius:14px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-size:11px;font-weight:500}
 #cal-today-btn:hover{background:var(--bg3);border-color:var(--accent);color:var(--text)}
 .bp-toggle{padding:3px 8px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-size:10px;font-weight:600;transition:all .15s}
-.bp-toggle:hover{background:var(--bg3);border-color:var(--accent);color:var(--text)}
+.bp-toggle:hover{background:var(--bg3);border-color:var(--accent);color:var(--text);cursor:pointer;position:relative}
 .bp-toggle.active{background:var(--bg3);border-color:var(--accent);color:var(--text)}
 .bp-toggle[data-backpack="A"].active{border-color:#f85149;color:#f85149}
 .bp-toggle[data-backpack="B"].active{border-color:#388bfd;color:#388bfd}
 .bp-toggle[data-backpack="X"].active{border-color:#f0a500;color:#f0a500}
+.bp-boro-badge{display:inline-block;font-size:9px;font-weight:700;color:#8b949e;margin-left:4px;letter-spacing:.5px}
+.bp-boro-tooltip{position:absolute;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:8px 10px;font-size:9px;z-index:1000;white-space:nowrap;display:none;bottom:-160px;left:50%;transform:translateX(-50%);box-shadow:0 4px 12px rgba(0,0,0,.5);color:#8b949e;pointer-events:none}
+.bp-toggle:hover .bp-boro-tooltip{display:block}
+.bp-boro-tooltip .week-item{display:flex;align-items:center;gap:4px;padding:2px 0;color:#e6edf3}
+.bp-boro-tooltip .week-num{font-weight:700;color:var(--accent);min-width:20px}
 #cal-src-badge{font-size:10px;color:var(--text3);margin-left:auto;padding:2px 8px;background:var(--bg3);border-radius:9px;border:1px solid var(--border);white-space:nowrap}
 #cal-body{flex:1;overflow:auto;min-height:0}
 #cal-grid{display:grid;grid-template-columns:54px repeat(7,1fr);grid-template-rows:56px repeat(3,minmax(110px,1fr));min-height:100%}
@@ -183,82 +188,6 @@ select option{background:var(--bg3)}
 .cal-empty-week{grid-column:1/-1;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:12px;padding:48px}
 /* COLLECTOR VIEW */
 #collector-view{flex-direction:column;overflow-y:auto;padding:14px 16px;gap:14px}
-/* SCHEDULE VIEW */
-#schedule-view{flex-direction:row}
-#sched-map-wrap{flex:1;position:relative;overflow:hidden}
-#sched-map{width:100%;height:100%}
-#sched-panel{width:400px;flex-shrink:0;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
-#sched-panel-head{padding:12px 14px 9px;border-bottom:1px solid var(--border)}
-#sched-panel-head h2{font-size:13px;font-weight:700}
-#sched-panel-head .smeta{font-size:10px;color:var(--text2);margin-top:3px}
-#sched-panel-body{flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:10px}
-.sbp-section h3{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px;display:flex;align-items:center;gap:6px}
-.sbp-section h3 .bpbadge{font-size:9px;padding:1px 6px;border-radius:10px;font-weight:700}
-.bpa{background:rgba(248,81,73,.2);color:#f85149;border:1px solid rgba(248,81,73,.4)}
-.bpb{background:rgba(56,139,253,.2);color:#388bfd;border:1px solid rgba(56,139,253,.4)}
-.sched-row{display:flex;align-items:center;gap:6px;padding:5px 7px;background:var(--bg3);border-radius:5px;margin-bottom:4px;cursor:pointer;transition:background .15s}
-.sched-row:hover{background:var(--bg4)}
-.sched-row .sr-date{font-size:9px;color:var(--text3);width:48px;flex-shrink:0}
-.sched-row .sr-tod{font-size:9px;font-weight:700;width:22px;flex-shrink:0}
-.sched-row .sr-route{flex:1;font-size:11px;font-weight:600}
-.sched-row .sr-col{font-size:9px;color:var(--text2)}
-#sched-no-data{padding:20px;text-align:center;color:var(--text3);font-size:12px}
-#sched-legend{position:absolute;bottom:108px;left:12px;background:rgba(13,17,23,.85);border:1px solid var(--border);border-radius:7px;padding:9px 12px;z-index:400;backdrop-filter:blur(4px)}
-#sched-legend h4{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:7px}
-.sli{display:flex;align-items:center;gap:7px;font-size:11px;margin-bottom:4px}
-.slsw{width:24px;height:3px;border-radius:2px;flex-shrink:0}
-#sched-btn-row{display:flex;gap:7px;margin:10px 12px;align-items:center}
-/* -- Scheduler auth & status -- */
-#sched-unlock-btn{padding:4px 10px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:10px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:4px}
-#sched-unlock-btn:hover{border-color:var(--accent);color:var(--text)}
-#sched-unlock-btn.authed{border-color:#3fb950;color:#3fb950;background:rgba(63,185,80,.1)}
-.status-badge{display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;flex-shrink:0}
-.status-badge.pending{background:rgba(201,209,217,.12);color:#8b949e}
-.status-badge.confirmed{background:rgba(63,185,80,.15);color:#3fb950}
-.status-badge.denied{background:rgba(248,81,73,.15);color:#f85149}
-.sched-row .sr-actions{display:flex;gap:4px;flex-shrink:0;visibility:hidden}
-.sched-row .sr-actions button{padding:2px 6px;border-radius:4px;font-size:9px;font-weight:600;cursor:pointer;border:1px solid}
-body.scheduler-mode .sched-row{flex-wrap:wrap}
-body.scheduler-mode .sched-row .sr-route{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-body.scheduler-mode .sched-row .sr-actions{width:100%;margin-left:0;justify-content:flex-end;margin-top:3px;padding-left:70px}
-.sr-confirm-btn{background:rgba(63,185,80,.15);border-color:#3fb950!important;color:#3fb950!important}
-.sr-deny-btn{background:rgba(248,81,73,.15);border-color:#f85149!important;color:#f85149!important}
-.sr-reset-btn{background:var(--bg3);border-color:var(--border)!important;color:var(--text2)!important}
-body.scheduler-mode .sched-row .sr-actions{visibility:visible}
-.cal-event .ce-actions{display:none;margin-top:4px;gap:3px}
-.cal-event .ce-actions button{flex:1;padding:2px 4px;border-radius:3px;font-size:9px;font-weight:600;cursor:pointer;border:1px solid}
-body.scheduler-mode .cal-event .ce-actions{display:flex}
-/* Auth modal */
-#auth-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;align-items:center;justify-content:center}
-#auth-modal-bg.open{display:flex}
-#auth-modal{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:22px 24px;width:280px;display:flex;flex-direction:column;gap:12px}
-#auth-modal h3{font-size:13px;font-weight:700;margin:0}
-#auth-modal label{font-size:10px;color:var(--text2);display:block;margin-bottom:3px}
-#auth-modal select,#auth-modal input{width:100%;padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;box-sizing:border-box}
-#auth-modal-err{font-size:10px;color:#f85149;display:none}
-#auth-modal-submit{padding:7px;border-radius:5px;background:var(--accent);border:none;color:#fff;font-size:12px;font-weight:600;cursor:pointer}
-#auth-modal-cancel{padding:7px;border-radius:5px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);font-size:12px;cursor:pointer}
-#sched-timeline{position:absolute;bottom:0;left:0;right:0;background:rgba(13,17,23,.95);border-top:1px solid var(--border);padding:5px 12px calc(10px + env(safe-area-inset-bottom));z-index:401;display:flex;flex-direction:column;gap:3px}
-#sched-map-wrap .leaflet-control-attribution{margin-bottom:88px!important}
-#sched-tl-top{display:flex;align-items:center;gap:6px}
-#sched-tl-controls{display:flex;gap:3px;flex-shrink:0}
-.tl-btn{width:24px;height:24px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text);cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0}.tl-btn:hover{background:var(--bg4);border-color:var(--accent)}
-#sched-tl-divider{width:1px;height:20px;background:var(--border);flex-shrink:0;margin:0 2px}
-#sched-tl-week-nav{display:flex;align-items:center;gap:4px;flex-shrink:0}
-#sched-tl-week-label{font-size:10.5px;color:var(--text);font-weight:600;min-width:168px;text-align:center;white-space:nowrap}
-.tl-wk-btn{width:22px;height:22px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;padding:0}.tl-wk-btn:hover{background:var(--bg4);color:var(--text);border-color:var(--accent)}.tl-wk-btn:disabled{opacity:.28;cursor:default}
-#sched-tl-detail{font-size:10px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;padding-left:6px;border-left:1px solid var(--border);height:20px;display:flex;align-items:center}
-#sched-tl-days{display:flex;gap:3px;align-items:flex-end;min-height:36px}
-.tl-day{display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;min-width:34px;padding:0 2px}
-.tl-day-lbl{font-size:8.5px;color:var(--text3);white-space:nowrap;letter-spacing:.2px}
-.tl-day-lbl.tl-today{color:var(--accent);font-weight:700}
-.tl-day-dots{display:flex;gap:3px;justify-content:center;flex-wrap:wrap;min-height:11px}
-.tl-dot{width:11px;height:11px;border-radius:50%;cursor:pointer;transition:transform .15s,box-shadow .15s;flex-shrink:0}
-.tl-dot:hover{transform:scale(1.35)}
-.tl-dot.bp-a{background:#f85149}.tl-dot.bp-b{background:#388bfd}.tl-dot.bp-x{background:#f0a500}
-.tl-dot.tl-past{opacity:.38}.tl-dot.tl-current{opacity:1;box-shadow:0 0 0 2px #fff4}.tl-dot.tl-future{opacity:.75}
-.tl-day-recal{font-size:8px;color:#f0a500;letter-spacing:.3px}
-.tl-day-sep{width:1px;background:var(--border);align-self:stretch;flex-shrink:0}
 /* Collector groups */
 #cselector{display:flex;flex-direction:column;gap:14px;width:100%}
 .cgroup{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden}
@@ -392,12 +321,8 @@ body.scheduler-mode .cal-event .ce-actions{display:flex}
   #filters{top:auto}
   #route-panel{width:100%;position:fixed;transform:translateX(100%);transition:transform .3s ease;z-index:1100}
   #route-panel.open{transform:translateX(0);width:100%;max-width:85vw}
-  #sched-panel{width:100%;position:fixed;transform:translateX(100%);transition:transform .3s ease;z-index:1100;height:100%}
-  #sched-panel.open{transform:translateX(0);width:100%;max-width:85vw}
   #map-view{flex-direction:column}
   #map-wrap{flex:1;position:relative}
-  #schedule-view{flex-direction:column}
-  #sched-map-wrap{flex:1;position:relative}
   #cal-grid{grid-template-columns:40px repeat(7,1fr);grid-template-rows:40px repeat(3,minmax(80px,1fr))}
   .cal-dnum{font-size:16px}
   .cal-day-head{padding:4px 2px}
@@ -431,7 +356,7 @@ body.scheduler-mode .cal-event .ce-actions{display:flex}
   .schip .sv{font-size:18px}
   .schip .sl{font-size:8px}
   .cw{height:80px}
-  #route-panel.open,#sched-panel.open{max-width:95vw}
+  #route-panel.open{max-width:95vw}
 }
 </style>
 </head>
@@ -551,7 +476,6 @@ setTimeout(function(){
       <div class="tab-group">
         <span class="tab-group-label scheduling">Scheduling</span>
         <div class="tab-group-btns">
-          <button class="tab-btn" data-view="schedule-view">&#x1F5FA;&#xFE0F; Map</button>
           <button class="tab-btn" data-view="calendar-view">&#x1F4C6; Calendar</button>
           <button class="tab-btn" data-view="availability-view">&#x1F4C5; Availability</button>
         </div>
@@ -630,50 +554,6 @@ setTimeout(function(){
         </table>
       </div>
     </div>
-    <!--- SCHEDULE VIEW --->
-    <div id="schedule-view" class="view">
-      <div id="sched-map-wrap">
-        <div id="sched-map"></div>
-        <div id="sched-legend">
-          <h4>Backpack Assignment</h4>
-          <div class="sli"><div class="slsw" style="background:#f85149"></div>Backpack A</div>
-          <div class="sli"><div class="slsw" style="background:#388bfd"></div>Backpack B</div>
-          <div class="sli"><div class="slsw" style="background:#333c47"></div>Not scheduled</div>
-        </div>
-        <div id="sched-timeline">
-          <div id="sched-tl-top">
-            <div id="sched-tl-controls">
-              <button class="tl-btn" id="tl-reset" title="Reset to all">&#x23EE;</button>
-              <button class="tl-btn" id="tl-prev" title="Previous walk">&#x2039;</button>
-              <button class="tl-btn" id="tl-play" title="Play">&#x25B6;</button>
-              <button class="tl-btn" id="tl-next" title="Next walk">&#x203A;</button>
-            </div>
-            <div id="sched-tl-divider"></div>
-            <div id="sched-tl-week-nav">
-              <button class="tl-wk-btn" id="tl-wk-prev" title="Older week">&#x2190;</button>
-              <div id="sched-tl-week-label">-</div>
-              <button class="tl-wk-btn" id="tl-wk-next" title="Newer week">&#x2192;</button>
-              <button class="tl-wk-btn" id="tl-wk-now" title="Jump to current week" style="margin-left:2px;font-size:9px;width:auto;padding:0 5px">Now</button>
-            </div>
-            <div id="sched-tl-detail">No schedule loaded</div>
-          </div>
-          <div id="sched-tl-days"></div>
-        </div>
-      </div>
-      <div id="sched-panel">
-        <div id="sched-panel-head">
-          <h2>Weekly Schedule</h2>
-          <div class="smeta" id="sched-meta">Run the scheduler to load assignments</div>
-        </div>
-        <div id="sched-btn-row">
-          <button id="sched-unlock-btn" title="Enter scheduler PIN to confirm/deny assignments">&#x1F511; Scheduler Mode</button>
-        </div>
-        <input type="file" id="sched-file" accept=".json" style="display:none">
-        <div id="sched-panel-body">
-          <div id="sched-no-data">No schedule loaded - schedule is auto-generated when new forecast data arrives.</div>
-        </div>
-      </div>
-    </div>
     <!--- CALENDAR VIEW --->
     <div id="calendar-view" class="view">
       <div id="cal-nav">
@@ -682,9 +562,9 @@ setTimeout(function(){
         <h2 id="cal-title">-</h2>
         <button id="cal-today-btn">Today</button>
         <div id="cal-bp-toggles" style="display:flex;gap:4px;margin-left:12px">
-          <button class="bp-toggle active" data-backpack="A" title="Toggle Backpack A">BP A</button>
-          <button class="bp-toggle active" data-backpack="B" title="Toggle Backpack B">BP B</button>
-          <button class="bp-toggle active" data-backpack="X" title="Toggle Legacy X">BP X</button>
+          <button class="bp-toggle active" data-backpack="A" title="Toggle Backpack A">BP A<span class="bp-boro-badge" data-bp="A"></span><div class="bp-boro-tooltip" data-bp="A"></div></button>
+          <button class="bp-toggle active" data-backpack="B" title="Toggle Backpack B">BP B<span class="bp-boro-badge" data-bp="B"></span><div class="bp-boro-tooltip" data-bp="B"></div></button>
+          <button class="bp-toggle active" data-backpack="X" title="Toggle Legacy X">BP X<span class="bp-boro-badge" data-bp="X"></span><div class="bp-boro-tooltip" data-bp="X"></div></button>
         </div>
         <div id="cal-src-badge">No data loaded</div>
       </div>
@@ -1313,6 +1193,7 @@ function initMap(){
     collectorHomeMarkers[cid]=m;
   }
   document.getElementById('collector-homes-btn').addEventListener('click',()=>{
+    if(!schedAuth.unlocked){openAuthModal();return;}
     collectorHomesVisible=!collectorHomesVisible;
     if(collectorHomesVisible){collectorHomeLayer.addTo(map);}
     else{collectorHomeLayer.remove();}
@@ -1762,6 +1643,9 @@ function applyScheduleColors(){
 }
 
 function renderTimelineBar(){
+  const daysEl=document.getElementById('sched-tl-days');
+  if(!daysEl)return; // Schedule view removed
+
   const wk=getTlWeek();
   const weeks=buildTlWeeks();
   const sorted=getSortedAssignments();
@@ -1770,7 +1654,6 @@ function renderTimelineBar(){
   const playBtn=document.getElementById('tl-play');
   const wkLbl=document.getElementById('sched-tl-week-label');
   const detail=document.getElementById('sched-tl-detail');
-  const daysEl=document.getElementById('sched-tl-days');
   const prevWkBtn=document.getElementById('tl-wk-prev');
   const nextWkBtn=document.getElementById('tl-wk-next');
 
@@ -1902,6 +1785,7 @@ function playSchedule(){
 function renderSchedulePanel(){
   const body=document.getElementById('sched-panel-body');
   const meta=document.getElementById('sched-meta');
+  if(!body||!meta)return; // Schedule view removed
   if(!schedData){
     body.innerHTML='<div id="sched-no-data">No schedule loaded.<br>Run walk_scheduler.py then click Load above.</div>';
     meta.textContent='Run the scheduler to load assignments';
@@ -1986,6 +1870,57 @@ function isBadWeatherSlot(dateStr,tod){
   );
 }
 
+function getBoroForWeek(backpack, weekIdx, weeks){
+  if(!weeks||weekIdx<0||weekIdx>=weeks.length)return null;
+  const wk=weeks[weekIdx];
+  const boros={};
+  for(const w of wk.walks){
+    if(w.backpack===backpack&&w.boro){
+      boros[w.boro]=(boros[w.boro]||0)+1;
+    }
+  }
+  if(Object.keys(boros).length===0)return null;
+  return Object.entries(boros).sort((a,b)=>b[1]-a[1])[0][0];
+}
+
+function getBoroForecast(backpack, weekIdx, weeks){
+  const forecast=[];
+  for(let i=0;i<4&&weekIdx+i<weeks.length;i++){
+    const boro=getBoroForWeek(backpack,weekIdx+i,weeks);
+    if(boro){
+      forecast.push({week:i+1,boro});
+    }
+  }
+  return forecast;
+}
+
+function BORO_NAMES(){
+  return{MN:'Manhattan',BK:'Brooklyn',QN:'Queens',BX:'Bronx',SI:'Staten Island',OTH:'Other'};
+}
+
+function updateBoroIndicators(weekIdx, weeks){
+  const names=BORO_NAMES();
+  for(const bp of['A','B','X']){
+    const boro=getBoroForWeek(bp,weekIdx,weeks);
+    const badge=document.querySelector(`[data-bp="${bp}"].bp-boro-badge`);
+    const tooltip=document.querySelector(`[data-bp="${bp}"].bp-boro-tooltip`);
+    if(badge){
+      badge.textContent=boro?boro:'-';
+      badge.style.color=boro?'#e6edf3':'#6e7681';
+    }
+    if(tooltip){
+      const forecast=getBoroForecast(bp,weekIdx,weeks);
+      let html='';
+      if(forecast.length>0){
+        html=forecast.map(f=>`<div class="week-item"><span class="week-num">W${f.week}:</span><span>${names[f.boro]||f.boro}</span></div>`).join('');
+      }else{
+        html='<div style="color:#6e7681">No assignments</div>';
+      }
+      tooltip.innerHTML=html;
+    }
+  }
+}
+
 function renderCalendar(){
   const grid=document.getElementById('cal-grid');
   const title=document.getElementById('cal-title');
@@ -2006,6 +1941,7 @@ function renderCalendar(){
   const we=new Date(ws); we.setDate(ws.getDate()+6);
   const tod=new Date(); tod.setHours(0,0,0,0);
 
+  updateBoroIndicators(idx,weeks);
 
   if(title)title.textContent=
     ws.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' - '+
@@ -2198,37 +2134,12 @@ function bindEvents(){
       renderAvailHeatmap();
     } else renderCV();
   }));
-  document.getElementById('tl-play').addEventListener('click',playSchedule);
-  document.getElementById('tl-next').addEventListener('click',()=>{
-    if(schedPlaying){playSchedule();}
-    const s=getSortedAssignments();
-    setSchedStep(schedStep>=s.length-1?s.length-1:schedStep+1);
-  });
-  document.getElementById('tl-prev').addEventListener('click',()=>{
-    if(schedPlaying){playSchedule();}
-    setSchedStep(schedStep<=0?-1:schedStep-1);
-  });
-  document.getElementById('tl-reset').addEventListener('click',()=>{
-    if(schedPlaying){playSchedule();}
-    schedStep=-1;applyScheduleColors();renderTimelineBar();
-    document.querySelectorAll('.sched-row').forEach(r=>r.style.outline='');
-  });
-  document.getElementById('tl-wk-prev').addEventListener('click',()=>{
-    const weeks=buildTlWeeks();
-    if(tlWeekIdx<weeks.length-1){tlWeekIdx++;schedStep=-1;applyScheduleColors();renderSchedulePanel();renderTimelineBar();}
-  });
-  document.getElementById('tl-wk-next').addEventListener('click',()=>{
-    if(tlWeekIdx>0){tlWeekIdx--;schedStep=-1;applyScheduleColors();renderSchedulePanel();renderTimelineBar();}
-  });
-  document.getElementById('tl-wk-now').addEventListener('click',()=>{
-    tlWeekIdx=findCurrentWeekIdx(buildTlWeeks());schedStep=-1;applyScheduleColors();renderSchedulePanel();renderTimelineBar();
-  });
   document.getElementById('fseason').addEventListener('change',e=>{filters.season=e.target.value;applyFilters();});
   document.getElementById('ftod').addEventListener('change',e=>{filters.tod=e.target.value;applyFilters();});
   document.getElementById('fbp').addEventListener('change',e=>{filters.backpack=e.target.value;applyFilters();});
   document.getElementById('ffrom').addEventListener('change',e=>{filters.from=e.target.value?new Date(e.target.value+'T00:00:00'):null;applyFilters();});
   document.getElementById('fto').addEventListener('change',e=>{filters.to=e.target.value?new Date(e.target.value+'T23:59:59'):null;applyFilters();});
-  document.querySelectorAll('.bp-toggle').forEach(btn=>{btn.addEventListener('click',e=>{const bp=e.target.dataset.backpack;visibleBackpacks[bp]=!visibleBackpacks[bp];e.target.classList.toggle('active');applyFilters();renderSchedulePanel();});});
+  document.querySelectorAll('.bp-toggle').forEach(btn=>{btn.addEventListener('click',e=>{const bp=e.currentTarget.dataset.backpack;visibleBackpacks[bp]=!visibleBackpacks[bp];e.currentTarget.classList.toggle('active');applyFilters();renderSchedulePanel();});});
   document.getElementById('btn-refresh').addEventListener('click',()=>{
     allWalks=parseLog(logText);applyFilters();updateStatus();
     toast(`Refreshed: ${allWalks.length} walks`,'success');
@@ -2382,7 +2293,7 @@ async function init(){
   await refreshRuntimeData();
   let src=null;
   try{
-    const r=await fetch('Walks_Log.txt');
+    const r=await fetch('Walks_Log.txt?_ts='+Date.now(),{cache:'no-store'});
     if(r.ok){logText=await r.text();src='Walks_Log.txt';}
   }catch(e){}
   await fetchConfirmations();
@@ -2435,23 +2346,28 @@ async function refreshGps(){
     if(!r.ok)throw new Error(r.status);
     data=await r.json();
   }catch(e){
-    const _ba=document.getElementById('gps-badge-a'); if(_ba)_ba.textContent='BP-A: offline';
-    const _bb=document.getElementById('gps-badge-b'); if(_bb)_bb.textContent='BP-B: offline';
+    document.getElementById('gps-badge-a').textContent='BP-A: offline';
+    document.getElementById('gps-badge-b').textContent='BP-B: offline';
     return;
   }
   for(const[bp,pos]of Object.entries(data)){
     const badgeId=bp==='BP_A'?'gps-badge-a':'gps-badge-b';
     const badge=document.getElementById(badgeId);
     if(!pos||pos.lat===null){
-      if(badge){badge.textContent=(bp==='BP_A'?'BP-A':'BP-B')+': no fix';badge.className='live-badge warn';}
+      badge.textContent=(bp==='BP_A'?'BP-A':'BP-B')+': no fix';
+      badge.className='live-badge warn';
       continue;
     }
     const lbl=(bp==='BP_A'?'BP-A':'BP-B');
-    if(badge){
-      if(pos.stale){badge.textContent=lbl+': stale';badge.className='live-badge err';}
-      else{const spd=pos.speed!=null?` ${pos.speed.toFixed(1)}m/s`:'';badge.textContent=`${lbl}: live${spd}`;badge.className='live-badge ok';}
-      badge.title=`${bp} | Last: ${pos.ts?new Date(pos.ts).toLocaleTimeString():'-'}${pos.batt!=null?' | Batt: '+pos.batt+'%':''}`;
+    if(pos.stale){
+      badge.textContent=lbl+': stale';
+      badge.className='live-badge err';
+    }else{
+      const spd=pos.speed!=null?` ${pos.speed.toFixed(1)}m/s`:'';
+      badge.textContent=`${lbl}: live${spd}`;
+      badge.className='live-badge ok';
     }
+    badge.title=`${bp} | Last: ${pos.ts?new Date(pos.ts).toLocaleTimeString():'-'}${pos.batt!=null?' | Batt: '+pos.batt+'%':''}`;
     const latLng=L.latLng(pos.lat,pos.lon);
     if(gpsMarkers[bp]){
       gpsMarkers[bp].setLatLng(latLng);
@@ -2487,16 +2403,14 @@ async function refreshDriveStatus(){
     if(!r.ok)return;
     const d=await r.json();
     const badge=document.getElementById('drive-badge');
-    if(badge){
-      if(d.drive_last_poll){
-        badge.textContent='Drive: '+_relTime(d.drive_last_poll);
-        badge.className='live-badge ok';
-        badge.title='Last Google Drive poll: '+new Date(d.drive_last_poll).toLocaleString()+
-          (d.drive_new_files_today?'\n'+d.drive_new_files_today+' new file(s) today':'');
-      }else{
-        badge.textContent='Drive: not configured';
-        badge.className='live-badge warn';
-      }
+    if(d.drive_last_poll){
+      badge.textContent='Drive: '+_relTime(d.drive_last_poll);
+      badge.className='live-badge ok';
+      badge.title='Last Google Drive poll: '+new Date(d.drive_last_poll).toLocaleString()+
+        (d.drive_new_files_today?'\n'+d.drive_new_files_today+' new file(s) today':'');
+    }else{
+      badge.textContent='Drive: not configured';
+      badge.className='live-badge warn';
     }
   }catch(e){}
 }

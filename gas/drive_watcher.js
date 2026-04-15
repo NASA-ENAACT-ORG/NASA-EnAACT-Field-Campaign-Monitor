@@ -69,9 +69,9 @@ function setupTrigger() {
 
   ScriptApp.newTrigger("pollDrive")
     .timeBased()
-    .everyMinutes(1)
+    .everyMinutes(5)
     .create();
 
-  Logger.log("1-minute poll trigger registered.");
+  Logger.log("5-minute poll trigger registered.");
   Logger.log("Service URL: " + SERVICE_URL);
 }
