@@ -1832,6 +1832,20 @@ function renderAvailHeatmap(){
   _availBuilt=true;
 }
 
+// --- AUTH MODAL (top-level so collector-homes-btn can call it) ---
+function openAuthModal(){
+  const mb=document.getElementById('auth-modal-bg');
+  const pi=document.getElementById('auth-pin');
+  const me=document.getElementById('auth-modal-err');
+  if(mb)mb.classList.add('open');
+  if(pi){pi.value='';pi.focus();}
+  if(me)me.style.display='none';
+}
+function closeAuthModal(){
+  const mb=document.getElementById('auth-modal-bg');
+  if(mb)mb.classList.remove('open');
+}
+
 // --- EVENTS ---
 function bindEvents(){
   document.querySelectorAll('.tab-btn[data-view]').forEach(b=>b.addEventListener('click',async()=>{
@@ -1897,10 +1911,7 @@ function bindEvents(){
   const modalErr=document.getElementById('auth-modal-err');
   const pinInput=document.getElementById('auth-pin');
 
-  function openAuthModal(){modalBg.classList.add('open');pinInput.value='';modalErr.style.display='none';pinInput.focus();}
-  function closeAuthModal(){modalBg.classList.remove('open');}
-
-  unlockBtn.addEventListener('click',()=>{
+  if(unlockBtn) unlockBtn.addEventListener('click',()=>{
     if(schedAuth.unlocked){
       // Log out
       schedAuth={unlocked:false,scheduler:null,pin:null};
