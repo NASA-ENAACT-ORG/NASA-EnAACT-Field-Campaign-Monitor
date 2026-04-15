@@ -1378,6 +1378,9 @@ function applyScheduleColors(){
 }
 
 function renderTimelineBar(){
+  const daysEl=document.getElementById('sched-tl-days');
+  if(!daysEl)return; // Schedule view removed
+
   const wk=getTlWeek();
   const weeks=buildTlWeeks();
   const sorted=getSortedAssignments();
@@ -1386,7 +1389,6 @@ function renderTimelineBar(){
   const playBtn=document.getElementById('tl-play');
   const wkLbl=document.getElementById('sched-tl-week-label');
   const detail=document.getElementById('sched-tl-detail');
-  const daysEl=document.getElementById('sched-tl-days');
   const prevWkBtn=document.getElementById('tl-wk-prev');
   const nextWkBtn=document.getElementById('tl-wk-next');
 
@@ -1518,6 +1520,7 @@ function playSchedule(){
 function renderSchedulePanel(){
   const body=document.getElementById('sched-panel-body');
   const meta=document.getElementById('sched-meta');
+  if(!body||!meta)return; // Schedule view removed
   if(!schedData){
     body.innerHTML='<div id="sched-no-data">No schedule loaded.<br>Run walk_scheduler.py then click Load above.</div>';
     meta.textContent='Run the scheduler to load assignments';
@@ -1866,31 +1869,6 @@ function bindEvents(){
       renderAvailHeatmap();
     } else renderCV();
   }));
-  document.getElementById('tl-play').addEventListener('click',playSchedule);
-  document.getElementById('tl-next').addEventListener('click',()=>{
-    if(schedPlaying){playSchedule();}
-    const s=getSortedAssignments();
-    setSchedStep(schedStep>=s.length-1?s.length-1:schedStep+1);
-  });
-  document.getElementById('tl-prev').addEventListener('click',()=>{
-    if(schedPlaying){playSchedule();}
-    setSchedStep(schedStep<=0?-1:schedStep-1);
-  });
-  document.getElementById('tl-reset').addEventListener('click',()=>{
-    if(schedPlaying){playSchedule();}
-    schedStep=-1;applyScheduleColors();renderTimelineBar();
-    document.querySelectorAll('.sched-row').forEach(r=>r.style.outline='');
-  });
-  document.getElementById('tl-wk-prev').addEventListener('click',()=>{
-    const weeks=buildTlWeeks();
-    if(tlWeekIdx<weeks.length-1){tlWeekIdx++;schedStep=-1;applyScheduleColors();renderSchedulePanel();renderTimelineBar();}
-  });
-  document.getElementById('tl-wk-next').addEventListener('click',()=>{
-    if(tlWeekIdx>0){tlWeekIdx--;schedStep=-1;applyScheduleColors();renderSchedulePanel();renderTimelineBar();}
-  });
-  document.getElementById('tl-wk-now').addEventListener('click',()=>{
-    tlWeekIdx=findCurrentWeekIdx(buildTlWeeks());schedStep=-1;applyScheduleColors();renderSchedulePanel();renderTimelineBar();
-  });
   document.getElementById('fseason').addEventListener('change',e=>{filters.season=e.target.value;applyFilters();});
   document.getElementById('ftod').addEventListener('change',e=>{filters.tod=e.target.value;applyFilters();});
   document.getElementById('fbp').addEventListener('change',e=>{filters.backpack=e.target.value;applyFilters();});
