@@ -298,82 +298,6 @@ select option{background:var(--bg3)}
 .cal-empty-week{grid-column:1/-1;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:12px;padding:48px}
 /* COLLECTOR VIEW */
 #collector-view{flex-direction:column;overflow-y:auto;padding:14px 16px;gap:14px}
-/* SCHEDULE VIEW */
-#schedule-view{flex-direction:row}
-#sched-map-wrap{flex:1;position:relative;overflow:hidden}
-#sched-map{width:100%;height:100%}
-#sched-panel{width:400px;flex-shrink:0;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
-#sched-panel-head{padding:12px 14px 9px;border-bottom:1px solid var(--border)}
-#sched-panel-head h2{font-size:13px;font-weight:700}
-#sched-panel-head .smeta{font-size:10px;color:var(--text2);margin-top:3px}
-#sched-panel-body{flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:10px}
-.sbp-section h3{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px;display:flex;align-items:center;gap:6px}
-.sbp-section h3 .bpbadge{font-size:9px;padding:1px 6px;border-radius:10px;font-weight:700}
-.bpa{background:rgba(248,81,73,.2);color:#f85149;border:1px solid rgba(248,81,73,.4)}
-.bpb{background:rgba(56,139,253,.2);color:#388bfd;border:1px solid rgba(56,139,253,.4)}
-.sched-row{display:flex;align-items:center;gap:6px;padding:5px 7px;background:var(--bg3);border-radius:5px;margin-bottom:4px;cursor:pointer;transition:background .15s}
-.sched-row:hover{background:var(--bg4)}
-.sched-row .sr-date{font-size:9px;color:var(--text3);width:48px;flex-shrink:0}
-.sched-row .sr-tod{font-size:9px;font-weight:700;width:22px;flex-shrink:0}
-.sched-row .sr-route{flex:1;font-size:11px;font-weight:600}
-.sched-row .sr-col{font-size:9px;color:var(--text2)}
-#sched-no-data{padding:20px;text-align:center;color:var(--text3);font-size:12px}
-#sched-legend{position:absolute;bottom:108px;left:12px;background:rgba(13,17,23,.85);border:1px solid var(--border);border-radius:7px;padding:9px 12px;z-index:400;backdrop-filter:blur(4px)}
-#sched-legend h4{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:7px}
-.sli{display:flex;align-items:center;gap:7px;font-size:11px;margin-bottom:4px}
-.slsw{width:24px;height:3px;border-radius:2px;flex-shrink:0}
-#sched-btn-row{display:flex;gap:7px;margin:10px 12px;align-items:center}
-/* -- Scheduler auth & status -- */
-#sched-unlock-btn{padding:4px 10px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:10px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:4px}
-#sched-unlock-btn:hover{border-color:var(--accent);color:var(--text)}
-#sched-unlock-btn.authed{border-color:#3fb950;color:#3fb950;background:rgba(63,185,80,.1)}
-.status-badge{display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;flex-shrink:0}
-.status-badge.pending{background:rgba(201,209,217,.12);color:#8b949e}
-.status-badge.confirmed{background:rgba(63,185,80,.15);color:#3fb950}
-.status-badge.denied{background:rgba(248,81,73,.15);color:#f85149}
-.sched-row .sr-actions{display:flex;gap:4px;flex-shrink:0;visibility:hidden}
-.sched-row .sr-actions button{padding:2px 6px;border-radius:4px;font-size:9px;font-weight:600;cursor:pointer;border:1px solid}
-body.scheduler-mode .sched-row{flex-wrap:wrap}
-body.scheduler-mode .sched-row .sr-route{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-body.scheduler-mode .sched-row .sr-actions{width:100%;margin-left:0;justify-content:flex-end;margin-top:3px;padding-left:70px}
-.sr-confirm-btn{background:rgba(63,185,80,.15);border-color:#3fb950!important;color:#3fb950!important}
-.sr-deny-btn{background:rgba(248,81,73,.15);border-color:#f85149!important;color:#f85149!important}
-.sr-reset-btn{background:var(--bg3);border-color:var(--border)!important;color:var(--text2)!important}
-body.scheduler-mode .sched-row .sr-actions{visibility:visible}
-.cal-event .ce-actions{display:none;margin-top:4px;gap:3px}
-.cal-event .ce-actions button{flex:1;padding:2px 4px;border-radius:3px;font-size:9px;font-weight:600;cursor:pointer;border:1px solid}
-body.scheduler-mode .cal-event .ce-actions{display:flex}
-/* Auth modal */
-#auth-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;align-items:center;justify-content:center}
-#auth-modal-bg.open{display:flex}
-#auth-modal{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:22px 24px;width:280px;display:flex;flex-direction:column;gap:12px}
-#auth-modal h3{font-size:13px;font-weight:700;margin:0}
-#auth-modal label{font-size:10px;color:var(--text2);display:block;margin-bottom:3px}
-#auth-modal select,#auth-modal input{width:100%;padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;box-sizing:border-box}
-#auth-modal-err{font-size:10px;color:#f85149;display:none}
-#auth-modal-submit{padding:7px;border-radius:5px;background:var(--accent);border:none;color:#fff;font-size:12px;font-weight:600;cursor:pointer}
-#auth-modal-cancel{padding:7px;border-radius:5px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);font-size:12px;cursor:pointer}
-#sched-timeline{position:absolute;bottom:0;left:0;right:0;background:rgba(13,17,23,.95);border-top:1px solid var(--border);padding:5px 12px calc(10px + env(safe-area-inset-bottom));z-index:401;display:flex;flex-direction:column;gap:3px}
-#sched-map-wrap .leaflet-control-attribution{margin-bottom:88px!important}
-#sched-tl-top{display:flex;align-items:center;gap:6px}
-#sched-tl-controls{display:flex;gap:3px;flex-shrink:0}
-.tl-btn{width:24px;height:24px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text);cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0}.tl-btn:hover{background:var(--bg4);border-color:var(--accent)}
-#sched-tl-divider{width:1px;height:20px;background:var(--border);flex-shrink:0;margin:0 2px}
-#sched-tl-week-nav{display:flex;align-items:center;gap:4px;flex-shrink:0}
-#sched-tl-week-label{font-size:10.5px;color:var(--text);font-weight:600;min-width:168px;text-align:center;white-space:nowrap}
-.tl-wk-btn{width:22px;height:22px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;padding:0}.tl-wk-btn:hover{background:var(--bg4);color:var(--text);border-color:var(--accent)}.tl-wk-btn:disabled{opacity:.28;cursor:default}
-#sched-tl-detail{font-size:10px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;padding-left:6px;border-left:1px solid var(--border);height:20px;display:flex;align-items:center}
-#sched-tl-days{display:flex;gap:3px;align-items:flex-end;min-height:36px}
-.tl-day{display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;min-width:34px;padding:0 2px}
-.tl-day-lbl{font-size:8.5px;color:var(--text3);white-space:nowrap;letter-spacing:.2px}
-.tl-day-lbl.tl-today{color:var(--accent);font-weight:700}
-.tl-day-dots{display:flex;gap:3px;justify-content:center;flex-wrap:wrap;min-height:11px}
-.tl-dot{width:11px;height:11px;border-radius:50%;cursor:pointer;transition:transform .15s,box-shadow .15s;flex-shrink:0}
-.tl-dot:hover{transform:scale(1.35)}
-.tl-dot.bp-a{background:#f85149}.tl-dot.bp-b{background:#388bfd}.tl-dot.bp-x{background:#f0a500}
-.tl-dot.tl-past{opacity:.38}.tl-dot.tl-current{opacity:1;box-shadow:0 0 0 2px #fff4}.tl-dot.tl-future{opacity:.75}
-.tl-day-recal{font-size:8px;color:#f0a500;letter-spacing:.3px}
-.tl-day-sep{width:1px;background:var(--border);align-self:stretch;flex-shrink:0}
 /* Collector groups */
 #cselector{display:flex;flex-direction:column;gap:14px;width:100%}
 .cgroup{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden}
@@ -666,7 +590,6 @@ setTimeout(function(){
       <div class="tab-group">
         <span class="tab-group-label scheduling">Scheduling</span>
         <div class="tab-group-btns">
-          <button class="tab-btn" data-view="schedule-view">&#x1F5FA;&#xFE0F; Map</button>
           <button class="tab-btn" data-view="calendar-view">&#x1F4C6; Calendar</button>
           <button class="tab-btn" data-view="availability-view">&#x1F4C5; Availability</button>
         </div>
@@ -743,50 +666,6 @@ setTimeout(function(){
           </tr></thead>
           <tbody id="ctbody"></tbody>
         </table>
-      </div>
-    </div>
-    <!--- SCHEDULE VIEW --->
-    <div id="schedule-view" class="view">
-      <div id="sched-map-wrap">
-        <div id="sched-map"></div>
-        <div id="sched-legend">
-          <h4>Backpack Assignment</h4>
-          <div class="sli"><div class="slsw" style="background:#f85149"></div>Backpack A</div>
-          <div class="sli"><div class="slsw" style="background:#388bfd"></div>Backpack B</div>
-          <div class="sli"><div class="slsw" style="background:#333c47"></div>Not scheduled</div>
-        </div>
-        <div id="sched-timeline">
-          <div id="sched-tl-top">
-            <div id="sched-tl-controls">
-              <button class="tl-btn" id="tl-reset" title="Reset to all">&#x23EE;</button>
-              <button class="tl-btn" id="tl-prev" title="Previous walk">&#x2039;</button>
-              <button class="tl-btn" id="tl-play" title="Play">&#x25B6;</button>
-              <button class="tl-btn" id="tl-next" title="Next walk">&#x203A;</button>
-            </div>
-            <div id="sched-tl-divider"></div>
-            <div id="sched-tl-week-nav">
-              <button class="tl-wk-btn" id="tl-wk-prev" title="Older week">&#x2190;</button>
-              <div id="sched-tl-week-label">-</div>
-              <button class="tl-wk-btn" id="tl-wk-next" title="Newer week">&#x2192;</button>
-              <button class="tl-wk-btn" id="tl-wk-now" title="Jump to current week" style="margin-left:2px;font-size:9px;width:auto;padding:0 5px">Now</button>
-            </div>
-            <div id="sched-tl-detail">No schedule loaded</div>
-          </div>
-          <div id="sched-tl-days"></div>
-        </div>
-      </div>
-      <div id="sched-panel">
-        <div id="sched-panel-head">
-          <h2>Weekly Schedule</h2>
-          <div class="smeta" id="sched-meta">Run the scheduler to load assignments</div>
-        </div>
-        <div id="sched-btn-row">
-          <button id="sched-unlock-btn" title="Enter scheduler PIN to confirm/deny assignments">&#x1F511; Scheduler Mode</button>
-        </div>
-        <input type="file" id="sched-file" accept=".json" style="display:none">
-        <div id="sched-panel-body">
-          <div id="sched-no-data">No schedule loaded - schedule is auto-generated when new forecast data arrives.</div>
-        </div>
       </div>
     </div>
     <!--- CALENDAR VIEW --->
