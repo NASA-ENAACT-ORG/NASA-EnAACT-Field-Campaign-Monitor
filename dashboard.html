@@ -1313,6 +1313,7 @@ function initMap(){
     collectorHomeMarkers[cid]=m;
   }
   document.getElementById('collector-homes-btn').addEventListener('click',()=>{
+    if(!schedAuth.unlocked){openAuthModal();return;}
     collectorHomesVisible=!collectorHomesVisible;
     if(collectorHomesVisible){collectorHomeLayer.addTo(map);}
     else{collectorHomeLayer.remove();}
@@ -2382,7 +2383,7 @@ async function init(){
   await refreshRuntimeData();
   let src=null;
   try{
-    const r=await fetch('Walks_Log.txt');
+    const r=await fetch('Walks_Log.txt?_ts='+Date.now(),{cache:'no-store'});
     if(r.ok){logText=await r.text();src='Walks_Log.txt';}
   }catch(e){}
   await fetchConfirmations();
@@ -2435,23 +2436,28 @@ async function refreshGps(){
     if(!r.ok)throw new Error(r.status);
     data=await r.json();
   }catch(e){
-    const _ba=document.getElementById('gps-badge-a'); if(_ba)_ba.textContent='BP-A: offline';
-    const _bb=document.getElementById('gps-badge-b'); if(_bb)_bb.textContent='BP-B: offline';
+    document.getElementById('gps-badge-a').textContent='BP-A: offline';
+    document.getElementById('gps-badge-b').textContent='BP-B: offline';
     return;
   }
   for(const[bp,pos]of Object.entries(data)){
     const badgeId=bp==='BP_A'?'gps-badge-a':'gps-badge-b';
     const badge=document.getElementById(badgeId);
     if(!pos||pos.lat===null){
-      if(badge){badge.textContent=(bp==='BP_A'?'BP-A':'BP-B')+': no fix';badge.className='live-badge warn';}
+      badge.textContent=(bp==='BP_A'?'BP-A':'BP-B')+': no fix';
+      badge.className='live-badge warn';
       continue;
     }
     const lbl=(bp==='BP_A'?'BP-A':'BP-B');
-    if(badge){
-      if(pos.stale){badge.textContent=lbl+': stale';badge.className='live-badge err';}
-      else{const spd=pos.speed!=null?` ${pos.speed.toFixed(1)}m/s`:'';badge.textContent=`${lbl}: live${spd}`;badge.className='live-badge ok';}
-      badge.title=`${bp} | Last: ${pos.ts?new Date(pos.ts).toLocaleTimeString():'-'}${pos.batt!=null?' | Batt: '+pos.batt+'%':''}`;
+    if(pos.stale){
+      badge.textContent=lbl+': stale';
+      badge.className='live-badge err';
+    }else{
+      const spd=pos.speed!=null?` ${pos.speed.toFixed(1)}m/s`:'';
+      badge.textContent=`${lbl}: live${spd}`;
+      badge.className='live-badge ok';
     }
+    badge.title=`${bp} | Last: ${pos.ts?new Date(pos.ts).toLocaleTimeString():'-'}${pos.batt!=null?' | Batt: '+pos.batt+'%':''}`;
     const latLng=L.latLng(pos.lat,pos.lon);
     if(gpsMarkers[bp]){
       gpsMarkers[bp].setLatLng(latLng);
@@ -2487,16 +2493,14 @@ async function refreshDriveStatus(){
     if(!r.ok)return;
     const d=await r.json();
     const badge=document.getElementById('drive-badge');
-    if(badge){
-      if(d.drive_last_poll){
-        badge.textContent='Drive: '+_relTime(d.drive_last_poll);
-        badge.className='live-badge ok';
-        badge.title='Last Google Drive poll: '+new Date(d.drive_last_poll).toLocaleString()+
-          (d.drive_new_files_today?'\n'+d.drive_new_files_today+' new file(s) today':'');
-      }else{
-        badge.textContent='Drive: not configured';
-        badge.className='live-badge warn';
-      }
+    if(d.drive_last_poll){
+      badge.textContent='Drive: '+_relTime(d.drive_last_poll);
+      badge.className='live-badge ok';
+      badge.title='Last Google Drive poll: '+new Date(d.drive_last_poll).toLocaleString()+
+        (d.drive_new_files_today?'\n'+d.drive_new_files_today+' new file(s) today':'');
+    }else{
+      badge.textContent='Drive: not configured';
+      badge.className='live-badge warn';
     }
   }catch(e){}
 }

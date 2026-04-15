@@ -1048,6 +1048,7 @@ function initMap(){
     collectorHomeMarkers[cid]=m;
   }
   document.getElementById('collector-homes-btn').addEventListener('click',()=>{
+    if(!schedAuth.unlocked){openAuthModal();return;}
     collectorHomesVisible=!collectorHomesVisible;
     if(collectorHomesVisible){collectorHomeLayer.addTo(map);}
     else{collectorHomeLayer.remove();}
