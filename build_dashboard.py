@@ -160,9 +160,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .force-rebuild-btn{padding:4px 11px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:11px;font-weight:600;transition:all .15s;font-family:'Space Grotesk',sans-serif;margin-right:4px;display:flex;align-items:center;gap:3px;white-space:nowrap}
 .force-rebuild-btn:hover{background:#4f3a0f;border-color:#d29922;color:#d29922}
 .force-rebuild-btn.rebuilding{opacity:.5;cursor:wait;pointer-events:none}
-/* Filters always live in a drawer panel, opened by hamburger on all screen sizes */
-#filters{display:none;position:fixed;left:-100%;top:56px;width:280px;max-width:calc(100% - 16px);height:calc(100vh - 56px);background:var(--bg2);border-right:1px solid var(--border);border-top:1px solid var(--border);overflow-y:auto;z-index:580;padding:14px;gap:10px;flex-direction:column;transition:left .25s ease;box-shadow:4px 0 20px rgba(0,0,0,.4)}
-#filters.open{display:flex!important;left:0!important}
+/* Filters dropdown panel — anchored to Campaign Monitor tab group */
+#filters{display:none;position:fixed;width:240px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow-y:auto;z-index:1200;padding:14px;gap:10px;flex-direction:column;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+#filters.open{display:flex}
 select,input[type=date]{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:3px 7px;font-size:11px;height:28px;cursor:pointer;outline:none}
 select:hover,input[type=date]:hover{border-color:var(--accent)}
 select option{background:var(--bg3)}
@@ -475,19 +475,16 @@ body.scheduler-mode .cal-event .ce-actions{display:flex}
 .live-badge.err{border-color:rgba(248,81,73,.4);color:#f85149}
 .drive-sync-btn{font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;transition:background .15s}
 .drive-sync-btn:hover{background:var(--bg4,#2d333b)}
-/* -- Hamburger (visible on ALL screen sizes) -- */
-.mobile-menu-btn{display:flex;background:transparent;border:1px solid var(--border);color:var(--text);font-size:18px;width:32px;height:32px;border-radius:6px;cursor:pointer;padding:0;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;margin-left:6px}
-.mobile-menu-btn:hover{background:var(--bg3);border-color:var(--accent)}
-.mobile-menu-btn.filters-open{background:var(--bg3);border-color:var(--accent);color:var(--accent)}
-/* Filter drawer contents layout */
+/* -- Filters toggle button (lives in Campaign Monitor tab bar) -- */
+.filters-toggle-btn{border-color:rgba(96,165,250,.3);color:var(--text3)}
+.filters-toggle-btn:hover{background:var(--bg3);border-color:rgba(96,165,250,.6);color:#60a5fa}
+.filters-toggle-btn.active{background:var(--bg3);border-color:rgba(96,165,250,.6);color:#60a5fa}
+/* Filter dropdown contents layout */
 #filters .fg{width:100%;gap:4px;flex-direction:column}
 #filters .fg select,#filters .fg input{width:100%;height:32px;padding:4px 8px;font-size:12px}
 #filters .fg span.fl{font-size:10px;color:var(--text3);font-weight:600}
 #filters .btn{width:100%;justify-content:center;font-size:11px}
 #filters #data-status{width:100%;text-align:center}
-#filters #live-badges{width:100%;flex-wrap:wrap;gap:4px;margin-left:0}
-#filters .live-badge{flex:1;text-align:center;font-size:9px;padding:3px 5px}
-#filters .drive-sync-btn{flex:1;height:32px}
 /* Filter drawer section headers */
 .filter-section-head{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);padding-bottom:4px;border-bottom:1px solid var(--border);margin-bottom:2px}
 @media(max-width:768px){
@@ -499,7 +496,6 @@ body.scheduler-mode .cal-event .ce-actions{display:flex}
   #header-divider{display:none}
   #header-title{order:1;flex-shrink:1;min-width:0;text-align:right}
   #header h1{font-size:13px;font-family:'Space Grotesk',sans-serif;white-space:normal;line-height:1.2}
-  #mobile-menu-btn{order:1;margin-left:8px}
   /* Row 2: tabs full width */
   #tabs{order:2;flex-basis:100%;margin-left:0;gap:3px;margin-top:6px;align-items:stretch}
   .tab-group{flex-direction:row;flex:1}
@@ -638,11 +634,32 @@ setTimeout(function(){
       <h1>NASA EnAACT Field Campaign Data Desk</h1>
     </div>
     <div id="tabs">
-      <div class="tab-group">
+      <div class="tab-group" id="campaign-tab-group">
         <span class="tab-group-label monitor">Campaign Monitor</span>
         <div class="tab-group-btns">
           <button class="tab-btn active" data-view="map-view">&#x1F5FA;&#xFE0F; Map</button>
           <button class="tab-btn" data-view="collector-view">&#x1F465; Collectors</button>
+          <button id="filters-btn" class="tab-btn filters-toggle-btn" title="Toggle walk filters">&#x2699; Filters &#x25BE;</button>
+        </div>
+        <div id="filters">
+          <div class="filter-section-head">Walk Filters</div>
+          <div class="fg"><span class="fl">Season</span>
+            <select id="fseason"><option value="">All seasons</option><option value="Spring">Spring</option><option value="Summer">Summer</option><option value="Fall">Fall</option><option value="Winter">Winter</option></select>
+          </div>
+          <div class="fg"><span class="fl">Time of Day</span>
+            <select id="ftod"><option value="">All</option><option value="AM">AM</option><option value="MD">Midday</option><option value="PM">PM</option></select>
+          </div>
+          <div class="fg"><span class="fl">Backpack</span>
+            <select id="fbp"><option value="">All</option><option value="A">A - CCNY</option><option value="B">B - LaGCC</option><option value="X">X (legacy)</option></select>
+          </div>
+          <div class="fg"><span class="fl">Date From</span><input type="date" id="ffrom"></div>
+          <div class="fg"><span class="fl">Date To</span><input type="date" id="fto"></div>
+          <div style="display:flex;gap:6px">
+            <button class="btn" id="btn-refresh" style="flex:1">&#x27F3; Refresh</button>
+            <label class="btn" for="ffile" style="flex:1;justify-content:center">&#x1F4C2; Load Log</label>
+          </div>
+          <input type="file" id="ffile" accept=".txt" style="display:none">
+          <div id="data-status">loading...</div>
         </div>
       </div>
       <div class="tab-sep"></div>
@@ -656,34 +673,6 @@ setTimeout(function(){
       </div>
     </div>
     <button id="force-rebuild-btn" class="force-rebuild-btn" title="Force rebuild: build weather, run scheduler, rebuild dashboard">&#x27F3; Rebuild</button>
-    <button id="mobile-menu-btn" class="mobile-menu-btn" title="Toggle filters">&#x2630;</button>
-    <div id="filters">
-      <div class="filter-section-head">Walk Filters</div>
-      <div class="fg"><span class="fl">Season</span>
-        <select id="fseason"><option value="">All seasons</option><option value="Spring">Spring</option><option value="Summer">Summer</option><option value="Fall">Fall</option><option value="Winter">Winter</option></select>
-      </div>
-      <div class="fg"><span class="fl">Time of Day</span>
-        <select id="ftod"><option value="">All</option><option value="AM">AM</option><option value="MD">Midday</option><option value="PM">PM</option></select>
-      </div>
-      <div class="fg"><span class="fl">Backpack</span>
-        <select id="fbp"><option value="">All</option><option value="A">A - CCNY</option><option value="B">B - LaGCC</option><option value="X">X (legacy)</option></select>
-      </div>
-      <div class="fg"><span class="fl">Date From</span><input type="date" id="ffrom"></div>
-      <div class="fg"><span class="fl">Date To</span><input type="date" id="fto"></div>
-      <div style="display:flex;gap:6px">
-        <button class="btn" id="btn-refresh" style="flex:1">&#x27F3; Refresh</button>
-        <label class="btn" for="ffile" style="flex:1;justify-content:center">&#x1F4C2; Load Log</label>
-      </div>
-      <input type="file" id="ffile" accept=".txt" style="display:none">
-      <div id="data-status">loading...</div>
-      <div class="filter-section-head" style="margin-top:4px">Live Status</div>
-      <div id="live-badges">
-        <span class="live-badge" id="gps-badge-a" title="Backpack A GPS">BP-A: -</span>
-        <span class="live-badge" id="gps-badge-b" title="Backpack B GPS">BP-B: -</span>
-        <span class="live-badge" id="drive-badge" title="Google Drive last sync">Drive: -</span>
-        <button class="drive-sync-btn" id="drive-sync-btn" title="Sync Google Drive now">&#x21BB; Sync</button>
-      </div>
-    </div>
   </div>
   <div id="content">
     <!--- MAP VIEW --->
@@ -2280,48 +2269,60 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 document.addEventListener('DOMContentLoaded',init);
 
-// Filter drawer toggle - hamburger button is always visible on all screen sizes
+// Filters dropdown — scoped to Campaign Monitor tab group
 document.addEventListener('DOMContentLoaded', function() {
-  const menuBtn = document.getElementById('mobile-menu-btn');
-  const filtersDrawer = document.getElementById('filters');
+  const filtersBtn = document.getElementById('filters-btn');
+  const filtersDropdown = document.getElementById('filters');
+  const campaignGroup = document.getElementById('campaign-tab-group');
+
+  const campaignViews = new Set(['map-view', 'collector-view']);
 
   function openFilters() {
-    if (!filtersDrawer) return;
-    filtersDrawer.classList.add('open');
-    if (menuBtn) menuBtn.classList.add('filters-open');
-    // Ensure drawer top offset matches current header height
-    const hdr = document.getElementById('header');
-    if (hdr) filtersDrawer.style.top = hdr.offsetHeight + 'px';
+    if (!filtersDropdown || !filtersBtn) return;
+    const rect = filtersBtn.getBoundingClientRect();
+    filtersDropdown.style.top = (rect.bottom + 4) + 'px';
+    // Keep dropdown within viewport
+    const dropW = 240;
+    const left = Math.min(rect.left, window.innerWidth - dropW - 8);
+    filtersDropdown.style.left = Math.max(8, left) + 'px';
+    filtersDropdown.classList.add('open');
+    filtersBtn.classList.add('active');
   }
   function closeFilters() {
-    if (!filtersDrawer) return;
-    filtersDrawer.classList.remove('open');
-    if (menuBtn) menuBtn.classList.remove('filters-open');
+    if (!filtersDropdown) return;
+    filtersDropdown.classList.remove('open');
+    if (filtersBtn) filtersBtn.classList.remove('active');
   }
   function isFiltersOpen() {
-    return filtersDrawer && filtersDrawer.classList.contains('open');
+    return filtersDropdown && filtersDropdown.classList.contains('open');
   }
 
-  // Hamburger toggles filters drawer
-  if (menuBtn && filtersDrawer) {
-    menuBtn.addEventListener('click', function(e) {
+  if (filtersBtn) {
+    filtersBtn.addEventListener('click', function(e) {
       e.stopPropagation();
       isFiltersOpen() ? closeFilters() : openFilters();
     });
   }
 
-  // Close drawer when clicking outside
+  // Close dropdown when clicking outside the campaign tab group
   document.addEventListener('click', function(e) {
     if (!isFiltersOpen()) return;
-    const isBtn = menuBtn && menuBtn.contains(e.target);
-    const isDrawer = filtersDrawer && filtersDrawer.contains(e.target);
-    if (!isBtn && !isDrawer) closeFilters();
+    if (campaignGroup && campaignGroup.contains(e.target)) return;
+    closeFilters();
   });
 
-  // Close filters drawer when switching views
+  // Show/hide filters button and close dropdown when switching tab groups
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', function() {
-      setTimeout(closeFilters, 80);
+      const view = btn.dataset.view;
+      if (view && !campaignViews.has(view)) {
+        // Switched to a non-Campaign Monitor tab — hide the button
+        closeFilters();
+        if (filtersBtn) filtersBtn.style.display = 'none';
+      } else if (view && campaignViews.has(view)) {
+        // Switched back to a Campaign Monitor tab — show the button
+        if (filtersBtn) filtersBtn.style.display = '';
+      }
     });
   });
 });
