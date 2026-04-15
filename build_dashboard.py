@@ -810,7 +810,7 @@ const CNAMES = {
 };
 const AFFINITY = __AFFINITY_JSON__;
 const SAMPLE_LOG = `__SAMPLE_LOG__`;
-const TARGET=8, MINC=6;
+const TARGET=6, MINC=6;
 const TODS=["AM","MD","PM"];
 
 // --- STATE ---
@@ -961,16 +961,14 @@ function gradientColor(n){
   function h2r(h){return[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}
   function lp(a,b,t){return Math.round(a+(b-a)*t);}
   function r2h(r,g,b){return'#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');}
-  const RED=h2r('#ff0000'),GRN=h2r('#22c55e'),LBL=h2r('#60a5fa'),DBL=h2r('#1e3a8a');
+  const RED=h2r('#ff0000'),DGN=h2r('#15803d');
   if(n<=0)return'#ff0000';
-  if(n>=8)return'#1e3a8a';
-  if(n<=6){const t=n/6;return r2h(lp(RED[0],GRN[0],t),lp(RED[1],GRN[1],t),lp(RED[2],GRN[2],t));}
-  if(n<=7){const t=(n-6)/1;return r2h(lp(GRN[0],LBL[0],t),lp(GRN[1],LBL[1],t),lp(GRN[2],LBL[2],t));}
-  const t=(n-7);return r2h(lp(LBL[0],DBL[0],t),lp(LBL[1],DBL[1],t),lp(LBL[2],DBL[2],t));
+  if(n>=6)return'#15803d';
+  const t=n/6;return r2h(lp(RED[0],DGN[0],t),lp(RED[1],DGN[1],t),lp(RED[2],DGN[2],t));
 }
 function routeStatus(code,ws){
   const n=ws.filter(w=>w.route===code).length;
-  const s=n>=TARGET?'green':n>=MINC?'yellow':'red';
+  const s=n>=TARGET?'green':'red';
   return{s,c:gradientColor(n),n};
 }
 function styleRoute(code){
@@ -984,9 +982,8 @@ function updateMapStats(){
   for(const c of ALL_ROUTES)cnt[routeStatus(c,filteredWalks).s]++;
   document.getElementById('mstats').innerHTML=
     `<div class="msc"><strong style="color:#58a6ff">${filteredWalks.length}</strong>Total Walks In Selected Window</div>
-     <div class="msc"><strong style="color:#15803d">${cnt.green}</strong>At target (8+)</div>
-     <div class="msc"><strong style="color:#4ade80">${cnt.yellow}</strong>Near minimum (6-7)</div>
-     <div class="msc"><strong style="color:#f85149">${cnt.red}</strong>Below minimum (&lt;6)</div>`;
+     <div class="msc"><strong style="color:#15803d">${cnt.green}</strong>At target (6+)</div>
+     <div class="msc"><strong style="color:#f85149">${cnt.red}</strong>Below target (&lt;6)</div>`;
 }
 // --- ROUTE PANEL ---
 function openPanel(code){
