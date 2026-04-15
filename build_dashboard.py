@@ -609,8 +609,8 @@ setTimeout(function(){
         <button id="collector-homes-btn" title="Toggle collector areas">&#x1F3E0; Collector Areas</button>
         <div id="mlegend">
           <h4>Completion Progress</h4>
-          <div style="width:100%;height:7px;border-radius:4px;background:linear-gradient(to right,#f85149 0%,#d29922 30%,#4ade80 60%,#15803d 100%);margin-bottom:6px"></div>
-          <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text3)"><span>0</span><span>3</span><span>Min (6)</span><span>Target (8+)</span></div>
+          <div style="width:100%;height:7px;border-radius:4px;background:linear-gradient(to right,#ff0000 0%,#15803d 100%);margin-bottom:6px"></div>
+          <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text3)"><span>0</span><span>3</span><span>Target (6+)</span></div>
         </div>
       </div>
       <div id="route-panel">
