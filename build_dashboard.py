@@ -589,26 +589,6 @@ setTimeout(function(){
           <button class="tab-btn" data-view="collector-view">&#x1F465; Collectors</button>
           <button id="filters-btn" class="tab-btn filters-toggle-btn" title="Toggle walk filters">&#x2699; Filters &#x25BE;</button>
         </div>
-        <div id="filters">
-          <div class="filter-section-head">Walk Filters</div>
-          <div class="fg"><span class="fl">Season</span>
-            <select id="fseason"><option value="">All seasons</option><option value="Spring">Spring</option><option value="Summer">Summer</option><option value="Fall">Fall</option><option value="Winter">Winter</option></select>
-          </div>
-          <div class="fg"><span class="fl">Time of Day</span>
-            <select id="ftod"><option value="">All</option><option value="AM">AM</option><option value="MD">Midday</option><option value="PM">PM</option></select>
-          </div>
-          <div class="fg"><span class="fl">Backpack</span>
-            <select id="fbp"><option value="">All</option><option value="A">A - CCNY</option><option value="B">B - LaGCC</option><option value="X">X (legacy)</option></select>
-          </div>
-          <div class="fg"><span class="fl">Date From</span><input type="date" id="ffrom"></div>
-          <div class="fg"><span class="fl">Date To</span><input type="date" id="fto"></div>
-          <div style="display:flex;gap:6px">
-            <button class="btn" id="btn-refresh" style="flex:1">&#x27F3; Refresh</button>
-            <label class="btn" for="ffile" style="flex:1;justify-content:center">&#x1F4C2; Load Log</label>
-          </div>
-          <input type="file" id="ffile" accept=".txt" style="display:none">
-          <div id="data-status">loading...</div>
-        </div>
       </div>
       <div class="tab-sep"></div>
       <div class="tab-group">
@@ -2231,10 +2211,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Close dropdown when clicking outside the campaign tab group
+  // Close dropdown when clicking outside the campaign tab group or the dropdown itself
   document.addEventListener('click', function(e) {
     if (!isFiltersOpen()) return;
     if (campaignGroup && campaignGroup.contains(e.target)) return;
+    if (filtersDropdown && filtersDropdown.contains(e.target)) return;
     closeFilters();
   });
 
@@ -2278,6 +2259,26 @@ document.addEventListener('DOMContentLoaded', function() {
       <button id="auth-modal-submit">Unlock</button>
     </div>
   </div>
+</div>
+<div id="filters">
+  <div class="filter-section-head">Walk Filters</div>
+  <div class="fg"><span class="fl">Season</span>
+    <select id="fseason"><option value="">All seasons</option><option value="Spring">Spring</option><option value="Summer">Summer</option><option value="Fall">Fall</option><option value="Winter">Winter</option></select>
+  </div>
+  <div class="fg"><span class="fl">Time of Day</span>
+    <select id="ftod"><option value="">All</option><option value="AM">AM</option><option value="MD">Midday</option><option value="PM">PM</option></select>
+  </div>
+  <div class="fg"><span class="fl">Backpack</span>
+    <select id="fbp"><option value="">All</option><option value="A">A - CCNY</option><option value="B">B - LaGCC</option><option value="X">X (legacy)</option></select>
+  </div>
+  <div class="fg"><span class="fl">Date From</span><input type="date" id="ffrom"></div>
+  <div class="fg"><span class="fl">Date To</span><input type="date" id="fto"></div>
+  <div style="display:flex;gap:6px">
+    <button class="btn" id="btn-refresh" style="flex:1">&#x27F3; Refresh</button>
+    <label class="btn" for="ffile" style="flex:1;justify-content:center">&#x1F4C2; Load Log</label>
+  </div>
+  <input type="file" id="ffile" accept=".txt" style="display:none">
+  <div id="data-status">loading...</div>
 </div>
 </body>
 </html>
