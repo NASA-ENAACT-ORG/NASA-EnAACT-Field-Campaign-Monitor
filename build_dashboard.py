@@ -160,6 +160,27 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .force-rebuild-btn{padding:4px 11px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:11px;font-weight:600;transition:all .15s;font-family:'Space Grotesk',sans-serif;margin-right:4px;display:flex;align-items:center;gap:3px;white-space:nowrap}
 .force-rebuild-btn:hover{background:#4f3a0f;border-color:#d29922;color:#d29922}
 .force-rebuild-btn.rebuilding{opacity:.5;cursor:wait;pointer-events:none}
+/* -- Admin login button (header) -- */
+.sched-unlock-btn{padding:4px 11px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:11px;font-weight:600;transition:all .15s;font-family:'Space Grotesk',sans-serif;margin-right:2px;display:flex;align-items:center;gap:3px;white-space:nowrap;flex-shrink:0}
+.sched-unlock-btn:hover{background:rgba(56,139,253,.1);border-color:var(--accent);color:var(--accent)}
+.sched-unlock-btn.authed{border-color:rgba(63,185,80,.5);color:var(--green);background:rgba(63,185,80,.1)}
+.sched-unlock-btn.authed:hover{background:rgba(248,81,73,.08);border-color:var(--red);color:var(--red)}
+/* -- Auth modal overlay -- */
+#auth-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+#auth-modal-bg.open{display:flex}
+#auth-modal{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:22px 24px;width:300px;display:flex;flex-direction:column;gap:14px;box-shadow:0 16px 48px rgba(0,0,0,.8)}
+#auth-modal h3{font-size:14px;font-weight:700;font-family:'Space Grotesk',sans-serif;color:var(--text);margin:0}
+#auth-modal label{font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px}
+#auth-modal select,#auth-modal input[type=password]{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:5px 8px;font-size:12px;height:32px;outline:none;box-sizing:border-box}
+#auth-modal select:focus,#auth-modal input[type=password]:focus{border-color:var(--accent)}
+#auth-modal-notice{font-size:11px;color:var(--yellow);background:var(--yellow-bg);border:1px solid rgba(210,153,34,.35);border-radius:5px;padding:6px 9px;display:none}
+#auth-modal-err{font-size:11px;color:var(--red);background:var(--red-bg);border:1px solid rgba(248,81,73,.3);border-radius:5px;padding:6px 9px;display:none}
+#auth-modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:2px}
+#auth-modal-submit{padding:6px 16px;background:var(--accent2);border:1px solid var(--accent);color:#fff;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;font-family:'Space Grotesk',sans-serif;transition:background .15s}
+#auth-modal-submit:hover{background:var(--accent)}
+#auth-modal-cancel{padding:6px 14px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:5px;cursor:pointer;font-size:12px;font-weight:500;transition:all .15s}
+#auth-modal-cancel:hover{background:var(--bg3);color:var(--text)}
+#toast.warn{border-color:var(--yellow);color:var(--yellow)}
 /* Filters dropdown panel — anchored to Campaign Monitor tab group */
 #filters{display:none;position:fixed;width:240px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow-y:auto;z-index:1200;padding:14px;gap:10px;flex-direction:column;box-shadow:0 8px 24px rgba(0,0,0,.5)}
 #filters.open{display:flex}
@@ -558,6 +579,8 @@ setTimeout(function(){
     <div id="header-title">
       <h1>NASA EnAACT Field Campaign Data Desk</h1>
     </div>
+    <button id="sched-unlock-btn" class="sched-unlock-btn" title="Log in to Admin Mode">&#x1F511; Admin Login</button>
+    <button id="force-rebuild-btn" class="force-rebuild-btn" title="Force rebuild: build weather, run scheduler, rebuild dashboard">&#x27F3; Rebuild</button>
     <div id="tabs">
       <div class="tab-group" id="campaign-tab-group">
         <span class="tab-group-label monitor">Campaign Monitor</span>
@@ -596,7 +619,6 @@ setTimeout(function(){
         </div>
       </div>
     </div>
-    <button id="force-rebuild-btn" class="force-rebuild-btn" title="Force rebuild: build weather, run scheduler, rebuild dashboard">&#x27F3; Rebuild</button>
   </div>
   <div id="content">
     <!--- MAP VIEW --->
@@ -928,7 +950,7 @@ function initMap(){
     collectorHomeMarkers[cid]=m;
   }
   document.getElementById('collector-homes-btn').addEventListener('click',()=>{
-    if(!schedAuth.unlocked){openAuthModal();return;}
+    if(!requireAuth('Collector Areas'))return;
     collectorHomesVisible=!collectorHomesVisible;
     if(collectorHomesVisible){collectorHomeLayer.addTo(map);}
     else{collectorHomeLayer.remove();}
@@ -1206,6 +1228,7 @@ async function fetchConfirmations(){
 }
 
 async function doConfirm(aid, status){
+  if(!requireAuth('assignment confirmations'))return;
   try{
     const resp=await fetch('/api/confirm',{
       method:'POST',
@@ -1832,18 +1855,25 @@ function renderAvailHeatmap(){
   _availBuilt=true;
 }
 
-// --- AUTH MODAL (top-level so collector-homes-btn can call it) ---
-function openAuthModal(){
+// --- AUTH MODAL (top-level so any gated feature can call it) ---
+function openAuthModal(notice=''){
   const mb=document.getElementById('auth-modal-bg');
   const pi=document.getElementById('auth-pin');
   const me=document.getElementById('auth-modal-err');
+  const mn=document.getElementById('auth-modal-notice');
   if(mb)mb.classList.add('open');
   if(pi){pi.value='';pi.focus();}
   if(me)me.style.display='none';
+  if(mn){mn.textContent=notice||'';mn.style.display=notice?'block':'none';}
 }
 function closeAuthModal(){
   const mb=document.getElementById('auth-modal-bg');
   if(mb)mb.classList.remove('open');
+}
+function requireAuth(feature='this feature'){
+  if(schedAuth.unlocked)return true;
+  openAuthModal('Login required to use '+feature+'.');
+  return false;
 }
 
 // --- EVENTS ---
@@ -1917,7 +1947,7 @@ function bindEvents(){
       schedAuth={unlocked:false,scheduler:null,pin:null};
       document.body.classList.remove('scheduler-mode');
       unlockBtn.classList.remove('authed');
-      unlockBtn.innerHTML='&#x1F511; Scheduler Mode';
+      unlockBtn.innerHTML='&#x1F511; Admin Login';
       renderSchedulePanel();
       if(document.getElementById('calendar-view').classList.contains('active'))renderCalendar();
     } else { openAuthModal(); }
@@ -1962,13 +1992,8 @@ function bindEvents(){
   if(forceRebuildBtn){
     forceRebuildBtn.addEventListener('click',async()=>{
       if(forceRebuildBtn.classList.contains('rebuilding'))return;
-      let pin='';
-      if(schedAuth.unlocked){
-        pin=schedAuth.pin;
-      }else{
-        pin=prompt('Enter SCHEDULER_PIN to force rebuild:','');
-        if(pin===null)return;
-      }
+      if(!requireAuth('Rebuild'))return;
+      const pin=schedAuth.pin||'';
       forceRebuildBtn.classList.add('rebuilding');
       forceRebuildBtn.textContent='... Building...';
       try{
@@ -2237,7 +2262,8 @@ document.addEventListener('DOMContentLoaded', function() {
 <!--- Auth modal --->
 <div id="auth-modal-bg">
   <div id="auth-modal">
-    <h3>&#x1F511; Scheduler Mode</h3>
+    <h3>&#x1F511; Admin Login</h3>
+    <div id="auth-modal-notice"></div>
     <div>
       <label for="auth-who">Your role</label>
       <select id="auth-who">
@@ -2250,8 +2276,10 @@ document.addEventListener('DOMContentLoaded', function() {
       <input type="password" id="auth-pin" placeholder="Enter PIN" autocomplete="current-password">
     </div>
     <div id="auth-modal-err"></div>
-    <button id="auth-modal-submit">Unlock</button>
-    <button id="auth-modal-cancel">Cancel</button>
+    <div id="auth-modal-actions">
+      <button id="auth-modal-cancel">Cancel</button>
+      <button id="auth-modal-submit">Unlock</button>
+    </div>
   </div>
 </div>
 </body>
