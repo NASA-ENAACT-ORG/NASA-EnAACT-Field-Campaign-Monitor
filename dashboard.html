@@ -2382,7 +2382,7 @@ async function init(){
   await refreshRuntimeData();
   let src=null;
   try{
-    const r=await fetch('Walks_Log.txt');
+    const r=await fetch('Walks_Log.txt?_ts='+Date.now(),{cache:'no-store'});
     if(r.ok){logText=await r.text();src='Walks_Log.txt';}
   }catch(e){}
   await fetchConfirmations();
