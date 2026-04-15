@@ -609,7 +609,7 @@ setTimeout(function(){
         <button id="collector-homes-btn" title="Toggle collector areas">&#x1F3E0; Collector Areas</button>
         <div id="mlegend">
           <h4>Completion Progress</h4>
-          <div style="width:100%;height:7px;border-radius:4px;background:linear-gradient(to right,#FF0000 0%,#FF6200 16.7%,#FF9900 33.3%,#FFF200 50%,#D0FF00 66.7%,#1EFF00 83.3%,#00FFE1 100%);margin-bottom:6px"></div>
+          <div style="width:100%;height:7px;border-radius:4px;background:linear-gradient(to right,hsl(0,100%,40%),hsl(30,100%,40%),hsl(60,100%,40%),hsl(90,100%,40%),hsl(120,100%,40%));margin-bottom:6px"></div>
           <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text3)"><span>0</span><span>3</span><span>Target (6+)</span></div>
         </div>
       </div>
@@ -938,14 +938,8 @@ function initMap(){
   });
 }
 function gradientColor(n){
-  function h2r(h){return[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}
-  function lp(a,b,t){return Math.round(a+(b-a)*t);}
-  function r2h(r,g,b){return'#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');}
-  const STOPS=['#FF0000','#FF6200','#FF9900','#FFF200','#D0FF00','#1EFF00','#00FFE1'].map(h2r);
-  if(n<=0)return'#FF0000';
-  if(n>=6)return'#00FFE1';
-  const lo=Math.floor(n),hi=lo+1,t=n-lo;
-  return r2h(lp(STOPS[lo][0],STOPS[hi][0],t),lp(STOPS[lo][1],STOPS[hi][1],t),lp(STOPS[lo][2],STOPS[hi][2],t));
+  const hue=Math.round(Math.min(n,6)/6*120);
+  return`hsl(${hue},100%,40%)`;
 }
 function routeStatus(code,ws){
   const n=ws.filter(w=>w.route===code).length;
