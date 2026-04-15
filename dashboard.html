@@ -2161,7 +2161,7 @@ function bindEvents(){
   document.getElementById('fbp').addEventListener('change',e=>{filters.backpack=e.target.value;applyFilters();});
   document.getElementById('ffrom').addEventListener('change',e=>{filters.from=e.target.value?new Date(e.target.value+'T00:00:00'):null;applyFilters();});
   document.getElementById('fto').addEventListener('change',e=>{filters.to=e.target.value?new Date(e.target.value+'T23:59:59'):null;applyFilters();});
-  document.querySelectorAll('.bp-toggle').forEach(btn=>{btn.addEventListener('click',e=>{const bp=e.target.dataset.backpack;visibleBackpacks[bp]=!visibleBackpacks[bp];e.target.classList.toggle('active');applyFilters();renderSchedulePanel();});});
+  document.querySelectorAll('.bp-toggle').forEach(btn=>{btn.addEventListener('click',e=>{const bp=e.currentTarget.dataset.backpack;visibleBackpacks[bp]=!visibleBackpacks[bp];e.currentTarget.classList.toggle('active');applyFilters();renderSchedulePanel();});});
   document.getElementById('btn-refresh').addEventListener('click',()=>{
     allWalks=parseLog(logText);applyFilters();updateStatus();
     toast(`Refreshed: ${allWalks.length} walks`,'success');
