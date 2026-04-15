@@ -2099,30 +2099,13 @@ function renderAvailHeatmap(){
 
 // --- EVENTS ---
 function bindEvents(){
-  document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',async()=>{
+  document.querySelectorAll('.tab-btn[data-view]').forEach(b=>b.addEventListener('click',async()=>{
     document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
     document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
     b.classList.add('active');
     document.getElementById(b.dataset.view).classList.add('active');
     if(b.dataset.view==='map-view')setTimeout(()=>map&&map.invalidateSize(),50);
-    else if(b.dataset.view==='schedule-view'){
-      setTimeout(async()=>{
-        await refreshRuntimeData();
-        if(RUNTIME_SCHEDULE&&RUNTIME_SCHEDULE.assignments
-           &&_schedStamp(RUNTIME_SCHEDULE)!==_schedStamp(schedData)){
-          loadScheduleJSON(JSON.stringify(RUNTIME_SCHEDULE));
-        }
-        await fetchConfirmations();
-        initSchedMap();
-        setTimeout(()=>schedMap.invalidateSize(),150);
-        applyScheduleColors();
-        renderSchedulePanel();
-        renderTimelineBar();
-        if(!schedData&&RUNTIME_SCHEDULE&&RUNTIME_SCHEDULE.assignments){
-          loadScheduleJSON(JSON.stringify(RUNTIME_SCHEDULE));
-        }
-      },50);
-    } else if(b.dataset.view==='calendar-view'){
+    else if(b.dataset.view==='calendar-view'){
       await refreshRuntimeData();
       if(RUNTIME_SCHEDULE&&RUNTIME_SCHEDULE.assignments
          &&_schedStamp(RUNTIME_SCHEDULE)!==_schedStamp(schedData)){
@@ -2139,7 +2122,7 @@ function bindEvents(){
   document.getElementById('fbp').addEventListener('change',e=>{filters.backpack=e.target.value;applyFilters();});
   document.getElementById('ffrom').addEventListener('change',e=>{filters.from=e.target.value?new Date(e.target.value+'T00:00:00'):null;applyFilters();});
   document.getElementById('fto').addEventListener('change',e=>{filters.to=e.target.value?new Date(e.target.value+'T23:59:59'):null;applyFilters();});
-  document.querySelectorAll('.bp-toggle').forEach(btn=>{btn.addEventListener('click',e=>{const bp=e.currentTarget.dataset.backpack;visibleBackpacks[bp]=!visibleBackpacks[bp];e.currentTarget.classList.toggle('active');applyFilters();renderSchedulePanel();});});
+  document.querySelectorAll('.bp-toggle').forEach(btn=>{btn.addEventListener('click',e=>{const bp=e.currentTarget.dataset.backpack;visibleBackpacks[bp]=!visibleBackpacks[bp];e.currentTarget.classList.toggle('active');applyFilters();});});
   document.getElementById('btn-refresh').addEventListener('click',()=>{
     allWalks=parseLog(logText);applyFilters();updateStatus();
     toast(`Refreshed: ${allWalks.length} walks`,'success');
