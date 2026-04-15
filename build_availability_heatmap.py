@@ -76,8 +76,8 @@ def build_heatmap(avail: dict) -> str:
   body{{background:#0d1117;color:#e6edf3;font-family:'Segoe UI',sans-serif;padding:32px;margin:0}}
   h1{{font-size:16px;font-weight:700;margin:0 0 6px;letter-spacing:-.3px}}
   .subtitle{{font-size:11px;color:#8b949e;margin-bottom:28px}}
-  .panels{{display:flex;gap:40px;flex-wrap:wrap}}
-  .panel{{flex:1;min-width:340px}}
+  .panels{{display:flex;flex-direction:column;gap:28px}}
+  .panel{{width:100%}}
   .panel-title{{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;padding:6px 10px;border-radius:6px}}
   .panel-title.a{{background:rgba(124,58,237,.18);color:#a78bfa;border:1px solid rgba(124,58,237,.3)}}
   .panel-title.b{{background:rgba(220,38,38,.14);color:#f87171;border:1px solid rgba(220,38,38,.25)}}
