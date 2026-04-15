@@ -436,12 +436,8 @@ select option{background:var(--bg3)}
   #filters{top:auto}
   #route-panel{width:100%;position:fixed;transform:translateX(100%);transition:transform .3s ease;z-index:1100}
   #route-panel.open{transform:translateX(0);width:100%;max-width:85vw}
-  #sched-panel{width:100%;position:fixed;transform:translateX(100%);transition:transform .3s ease;z-index:1100;height:100%}
-  #sched-panel.open{transform:translateX(0);width:100%;max-width:85vw}
   #map-view{flex-direction:column}
   #map-wrap{flex:1;position:relative}
-  #schedule-view{flex-direction:column}
-  #sched-map-wrap{flex:1;position:relative}
   #cal-grid{grid-template-columns:40px repeat(7,1fr);grid-template-rows:40px repeat(3,minmax(80px,1fr))}
   .cal-dnum{font-size:16px}
   .cal-day-head{padding:4px 2px}
@@ -475,7 +471,7 @@ select option{background:var(--bg3)}
   .schip .sv{font-size:18px}
   .schip .sl{font-size:8px}
   .cw{height:80px}
-  #route-panel.open,#sched-panel.open{max-width:95vw}
+  #route-panel.open{max-width:95vw}
 }
 </style>
 </head>
@@ -1382,6 +1378,9 @@ function applyScheduleColors(){
 }
 
 function renderTimelineBar(){
+  const daysEl=document.getElementById('sched-tl-days');
+  if(!daysEl)return; // Schedule view removed
+
   const wk=getTlWeek();
   const weeks=buildTlWeeks();
   const sorted=getSortedAssignments();
@@ -1390,7 +1389,6 @@ function renderTimelineBar(){
   const playBtn=document.getElementById('tl-play');
   const wkLbl=document.getElementById('sched-tl-week-label');
   const detail=document.getElementById('sched-tl-detail');
-  const daysEl=document.getElementById('sched-tl-days');
   const prevWkBtn=document.getElementById('tl-wk-prev');
   const nextWkBtn=document.getElementById('tl-wk-next');
 
@@ -1522,6 +1520,7 @@ function playSchedule(){
 function renderSchedulePanel(){
   const body=document.getElementById('sched-panel-body');
   const meta=document.getElementById('sched-meta');
+  if(!body||!meta)return; // Schedule view removed
   if(!schedData){
     body.innerHTML='<div id="sched-no-data">No schedule loaded.<br>Run walk_scheduler.py then click Load above.</div>';
     meta.textContent='Run the scheduler to load assignments';
@@ -1870,37 +1869,12 @@ function bindEvents(){
       renderAvailHeatmap();
     } else renderCV();
   }));
-  document.getElementById('tl-play').addEventListener('click',playSchedule);
-  document.getElementById('tl-next').addEventListener('click',()=>{
-    if(schedPlaying){playSchedule();}
-    const s=getSortedAssignments();
-    setSchedStep(schedStep>=s.length-1?s.length-1:schedStep+1);
-  });
-  document.getElementById('tl-prev').addEventListener('click',()=>{
-    if(schedPlaying){playSchedule();}
-    setSchedStep(schedStep<=0?-1:schedStep-1);
-  });
-  document.getElementById('tl-reset').addEventListener('click',()=>{
-    if(schedPlaying){playSchedule();}
-    schedStep=-1;applyScheduleColors();renderTimelineBar();
-    document.querySelectorAll('.sched-row').forEach(r=>r.style.outline='');
-  });
-  document.getElementById('tl-wk-prev').addEventListener('click',()=>{
-    const weeks=buildTlWeeks();
-    if(tlWeekIdx<weeks.length-1){tlWeekIdx++;schedStep=-1;applyScheduleColors();renderSchedulePanel();renderTimelineBar();}
-  });
-  document.getElementById('tl-wk-next').addEventListener('click',()=>{
-    if(tlWeekIdx>0){tlWeekIdx--;schedStep=-1;applyScheduleColors();renderSchedulePanel();renderTimelineBar();}
-  });
-  document.getElementById('tl-wk-now').addEventListener('click',()=>{
-    tlWeekIdx=findCurrentWeekIdx(buildTlWeeks());schedStep=-1;applyScheduleColors();renderSchedulePanel();renderTimelineBar();
-  });
   document.getElementById('fseason').addEventListener('change',e=>{filters.season=e.target.value;applyFilters();});
   document.getElementById('ftod').addEventListener('change',e=>{filters.tod=e.target.value;applyFilters();});
   document.getElementById('fbp').addEventListener('change',e=>{filters.backpack=e.target.value;applyFilters();});
   document.getElementById('ffrom').addEventListener('change',e=>{filters.from=e.target.value?new Date(e.target.value+'T00:00:00'):null;applyFilters();});
   document.getElementById('fto').addEventListener('change',e=>{filters.to=e.target.value?new Date(e.target.value+'T23:59:59'):null;applyFilters();});
-  document.querySelectorAll('.bp-toggle').forEach(btn=>{btn.addEventListener('click',e=>{const bp=e.target.dataset.backpack;visibleBackpacks[bp]=!visibleBackpacks[bp];e.target.classList.toggle('active');applyFilters();renderSchedulePanel();});});
+  document.querySelectorAll('.bp-toggle').forEach(btn=>{btn.addEventListener('click',e=>{const bp=e.currentTarget.dataset.backpack;visibleBackpacks[bp]=!visibleBackpacks[bp];e.currentTarget.classList.toggle('active');applyFilters();renderSchedulePanel();});});
   document.getElementById('btn-refresh').addEventListener('click',()=>{
     allWalks=parseLog(logText);applyFilters();updateStatus();
     toast(`Refreshed: ${allWalks.length} walks`,'success');
