@@ -2045,7 +2045,8 @@ async function init(){
     toast(msgs.join(' - '),'success');
   }catch(err){
     console.error('Dashboard init error:',err);
-    document.querySelector('#loading p').textContent='Error: '+err.message;
+    const _errLine=(err.stack||'').split('\n').slice(0,3).join(' | ');
+    document.querySelector('#loading p').textContent='Error: '+err.message+' | '+_errLine;
     document.querySelector('#loading p').style.color='#f85149';
     return;
   }
