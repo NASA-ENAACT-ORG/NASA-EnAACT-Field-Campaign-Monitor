@@ -2295,22 +2295,21 @@ async function init(){
   if(RUNTIME_SCHEDULE&&RUNTIME_SCHEDULE.assignments){
     schedData=RUNTIME_SCHEDULE;schedLoaded=true;loadScheduleJSON(JSON.stringify(RUNTIME_SCHEDULE));
   }
+  const _dbgStep=s=>{document.querySelector('#loading p').textContent='Running: '+s;};
+  try{_dbgStep('parseLog');allWalks=parseLog(logText);}catch(e){document.querySelector('#loading p').textContent='CRASH in parseLog: '+e.message;document.querySelector('#loading p').style.color='#f85149';return;}
+  try{_dbgStep('applyFilters');applyFilters();}catch(e){document.querySelector('#loading p').textContent='CRASH in applyFilters: '+e.message;document.querySelector('#loading p').style.color='#f85149';return;}
+  try{_dbgStep('updateStatus');updateStatus(src);}catch(e){document.querySelector('#loading p').textContent='CRASH in updateStatus: '+e.message;document.querySelector('#loading p').style.color='#f85149';return;}
+  try{_dbgStep('initMap');initMap();}catch(e){document.querySelector('#loading p').textContent='CRASH in initMap: '+e.message;document.querySelector('#loading p').style.color='#f85149';return;}
+  try{_dbgStep('updateMapColors');updateMapColors();}catch(e){document.querySelector('#loading p').textContent='CRASH in updateMapColors: '+e.message;document.querySelector('#loading p').style.color='#f85149';return;}
+  try{_dbgStep('updateMapStats');updateMapStats();}catch(e){document.querySelector('#loading p').textContent='CRASH in updateMapStats: '+e.message;document.querySelector('#loading p').style.color='#f85149';return;}
+  try{_dbgStep('bindEvents');bindEvents();}catch(e){document.querySelector('#loading p').textContent='CRASH in bindEvents: '+e.message;document.querySelector('#loading p').style.color='#f85149';return;}
   try{
-    allWalks=parseLog(logText);
-    applyFilters();
-    updateStatus(src);
-    initMap();
-    updateMapColors();
-    updateMapStats();
-    bindEvents();
     const msgs=[src?'Log loaded from disk':'Using embedded sample data'];
     if(schedLoaded)msgs.push('Schedule auto-loaded');
     toast(msgs.join(' - '),'success');
   }catch(err){
     console.error('Dashboard init error:',err);
-    const _errLine=(err.stack||'').split('
-').slice(0,3).join(' | ');
-    document.querySelector('#loading p').textContent='Error: '+err.message+' | '+_errLine;
+    document.querySelector('#loading p').textContent='CRASH in toast: '+err.message;
     document.querySelector('#loading p').style.color='#f85149';
     return;
   }
