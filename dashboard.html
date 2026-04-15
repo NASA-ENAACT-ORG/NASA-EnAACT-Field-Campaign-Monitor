@@ -2488,7 +2488,8 @@ document.addEventListener('DOMContentLoaded', function() {
         closeFilters();
         if (filtersBtn) filtersBtn.style.display = 'none';
       } else if (view && campaignViews.has(view)) {
-        // Switched back to a Campaign Monitor tab — show the button
+        // Switched between Campaign Monitor tabs — show button, close dropdown
+        closeFilters();
         if (filtersBtn) filtersBtn.style.display = '';
       }
     });
