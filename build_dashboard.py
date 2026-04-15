@@ -237,11 +237,16 @@ select option{background:var(--bg3)}
 #cal-today-btn{padding:3px 12px;border-radius:14px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-size:11px;font-weight:500}
 #cal-today-btn:hover{background:var(--bg3);border-color:var(--accent);color:var(--text)}
 .bp-toggle{padding:3px 8px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-size:10px;font-weight:600;transition:all .15s}
-.bp-toggle:hover{background:var(--bg3);border-color:var(--accent);color:var(--text)}
+.bp-toggle:hover{background:var(--bg3);border-color:var(--accent);color:var(--text);cursor:pointer;position:relative}
 .bp-toggle.active{background:var(--bg3);border-color:var(--accent);color:var(--text)}
 .bp-toggle[data-backpack="A"].active{border-color:#f85149;color:#f85149}
 .bp-toggle[data-backpack="B"].active{border-color:#388bfd;color:#388bfd}
 .bp-toggle[data-backpack="X"].active{border-color:#f0a500;color:#f0a500}
+.bp-boro-badge{display:inline-block;font-size:9px;font-weight:700;color:#8b949e;margin-left:4px;letter-spacing:.5px}
+.bp-boro-tooltip{position:absolute;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:8px 10px;font-size:9px;z-index:1000;white-space:nowrap;display:none;bottom:-160px;left:50%;transform:translateX(-50%);box-shadow:0 4px 12px rgba(0,0,0,.5);color:#8b949e;pointer-events:none}
+.bp-toggle:hover .bp-boro-tooltip{display:block}
+.bp-boro-tooltip .week-item{display:flex;align-items:center;gap:4px;padding:2px 0;color:#e6edf3}
+.bp-boro-tooltip .week-num{font-weight:700;color:var(--accent);min-width:20px}
 #cal-src-badge{font-size:10px;color:var(--text3);margin-left:auto;padding:2px 8px;background:var(--bg3);border-radius:9px;border:1px solid var(--border);white-space:nowrap}
 #cal-body{flex:1;overflow:auto;min-height:0}
 #cal-grid{display:grid;grid-template-columns:54px repeat(7,1fr);grid-template-rows:56px repeat(3,minmax(110px,1fr));min-height:100%}
@@ -676,9 +681,9 @@ setTimeout(function(){
         <h2 id="cal-title">-</h2>
         <button id="cal-today-btn">Today</button>
         <div id="cal-bp-toggles" style="display:flex;gap:4px;margin-left:12px">
-          <button class="bp-toggle active" data-backpack="A" title="Toggle Backpack A">BP A</button>
-          <button class="bp-toggle active" data-backpack="B" title="Toggle Backpack B">BP B</button>
-          <button class="bp-toggle active" data-backpack="X" title="Toggle Legacy X">BP X</button>
+          <button class="bp-toggle active" data-backpack="A" title="Toggle Backpack A">BP A<span class="bp-boro-badge" data-bp="A"></span><div class="bp-boro-tooltip" data-bp="A"></div></button>
+          <button class="bp-toggle active" data-backpack="B" title="Toggle Backpack B">BP B<span class="bp-boro-badge" data-bp="B"></span><div class="bp-boro-tooltip" data-bp="B"></div></button>
+          <button class="bp-toggle active" data-backpack="X" title="Toggle Legacy X">BP X<span class="bp-boro-badge" data-bp="X"></span><div class="bp-boro-tooltip" data-bp="X"></div></button>
         </div>
         <div id="cal-src-badge">No data loaded</div>
       </div>
@@ -1601,6 +1606,57 @@ function isBadWeatherSlot(dateStr,tod){
   );
 }
 
+function getBoroForWeek(backpack, weekIdx, weeks){
+  if(!weeks||weekIdx<0||weekIdx>=weeks.length)return null;
+  const wk=weeks[weekIdx];
+  const boros={};
+  for(const w of wk.walks){
+    if(w.backpack===backpack&&w.boro){
+      boros[w.boro]=(boros[w.boro]||0)+1;
+    }
+  }
+  if(Object.keys(boros).length===0)return null;
+  return Object.entries(boros).sort((a,b)=>b[1]-a[1])[0][0];
+}
+
+function getBoroForecast(backpack, weekIdx, weeks){
+  const forecast=[];
+  for(let i=0;i<4&&weekIdx+i<weeks.length;i++){
+    const boro=getBoroForWeek(backpack,weekIdx+i,weeks);
+    if(boro){
+      forecast.push({week:i+1,boro});
+    }
+  }
+  return forecast;
+}
+
+function BORO_NAMES(){
+  return{MN:'Manhattan',BK:'Brooklyn',QN:'Queens',BX:'Bronx',SI:'Staten Island',OTH:'Other'};
+}
+
+function updateBoroIndicators(weekIdx, weeks){
+  const names=BORO_NAMES();
+  for(const bp of['A','B','X']){
+    const boro=getBoroForWeek(bp,weekIdx,weeks);
+    const badge=document.querySelector(`[data-bp="${bp}"].bp-boro-badge`);
+    const tooltip=document.querySelector(`[data-bp="${bp}"].bp-boro-tooltip`);
+    if(badge){
+      badge.textContent=boro?boro:'-';
+      badge.style.color=boro?'#e6edf3':'#6e7681';
+    }
+    if(tooltip){
+      const forecast=getBoroForecast(bp,weekIdx,weeks);
+      let html='';
+      if(forecast.length>0){
+        html=forecast.map(f=>`<div class="week-item"><span class="week-num">W${f.week}:</span><span>${names[f.boro]||f.boro}</span></div>`).join('');
+      }else{
+        html='<div style="color:#6e7681">No assignments</div>';
+      }
+      tooltip.innerHTML=html;
+    }
+  }
+}
+
 function renderCalendar(){
   const grid=document.getElementById('cal-grid');
   const title=document.getElementById('cal-title');
@@ -1621,6 +1677,7 @@ function renderCalendar(){
   const we=new Date(ws); we.setDate(ws.getDate()+6);
   const tod=new Date(); tod.setHours(0,0,0,0);
 
+  updateBoroIndicators(idx,weeks);
 
   if(title)title.textContent=
     ws.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' - '+
