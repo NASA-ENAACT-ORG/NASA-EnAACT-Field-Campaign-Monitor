@@ -479,12 +479,6 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, "application/json", body)
             return
 
-        # /api/confirmations â€” current confirm/deny state for schedule assignments
-        if path == "api/confirmations":
-            body = json.dumps(_load_confirmations()).encode()
-            self._send(200, "application/json", body)
-            return
-
         # Static files
         file_path = BASE_DIR / path
         if not file_path.exists() or not file_path.is_file():
@@ -529,8 +523,7 @@ class Handler(BaseHTTPRequestHandler):
         elif endpoint == "/api/forecast-stability":
             self._stream_forecast_stability()
         elif endpoint == "/api/confirm":
-            # Body: {"id": "<route>_<tod>_<date>", "status": "confirmed"|"denied"|"pending",
-            #        "scheduler": "CCNY"|"LaGCC", "pin": "xxxx"}
+            # PIN-verify endpoint used by the admin auth modal
             _sched_pin = os.environ.get("SCHEDULER_PIN", "")
             try:
                 length = int(self.headers.get("Content-Length", 0))
@@ -540,30 +533,11 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(400, "application/json",
                            json.dumps({"error": "bad request"}).encode())
                 return
-            # Verify PIN (if SCHEDULER_PIN is set)
             if _sched_pin and payload.get("pin", "") != _sched_pin:
                 self._send(403, "application/json",
                            json.dumps({"error": "wrong pin"}).encode())
                 return
-            assign_id = payload.get("id", "").strip()
-            status    = payload.get("status", "")
-            scheduler = payload.get("scheduler", "unknown")
-            if not assign_id or status not in ("confirmed", "denied", "pending"):
-                self._send(400, "application/json",
-                           json.dumps({"error": "missing id or invalid status"}).encode())
-                return
-            data = _load_confirmations()
-            if status == "pending":
-                data.pop(assign_id, None)   # reset â†’ remove entry
-            else:
-                data[assign_id] = {
-                    "status":    status,
-                    "scheduler": scheduler,
-                    "timestamp": __import__("datetime").datetime.now().isoformat(timespec="seconds"),
-                }
-            _save_confirmations(data)
-            self._send(200, "application/json",
-                       json.dumps({"ok": True, "confirmations": data}).encode())
+            self._send(200, "application/json", json.dumps({"ok": True}).encode())
 
         elif endpoint == "/api/drive/poll":
             count, err = _run_drive_poll(source="gas")
@@ -680,8 +654,6 @@ def _restore_gcs_state():
     # Weather JSON file
     for _wfname in ("weather.json",):
         _download_from_gcs(_wfname, BASE_DIR / _wfname)
-    # schedule_confirmations.json â€” confirm/deny state
-    _download_from_gcs("schedule_confirmations.json", CONFIRMATIONS_FILE)
     print("[gcs-restore] State restored from GCS")
 
 
@@ -704,11 +676,7 @@ def main():
         # Walks_Log.txt â€” always pull from GCS (never rely on image-baked copy)
         _download_from_gcs("Walks_Log.txt", WALKS_LOG)
 
-        # schedule_output.json and schedule_confirmations.json are already
-        # restored by --restore-only (step 1 of CMD), and dashboard HTML was
-        # rebuilt from them (step 2). Don't re-download here or we'd overwrite
-        # the freshly built files with stale GCS copies.
-        _download_from_gcs("schedule_confirmations.json", CONFIRMATIONS_FILE)
+        # schedule_output.json is already
 
         print("[startup] GCS state restored")
 

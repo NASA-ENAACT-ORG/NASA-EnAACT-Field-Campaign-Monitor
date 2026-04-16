@@ -1179,53 +1179,9 @@ function updateStatus(src){
 }
 // --- SCHEDULE ---
 let schedMap=null, schedData=null, schedLayers={};
-// -- Confirmation state ---
-let schedConfirmations={};   // {assignId: {status,scheduler,timestamp}}
 let schedAuth={unlocked:false, scheduler:null, pin:null};
 
 function assignId(a){return `${a.route}_${a.tod}_${a.date}`;}
-
-function statusBadgeHTML(aid){
-  const c=schedConfirmations[aid];
-  const st=c?c.status:'pending';
-  const label=st==='confirmed'?'[OK] Confirmed':st==='denied'?'[NO] Denied':'[PENDING] Pending';
-  return `<span class="status-badge ${st}">${label}</span>`;
-}
-
-async function fetchConfirmations(){
-  try{
-    const r=await fetch('/api/confirmations');
-    if(r.ok){schedConfirmations=await r.json();}
-  }catch(e){}
-}
-
-async function doConfirm(aid, status){
-  if(!requireAuth('assignment confirmations'))return;
-  try{
-    const resp=await fetch('/api/confirm',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({id:aid,status,scheduler:schedAuth.scheduler,pin:schedAuth.pin||''})
-    });
-    const data=await resp.json();
-    if(!resp.ok){toast(data.error||'Error','');return;}
-    schedConfirmations=data.confirmations||schedConfirmations;
-    // Re-render both panels
-    renderSchedulePanel();
-    if(document.getElementById('calendar-view').classList.contains('active'))renderCalendar();
-    toast(status==='confirmed'?'Assignment confirmed [OK]':status==='denied'?'Assignment denied [NO]':'Reset to pending','success');
-  }catch(e){toast('Could not reach server','');}
-}
-
-function actionBtns(aid){
-  // Returns inner button HTML only - caller wraps with appropriate class
-  const st=(schedConfirmations[aid]||{}).status||'pending';
-  if(st==='pending'){
-    return `<button class="sr-confirm-btn" onclick="event.stopPropagation();doConfirm('${aid}','confirmed')">[OK] Confirm</button>`
-          +`<button class="sr-deny-btn"    onclick="event.stopPropagation();doConfirm('${aid}','denied')">[NO] Deny</button>`;
-  }
-  return `<button class="sr-reset-btn" onclick="event.stopPropagation();doConfirm('${aid}','pending')">[RESET] Reset</button>`;
-}
 let schedStep=-1, schedPlaying=false, schedPlayTimer=null;
 let tlWeekIdx=0;   // index into tlWeeks array (0 = most recent)
 
@@ -1535,14 +1491,11 @@ function renderSchedulePanel(){
     for(const r of rows){
       const label=ROUTE_LABELS[r.route]||r.route;
       const todCls=r.tod==='AM'?'tb-am':r.tod==='MD'?'tb-md':'tb-pm';
-      const aid=assignId(r);
       html+=`<div class="sched-row" onclick="highlightSchedRoute('${r.route}','${bp}')">
         <span class="sr-date">${fmtDate(r.date)}</span>
         <span class="sr-tod tb ${todCls}">${r.tod}</span>
         <span class="sr-route">${label}</span>
         <span class="sr-col">${r.collector}</span>
-        ${statusBadgeHTML(aid)}
-        <div class="sr-actions">${actionBtns(aid)}</div>
       </div>`;
     }
     html+='</div>';
@@ -1738,14 +1691,10 @@ function renderCalendar(){
         const bpLabel=w.backpack==='A'?'Backpack A':w.backpack==='B'?'Backpack B':'Legacy X';
         const routeLbl=ROUTE_LABELS[w.route]||w.route;
         const colLbl=CNAMES[w.collector]||w.collector||'-';
-        const aid=w.source==='scheduled'?assignId(w):'';
-        const badge=aid?statusBadgeHTML(aid):'';
-        const actions=aid?`<div class="ce-actions">${actionBtns(aid)}</div>`:'';
         cellContent+=`<div class="cal-event ${bpCls}${compCls}">
           <div class="ce-bp">${bpLabel}</div>
           <div class="ce-route">${routeLbl}</div>
           <div class="ce-col">${colLbl}</div>
-          ${badge}${actions}
         </div>`;
       }
 
@@ -1863,7 +1812,7 @@ function bindEvents(){
         loadScheduleJSON(JSON.stringify(RUNTIME_SCHEDULE));
       }
       calWeekIdx=tlWeekIdx;
-      fetchConfirmations().then(()=>renderCalendar());
+      renderCalendar();
     } else if(b.dataset.view==='availability-view'){
       renderAvailHeatmap();
     } else renderCV();
@@ -2024,7 +1973,6 @@ async function init(){
     const r=await fetch('Walks_Log.txt?_ts='+Date.now(),{cache:'no-store'});
     if(r.ok){logText=await r.text();src='Walks_Log.txt';}
   }catch(e){}
-  await fetchConfirmations();
   let schedLoaded=false;
   if(RUNTIME_SCHEDULE&&RUNTIME_SCHEDULE.assignments){
     schedData=RUNTIME_SCHEDULE;schedLoaded=true;loadScheduleJSON(JSON.stringify(RUNTIME_SCHEDULE));
