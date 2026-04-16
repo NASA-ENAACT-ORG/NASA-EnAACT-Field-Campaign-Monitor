@@ -569,20 +569,25 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, "application/json", body)
         elif endpoint == "/api/force-rebuild":
             # Force immediate rebuild: build weather, run scheduler, rebuild dashboard
-            # Protected by SCHEDULER_PIN
-            _sched_pin = os.environ.get("SCHEDULER_PIN", "")
-            try:
-                length = int(self.headers.get("Content-Length", 0))
-                body_bytes = self.rfile.read(length) if length else b"{}"
-                payload = json.loads(body_bytes)
-            except Exception:
-                self._send(400, "application/json",
-                           json.dumps({"error": "bad request"}).encode())
-                return
-            if _sched_pin and payload.get("pin", "") != _sched_pin:
-                self._send(403, "application/json",
-                           json.dumps({"error": "wrong pin"}).encode())
-                return
+            # Accepts either a valid GAS_SECRET bearer token (automated triggers)
+            # or a valid SCHEDULER_PIN in the request body (browser UI).
+            _sched_pin  = os.environ.get("SCHEDULER_PIN", "")
+            _gas_secret = os.environ.get("GAS_SECRET", "")
+            auth_header = self.headers.get("Authorization", "")
+            gas_authed  = bool(_gas_secret and auth_header == f"Bearer {_gas_secret}")
+            if not gas_authed:
+                try:
+                    length = int(self.headers.get("Content-Length", 0))
+                    body_bytes = self.rfile.read(length) if length else b"{}"
+                    payload = json.loads(body_bytes)
+                except Exception:
+                    self._send(400, "application/json",
+                               json.dumps({"error": "bad request"}).encode())
+                    return
+                if _sched_pin and payload.get("pin", "") != _sched_pin:
+                    self._send(403, "application/json",
+                               json.dumps({"error": "wrong pin"}).encode())
+                    return
             print("[API] Force rebuild triggered")
             t = threading.Thread(target=_run_scheduler_and_rebuild, daemon=True)
             t.start()
