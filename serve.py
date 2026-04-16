@@ -43,30 +43,10 @@ FORECAST_STABILITY    = BASE_DIR / "forecast_stability_analysis.py"
 WALKS_LOG             = BASE_DIR / "Walks_Log.txt"
 RECAL_LOG             = BASE_DIR / "Recal_Log.txt"
 SEEN_FILES_PATH       = BASE_DIR / "drive_seen_files.json"
-CONFIRMATIONS_FILE    = BASE_DIR / "schedule_confirmations.json"
 SCHEDULE_OUTPUT       = BASE_DIR / "schedule_output.json"
 
 # â”€â”€ Drive config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-
-# â”€â”€ Confirmation helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-_CONFIRM_LOCK = threading.Lock()
-
-def _load_confirmations() -> dict:
-    with _CONFIRM_LOCK:
-        if not CONFIRMATIONS_FILE.exists():
-            return {}
-        try:
-            return json.loads(CONFIRMATIONS_FILE.read_text(encoding="utf-8"))
-        except Exception:
-            return {}
-
-def _save_confirmations(data: dict) -> None:
-    with _CONFIRM_LOCK:
-        CONFIRMATIONS_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    # Persist to GCS so confirmations survive container restarts
-    if _gcs_bucket:
-        _upload_to_gcs(CONFIRMATIONS_FILE, "schedule_confirmations.json")
 
 # Files tracked by /api/status
 STATUS_FILES = {
@@ -117,6 +97,8 @@ def _download_from_gcs(gcs_path: str, local_path: Path) -> bool:
             blob.download_to_filename(str(local_path))
             print(f"[gcs] Downloaded: {gcs_path} â†’ {local_path}")
             return True
+        else:
+            print(f"[gcs] Blob not found in bucket: {gcs_path}")
     except Exception as e:
         print(f"[gcs] Download error ({gcs_path}): {e}")
     return False
@@ -434,7 +416,7 @@ def _run_drive_poll(source: str = "background"):
         print(f"[drive] Walk log changed â€” triggering dashboard rebuild")
         _trigger_rebuild()
     else:
-        print(f"[drive] Walk log unchanged ({len(deduped)} entries)")
+        print(f"[drive] Walk log unchanged ({len(merged)} entries)")
 
     return new_count, None
 
@@ -482,6 +464,17 @@ class Handler(BaseHTTPRequestHandler):
             payload = {name: _mtime_iso(p) for name, p in STATUS_FILES.items()}
             payload["drive_last_poll"] = drive_last
             payload["drive_new_files_today"] = drive_today
+            # GCS health
+            payload["gcs_bucket"] = os.environ.get("GCS_BUCKET", "") or None
+            payload["gcs_connected"] = _gcs_bucket is not None
+            if _gcs_bucket:
+                try:
+                    blob = _gcs_bucket.blob("Walks_Log.txt")
+                    payload["gcs_walks_log_exists"] = blob.exists()
+                except Exception as e:
+                    payload["gcs_walks_log_exists"] = f"error: {e}"
+            else:
+                payload["gcs_walks_log_exists"] = None
             body = json.dumps(payload, indent=2).encode()
             self._send(200, "application/json", body)
             return
@@ -570,26 +563,8 @@ class Handler(BaseHTTPRequestHandler):
                 }
             _save_confirmations(data)
             self._send(200, "application/json",
-                       json.dumps({"ok": True, "confirmations": data}).encode())        elif endpoint == "/api/reassign":
-            # Triggered by the UI when a scheduler rejects an assignment and wants
-            # a replacement picked.  Protected by SCHEDULER_PIN (same as /api/confirm).
-            _sched_pin = os.environ.get("SCHEDULER_PIN", "")
-            try:
-                length = int(self.headers.get("Content-Length", 0))
-                body_bytes = self.rfile.read(length) if length else b"{}"
-                payload = json.loads(body_bytes)
-            except Exception:
-                self._send(400, "application/json",
-                           json.dumps({"error": "bad request"}).encode())
-                return
-            if _sched_pin and payload.get("pin", "") != _sched_pin:
-                self._send(403, "application/json",
-                           json.dumps({"error": "wrong pin"}).encode())
-                return
-            t = threading.Thread(target=_run_scheduler_and_rebuild, daemon=True)
-            t.start()
-            self._send(200, "application/json",
-                       json.dumps({"ok": True, "message": "Reassignment started"}).encode())
+                       json.dumps({"ok": True, "confirmations": data}).encode())
+
         elif endpoint == "/api/drive/poll":
             count, err = _run_drive_poll(source="gas")
             if err:
@@ -696,6 +671,9 @@ def _restore_gcs_state():
         return
     # Walks_Log.txt â€” always refresh from GCS (may be newer than baked copy)
     _download_from_gcs("Walks_Log.txt", WALKS_LOG)
+    if not WALKS_LOG.exists():
+        print("[gcs-restore] Walks_Log.txt not available from GCS â€” starting empty")
+        WALKS_LOG.write_text("", encoding="utf-8")
     # schedule_output.json â€” use the baked copy from the Docker image.
     # The forecast monitor will regenerate and upload to GCS when new forecasts arrive.
     print("[gcs-restore] Using baked schedule_output.json from Docker image")
@@ -723,12 +701,8 @@ def main():
 
     # â”€â”€ Restore persistent state from GCS on startup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if _gcs_bucket:
-        # Walks_Log.txt â€” source of truth for walk history
-        if not WALKS_LOG.exists():
-            _download_from_gcs("Walks_Log.txt", WALKS_LOG)
-        else:
-            # Always refresh â€” GCS copy may be newer than the baked image copy
-            _download_from_gcs("Walks_Log.txt", WALKS_LOG)
+        # Walks_Log.txt â€” always pull from GCS (never rely on image-baked copy)
+        _download_from_gcs("Walks_Log.txt", WALKS_LOG)
 
         # schedule_output.json and schedule_confirmations.json are already
         # restored by --restore-only (step 1 of CMD), and dashboard HTML was
@@ -737,6 +711,11 @@ def main():
         _download_from_gcs("schedule_confirmations.json", CONFIRMATIONS_FILE)
 
         print("[startup] GCS state restored")
+
+    # Ensure Walks_Log.txt always exists (empty fallback if GCS unavailable)
+    if not WALKS_LOG.exists():
+        print("[startup] Walks_Log.txt not available â€” starting with empty log")
+        WALKS_LOG.write_text("", encoding="utf-8")
 
     # â”€â”€ Start Drive walk-log polling thread â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if DRIVE_POLL_INTERVAL > 0:
