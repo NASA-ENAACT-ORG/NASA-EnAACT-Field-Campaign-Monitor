@@ -150,15 +150,41 @@ def _drive_find_folder(service, parent_id: str, name: str) -> str | None:
         return None
 
 
+def _rebuild_dashboard_and_upload():
+    """Run build_dashboard.py and upload all HTML + weather artefacts to GCS."""
+    r = subprocess.run(
+        [sys.executable, str(BUILD_DASHBOARD)],
+        cwd=str(BASE_DIR),
+        capture_output=True, text=True,
+        encoding="utf-8", errors="replace",
+        timeout=120,
+        env={**os.environ, "PYTHONUNBUFFERED": "1"},
+    )
+    print(f"[forecast] Dashboard rebuild exit={r.returncode}")
+    if r.stdout:
+        print(r.stdout[-500:])
+    if _gcs_bucket:
+        for html_name in ("dashboard.html", "availability_heatmap.html",
+                          "schedule_map.html", "collector_map.html"):
+            html_path = BASE_DIR / html_name
+            if html_path.exists():
+                _upload_to_gcs(html_path, html_name)
+        print("[forecast] Uploaded rebuilt HTML files -> GCS")
+
+
 def _run_scheduler_and_rebuild():
-    """Run walk_scheduler.py â†’ build_dashboard.py, upload results to GCS.
-    Protected by _scheduler_running lock to prevent concurrent runs."""
+    """Run build_weather.py -> walk_scheduler.py -> build_dashboard.py, upload to GCS.
+
+    The dashboard is rebuilt immediately after build_weather.py so that the site
+    always reflects the latest weather data, even when the scheduler fails.
+    Protected by _scheduler_running lock to prevent concurrent runs.
+    """
     if not _scheduler_running.acquire(blocking=False):
-        print("[forecast] Scheduler already running â€” skipping this trigger")
+        print("[forecast] Scheduler already running -- skipping this trigger")
         return
 
     try:
-        print("[forecast] â–¶ Running build_weather.py â€¦")
+        print("[forecast] Running build_weather.py ...")
         r_weather = subprocess.run(
             [sys.executable, str(BUILD_WEATHER)],
             cwd=str(BASE_DIR),
@@ -172,14 +198,23 @@ def _run_scheduler_and_rebuild():
             print(out_w[-2000:])
         print(f"[forecast] build_weather.py exit={r_weather.returncode}")
 
-        # Upload weather JSON file to GCS
+        if r_weather.returncode != 0:
+            print("[forecast] build_weather.py failed -- aborting pipeline")
+            return
+
+        # Upload fresh weather.json to GCS right away.
         for _wfname in ("weather.json",):
             _wfpath = BASE_DIR / _wfname
             if _wfpath.exists() and _gcs_bucket:
                 _upload_to_gcs(_wfpath, _wfname)
-        print("[forecast] Uploaded weather.json â†’ GCS")
+        print("[forecast] Uploaded weather.json -> GCS")
 
-        print("[forecast] â–¶ Running walk_scheduler.py â€¦")
+        # Rebuild the dashboard immediately so the site shows up-to-date weather
+        # regardless of whether the scheduler succeeds below.
+        print("[forecast] Rebuilding dashboard (post-weather) ...")
+        _rebuild_dashboard_and_upload()
+
+        print("[forecast] Running walk_scheduler.py ...")
         r = subprocess.run(
             [sys.executable, str(SCHEDULER)],
             cwd=str(BASE_DIR),
@@ -194,31 +229,16 @@ def _run_scheduler_and_rebuild():
             print(out[-3000:])
         print(f"[forecast] Scheduler exit={r.returncode}")
 
-        if SCHEDULE_OUTPUT.exists() and _gcs_bucket:
-            _upload_to_gcs(SCHEDULE_OUTPUT, "schedule_output.json")
-            print("[forecast] Uploaded schedule_output.json â†’ GCS")
+        if r.returncode == 0:
+            if SCHEDULE_OUTPUT.exists() and _gcs_bucket:
+                _upload_to_gcs(SCHEDULE_OUTPUT, "schedule_output.json")
+                print("[forecast] Uploaded schedule_output.json -> GCS")
+            # Rebuild once more to bake in the freshly generated schedule.
+            print("[forecast] Rebuilding dashboard (post-scheduler) ...")
+            _rebuild_dashboard_and_upload()
+        else:
+            print("[forecast] walk_scheduler.py failed -- dashboard reflects latest weather only")
 
-        print("[forecast] â–¶ Rebuilding dashboard â€¦")
-        r2 = subprocess.run(
-            [sys.executable, str(BUILD_DASHBOARD)],
-            cwd=str(BASE_DIR),
-            capture_output=True, text=True,
-            encoding="utf-8", errors="replace",
-            timeout=120,
-            env={**os.environ, "PYTHONUNBUFFERED": "1"},
-        )
-        print(f"[forecast] Dashboard rebuild exit={r2.returncode}")
-        if r2.stdout:
-            print(r2.stdout[-500:])
-
-        # Upload rebuilt HTML files to GCS so they persist across container restarts
-        if _gcs_bucket:
-            for html_name in ("dashboard.html", "availability_heatmap.html",
-                              "schedule_map.html", "collector_map.html"):
-                html_path = BASE_DIR / html_name
-                if html_path.exists():
-                    _upload_to_gcs(html_path, html_name)
-            print("[forecast] Uploaded rebuilt HTML files â†’ GCS")
     except subprocess.TimeoutExpired:
         print("[forecast] Scheduler timed out (6 min limit)")
     except Exception as e:

@@ -5,10 +5,10 @@ build_weather.py — Read forecast tabs from Google Sheets and produce a single 
   weather.json — all entries for dates >= HISTORY_START, rebuilt each run.
 
 Each tab in the spreadsheet covers a 5- or 7-day rolling window (e.g. "Apr 7 - Apr 13").
-Tab layout:
+Tab layout (3TOD only):
   - Column A: date (may include day-of-week prefix, e.g. "Sunday\n4/6/26")
   - Column B: AM average cloud %
-  - Column C: MD average cloud %
+  - Column C: MD (Midday) average cloud %
   - Column D: PM average cloud %
   - "Last Updated" cell: dynamically located — the LOWEST non-empty row in column B
     (NOT always B24)
@@ -21,6 +21,7 @@ Design rules (2026-04-08 rewrite):
     newest "Last Updated" date wins. Ties → later tab start-date → alphabetical tab title.
   • Year-crossing fix: tabs like "Dec 29 - Jan 4" correctly roll end-date into next year.
   • Raw cloud % retained in _meta for each entry.
+  • All tabs are treated as 3TOD (columns B/C/D → AM/MD/PM). AM_only layout removed.
 
 Usage:
     python build_weather.py
@@ -181,32 +182,6 @@ def list_forecast_tabs(sheets_service) -> List[str]:
     return titles
 
 
-def _detect_tod_layout(rows: List[list]) -> str:
-    """
-    Inspect the header rows to determine the tab's TOD layout.
-
-    Returns:
-      "3TOD"    — columns B/C/D map to AM / MD / PM respectively.
-                  (Header row mentions Morning + Noon + Afternoon.)
-      "AM_only" — columns B/C/D are three separate hourly AM samples
-                  (e.g. 7 AM / 8 AM / 9 AM). We average them to a single AM value.
-                  (Header row only mentions Morning.)
-    """
-    for row in rows[:8]:  # header always lives in the first few rows
-        if not row or len(row) < 2:
-            continue
-        a = str(row[0]).strip() if row[0] is not None else ""
-        if a:  # header rows have an empty column A
-            continue
-        b = str(row[1]) if len(row) > 1 else ""
-        c = str(row[2]) if len(row) > 2 else ""
-        d = str(row[3]) if len(row) > 3 else ""
-        if "Morning" in b:
-            if "Noon" in c or "Afternoon" in d:
-                return "3TOD"
-            return "AM_only"
-    return "3TOD"  # sensible default for new tabs
-
 
 def _find_last_updated(rows: List[list]) -> Optional[date]:
     """
@@ -235,13 +210,9 @@ def parse_forecast_tab(
     tab_start: date,
 ) -> Tuple[Dict[Tuple[date, str], Tuple[bool, int]], Optional[date]]:
     """
-    Read weather data from a single tab. Supports four layout variants:
+    Read weather data from a single tab (3TOD layout only: B/C/D = AM/MD/PM).
 
-      TOD layout:
-        • "3TOD"    — B/C/D = AM/MD/PM
-        • "AM_only" — B/C/D = three AM hour samples (averaged to a single AM value)
-
-      Date layout:
+      Date layout variants supported:
         • "combined" — column A of the data row contains "Dayname\\nM/D/YY"
         • "split"    — data row has only "Dayname" in A; next row has "M/D/YY" in A
 
@@ -257,21 +228,13 @@ def parse_forecast_tab(
     ).execute()
     rows = response.get("values", [])
 
-    tod_layout = _detect_tod_layout(rows)
     weather: Dict[Tuple[date, str], Tuple[bool, int]] = {}
 
     def _emit(d: date, pcts: List[Optional[int]]) -> None:
-        """Map [b, c, d] percentages to TODs according to the detected layout."""
-        if tod_layout == "3TOD":
-            names = ("AM", "MD", "PM")
-            for name, p in zip(names, pcts):
-                if p is not None:
-                    weather[(d, name)] = (p <= CLOUD_THRESHOLD, p)
-        else:  # AM_only — average the three samples into one AM reading
-            vals = [p for p in pcts if p is not None]
-            if vals:
-                avg = round(sum(vals) / len(vals))
-                weather[(d, "AM")] = (avg <= CLOUD_THRESHOLD, avg)
+        """Map [b, c, d] percentages to AM/MD/PM (3TOD layout)."""
+        for name, p in zip(("AM", "MD", "PM"), pcts):
+            if p is not None:
+                weather[(d, name)] = (p <= CLOUD_THRESHOLD, p)
 
     # ── Walk rows: detect (date, percentages) pairs ──────────────────────────
     i = 0

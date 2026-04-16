@@ -205,17 +205,29 @@ def sync_once(drive_service) -> bool:
 
         logger.info(f"Spreadsheet change detected (mtime: {current_mtime} > {prev_mtime})")
 
-        weather_ok   = _run_script(BUILD_WEATHER,   "build_weather.py")
-        scheduler_ok = _run_script(WALK_SCHEDULER,  "walk_scheduler.py")
-        dashboard_ok = _run_script(BUILD_DASHBOARD, "build_dashboard.py")
+        weather_ok = _run_script(BUILD_WEATHER, "build_weather.py")
 
-        if weather_ok and scheduler_ok and dashboard_ok:
-            save_forecast_state(current_mtime)
-            logger.info("✓ Sync completed successfully")
-            return True
-        else:
-            logger.error("One or more scripts failed — state not updated")
+        if not weather_ok:
+            logger.error("build_weather.py failed — skipping scheduler and dashboard")
             return False
+
+        # Rebuild dashboard immediately after weather so the site always shows
+        # the latest weather data, even if the scheduler fails below.
+        _run_script(BUILD_DASHBOARD, "build_dashboard.py")
+
+        scheduler_ok = _run_script(WALK_SCHEDULER, "walk_scheduler.py")
+
+        if scheduler_ok:
+            # Rebuild again to bake in the freshly generated schedule.
+            _run_script(BUILD_DASHBOARD, "build_dashboard.py")
+        else:
+            logger.warning("walk_scheduler.py failed — dashboard reflects latest weather only")
+
+        # Save state as long as weather succeeded; scheduler failure is non-fatal.
+        save_forecast_state(current_mtime)
+        logger.info("✓ Sync completed (weather updated; scheduler %s)",
+                    "ok" if scheduler_ok else "FAILED")
+        return True
 
     except Exception as e:
         logger.error(f"Sync cycle failed: {e}")
