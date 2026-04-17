@@ -278,7 +278,13 @@ select option{background:var(--bg3)}
 .cal-today-head .cal-dnum{background:var(--accent);color:#fff;border-radius:50%;width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;font-weight:500;font-size:18px}
 .cal-tod-lbl{background:var(--bg2);border-right:1px solid var(--border);border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:flex-end;padding:10px 6px 0 0;font-size:10px;font-weight:700;letter-spacing:.3px;position:sticky;left:0;z-index:5}
 .cal-tod-lbl.am{color:var(--tod-am)}.cal-tod-lbl.md{color:var(--tod-md)}.cal-tod-lbl.pm{color:var(--tod-pm)}
-.cal-cell{border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:5px;display:flex;flex-direction:column;gap:4px;background:var(--bg)}
+.cal-cell{border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:5px;display:flex;flex-direction:column;gap:4px;background:var(--bg);position:relative}
+.cloud-pct-badge{position:absolute;top:4px;right:4px;font-size:9px;font-weight:700;letter-spacing:.2px;padding:1px 5px;border-radius:10px;pointer-events:none;z-index:3;opacity:.9}
+.cloud-pct-badge.good{color:#3fb950;background:rgba(63,185,80,.12);border:1px solid rgba(63,185,80,.28)}
+.cloud-pct-badge.bad{color:#ef4444;background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.28)}
+#wx-cutoff-pill{display:flex;align-items:center;gap:5px;padding:3px 10px;border-radius:6px;background:rgba(255,255,255,.05);border:1px solid var(--border);font-size:10px;font-weight:700;color:var(--text2);white-space:nowrap;font-family:'Space Grotesk',sans-serif;flex-shrink:0;letter-spacing:.1px}
+#wx-cutoff-pill .wx-good{color:var(--green)}
+#wx-cutoff-pill .wx-bad{color:var(--red)}
 .cal-cell.cal-today-col{background:rgba(56,139,253,.05)}
 .cal-cell.cal-past-col{background:rgba(0,0,0,.12)}
 .cal-cell.cal-weekend{background:rgba(255,255,255,.012)}
@@ -439,15 +445,18 @@ select option{background:var(--bg3)}
 .filter-section-head{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);padding-bottom:4px;border-bottom:1px solid var(--border);margin-bottom:2px}
 @media(max-width:768px){
   #header{flex-wrap:wrap;height:auto;padding:8px 10px;gap:0}
-  /* Row 1: logos (left) + title (right) + hamburger */
+  /* Row 1: logos (left) + buttons (right) */
   #header-logos{order:1;flex-shrink:0;margin-right:auto}
   #nasa-worm-logo{height:20px}
   #tempo-logo{height:30px}
   #header-divider{display:none}
-  #header-title{order:1;flex-shrink:1;min-width:0;text-align:right}
+  #wx-cutoff-pill{display:none}
+  .sched-unlock-btn,.force-rebuild-btn{order:1;flex-shrink:0;margin:0}
+  /* Row 2: title full width */
+  #header-title{order:2;flex-basis:100%;flex-shrink:1;min-width:0;text-align:left;margin-top:6px}
   #header h1{font-size:13px;font-family:'Space Grotesk',sans-serif;white-space:normal;line-height:1.2}
-  /* Row 2: tabs full width */
-  #tabs{order:2;flex-basis:100%;margin-left:0;gap:3px;margin-top:6px;align-items:stretch}
+  /* Row 3: tabs full width */
+  #tabs{order:3;flex-basis:100%;margin-left:0;gap:3px;margin-top:6px;align-items:stretch}
   .tab-group{flex-direction:row;flex:1}
   .tab-group-label{display:none}
   .tab-group-btns{flex:1;gap:3px}
@@ -493,6 +502,8 @@ select option{background:var(--bg3)}
   .schip .sl{font-size:8px}
   .cw{height:80px}
   #route-panel.open{max-width:95vw}
+  #mstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;width:fit-content}
+  .msc{width:100px;height:100px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:8px}
 }
 </style>
 </head>
@@ -579,6 +590,9 @@ setTimeout(function(){
     <div id="header-title">
       <h1>NASA EnAACT Field Campaign Data Desk</h1>
     </div>
+    <div id="wx-cutoff-pill" title="Cloud cover threshold — slots at or below 33% are marked GO">
+      &#x2601; <span class="wx-good">&#x2264;33%&nbsp;GO</span>&nbsp;<span style="color:var(--border)">|</span>&nbsp;<span class="wx-bad">&gt;33%&nbsp;NO&nbsp;GO</span>
+    </div>
     <button id="sched-unlock-btn" class="sched-unlock-btn" title="Log in to Admin Mode">&#x1F511; Admin Login</button>
     <button id="force-rebuild-btn" class="force-rebuild-btn" title="Force rebuild: build weather, run scheduler, rebuild dashboard">&#x27F3; Rebuild</button>
     <div id="tabs">
@@ -654,7 +668,6 @@ setTimeout(function(){
           <div class="wtabs">
             <button class="wtab active" data-win="2w">Last 2 Wks</button>
             <button class="wtab" data-win="mo">This Month</button>
-            <button class="wtab" data-win="sea">This Season</button>
             <button class="wtab" data-win="all">Whole Project</button>
           </div>
         </h3>
@@ -664,7 +677,6 @@ setTimeout(function(){
             <th>Collector</th>
             <th class="num">Last 2 Wks</th>
             <th class="num">This Month</th>
-            <th class="num">This Season</th>
             <th class="num">Whole Project</th>
           </tr></thead>
           <tbody id="ctbody"></tbody>
@@ -783,6 +795,7 @@ const ROUTE_LABELS = {
 };
 const ALL_ROUTES = new Set(Object.keys(ROUTE_LABELS));
 const COLLECTORS = ["SOT","AYA","ALX","TAH","JAM","JEN","SCT","TER","PRA","NAT","NRS"];
+const STUDENT_COLLECTORS = COLLECTORS.filter(c => !["NRS","PRA","NAT"].includes(c));
 const CNAMES = {
   SOT:"Soteri",AYA:"Aya Nasri",ALX:"Alex",TAH:"Taha",JAM:"James",
   JEN:"Jennifer",SCT:"Scott",TER:"Terra",
@@ -1131,9 +1144,9 @@ function renderCollectorDetail(cid){
   });
 }
 function renderComparison(){
-  const data=COLLECTORS.map(cid=>({
+  const data=STUDENT_COLLECTORS.map(cid=>({
     cid,name:CNAMES[cid],
-    vals:['2w','mo','sea','all'].map(w=>getWinsFor(cid,w).length)
+    vals:['2w','mo','all'].map(w=>getWinsFor(cid,w).length)
   }));
   const tops=data[0].vals.map((_,ci)=>Math.max(...data.map(r=>r.vals[ci])));
   const bots=data[0].vals.map((_,ci)=>{
@@ -1148,7 +1161,7 @@ function renderComparison(){
         return`<td class="num"><span class="${cls}">${v}</span></td>`;
       }).join('')}
     </tr>`).join('');
-  const wi=['2w','mo','sea','all'].indexOf(currentWin);
+  const wi=['2w','mo','all'].indexOf(currentWin);
   const vals=data.map(r=>r.vals[wi]);
   dc('comp-chart');
   const ctx=document.getElementById('comp-chart').getContext('2d');
@@ -1537,6 +1550,12 @@ function loadScheduleJSON(text){
 // --- CALENDAR ---
 let calWeekIdx=0;
 
+function getCloudPct(dateStr,tod){
+  const key=`${dateStr}_${tod}`;
+  const m=(RUNTIME_WEATHER&&RUNTIME_WEATHER._meta&&RUNTIME_WEATHER._meta[key]);
+  return(m&&m.cloud_pct!=null)?m.cloud_pct:null;
+}
+
 function isBadWeatherSlot(dateStr,tod){
   const weatherKey=`${dateStr}_${tod}`;
   if(
@@ -1676,6 +1695,12 @@ function renderCalendar(){
       const isBadWeather=isBadWeatherSlot(dateStr,ctod);
 
       let cellContent='';
+      // Cloud cover % badge (top-right corner, all slots)
+      const cloudPct=getCloudPct(dateStr,ctod);
+      if(cloudPct!=null){
+        const isGoodWx=cloudPct<=33;
+        cellContent+=`<div class="cloud-pct-badge ${isGoodWx?'good':'bad'}">&#x2601; ${cloudPct}%</div>`;
+      }
       // Weather indicator overlay for bad weather
       if(isBadWeather){
         cellContent+=`<div class="weather-bad"><div class="bad-label">BAD</div><div class="no-sign">NO GO</div><div class="weather-label">WEATHER</div></div>`;
