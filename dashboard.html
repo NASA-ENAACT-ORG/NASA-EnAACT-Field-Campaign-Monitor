@@ -152,12 +152,12 @@ select option{background:var(--bg3)}
 .msc strong{display:block;font-size:17px;font-weight:700;color:var(--text);line-height:1.1}
 /* CALENDAR VIEW */
 #calendar-view{flex-direction:column;overflow:hidden}
-#cal-nav{display:flex;align-items:center;gap:6px;padding:0 16px;height:66px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+#cal-nav{display:flex;align-items:center;gap:6px;padding:0 16px;height:54px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
 #cal-nav h2{font-size:15px;font-weight:700;margin:0 8px;min-width:230px;text-align:center;white-space:nowrap}
-.cal-nav-btn{width:52px;height:52px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1;flex-shrink:0}
+.cal-nav-btn{width:40px;height:40px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1;flex-shrink:0}
 .cal-nav-btn:hover{background:var(--bg3);border-color:var(--accent)}
 .cal-nav-btn:disabled{opacity:.28;cursor:default}
-.bp-toggle{height:52px;padding:0 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-size:12px;font-weight:600;transition:all .15s;display:inline-flex;align-items:center;gap:0}
+.bp-toggle{height:40px;padding:0 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-size:12px;font-weight:600;transition:all .15s;display:inline-flex;align-items:center;gap:0}
 .bp-toggle:hover{background:var(--bg3);border-color:var(--accent);color:var(--text);cursor:pointer;position:relative}
 .bp-toggle.active{background:var(--bg3);border-color:var(--accent);color:var(--text)}
 .bp-toggle[data-backpack="A"].active{border-color:#f85149;color:#f85149}
@@ -181,14 +181,14 @@ select option{background:var(--bg3)}
 .cloud-pct-badge{position:absolute;top:4px;right:4px;font-size:9px;font-weight:700;letter-spacing:.2px;padding:1px 5px;border-radius:10px;pointer-events:none;z-index:3;opacity:.9}
 .cloud-pct-badge.good{color:#3fb950;background:rgba(63,185,80,.12);border:1px solid rgba(63,185,80,.28)}
 .cloud-pct-badge.bad{color:#ef4444;background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.28)}
-#wx-cutoff-pill{display:flex;align-items:center;gap:5px;padding:0 10px;height:52px;border-radius:6px;background:rgba(255,255,255,.05);border:1px solid var(--border);font-size:12px;font-weight:700;color:var(--text2);white-space:nowrap;font-family:'Space Grotesk',sans-serif;flex-shrink:0;letter-spacing:.1px}
+#wx-cutoff-pill{display:flex;align-items:center;gap:5px;padding:0 10px;height:40px;border-radius:6px;background:rgba(255,255,255,.05);border:1px solid var(--border);font-size:12px;font-weight:700;color:var(--text2);white-space:nowrap;font-family:'Space Grotesk',sans-serif;flex-shrink:0;letter-spacing:.1px}
 #wx-cutoff-pill .wx-good{color:var(--green)}
 #wx-cutoff-pill .wx-bad{color:var(--red)}
 /* -- Days Since Calibration bar -- */
-#cal-bar{display:flex;align-items:center;gap:12px;padding:0 14px;height:52px;border-radius:7px;background:rgba(255,255,255,.04);border:1px solid var(--border);font-family:'Space Grotesk',sans-serif;flex-shrink:0;margin-left:8px;box-sizing:border-box}
+#cal-bar{display:flex;align-items:center;gap:12px;padding:0 14px;height:40px;border-radius:7px;background:rgba(255,255,255,.04);border:1px solid var(--border);font-family:'Space Grotesk',sans-serif;flex-shrink:0;margin-left:8px;box-sizing:border-box}
 #cal-bar .cb-label{display:flex;flex-direction:column;align-items:center;justify-content:space-evenly;height:100%;line-height:1;white-space:nowrap}
 #cal-bar .cb-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--text2)}
-#cal-bar .cb-count{font-size:18px;font-weight:700;color:var(--text);letter-spacing:-.5px;font-variant-numeric:tabular-nums;line-height:1}
+#cal-bar .cb-count{font-size:16px;font-weight:700;color:var(--text);letter-spacing:-.5px;font-variant-numeric:tabular-nums;line-height:1}
 #cal-bar .cb-count .cb-count-num{transition:color .2s}
 #cal-bar .cb-last{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--text2);font-family:'Space Grotesk',sans-serif;line-height:1}
 #cal-bar .cb-last b{color:var(--text)}
@@ -2406,7 +2406,7 @@ function bindEvents(){
     if(!dateVal){msg.className='err';msg.textContent='Please select a date.';msg.style.display='block';return;}
     const pin=schedAuth.pin||'';
     const btn=document.getElementById('recal-modal-submit');
-    btn.disabled=true;btn.textContent='Saving\u2026';
+    btn.disabled=true;btn.textContent='Saving…';
     try{
       const r=await fetch('/api/record-calibration',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:dateVal,pin})});
       if(r.ok){
