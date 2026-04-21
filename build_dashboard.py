@@ -180,6 +180,23 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 #auth-modal-submit:hover{background:var(--accent)}
 #auth-modal-cancel{padding:6px 14px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:5px;cursor:pointer;font-size:12px;font-weight:500;transition:all .15s}
 #auth-modal-cancel:hover{background:var(--bg3);color:var(--text)}
+/* -- Calibration entry button & modal -- */
+#cb-log-btn{padding:3px 9px;background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text2);border-radius:5px;cursor:pointer;font-size:10px;font-weight:600;font-family:'Space Grotesk',sans-serif;letter-spacing:.4px;transition:all .15s;white-space:nowrap;align-self:center;flex-shrink:0}
+#cb-log-btn:hover{background:rgba(255,255,255,.12);color:var(--text);border-color:rgba(255,255,255,.2)}
+#recal-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+#recal-modal-bg.open{display:flex}
+#recal-modal{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:22px 24px;width:300px;display:flex;flex-direction:column;gap:14px;box-shadow:0 16px 48px rgba(0,0,0,.8)}
+#recal-modal h3{font-size:14px;font-weight:700;font-family:'Space Grotesk',sans-serif;color:var(--text);margin:0}
+#recal-modal label{font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px}
+#recal-modal input[type=date]{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:5px 8px;font-size:12px;height:32px;outline:none;box-sizing:border-box}
+#recal-modal input[type=date]:focus{border-color:var(--accent)}
+#recal-modal-msg{font-size:11px;border-radius:5px;padding:6px 9px;display:none}
+#recal-modal-msg.err{color:var(--red);background:var(--red-bg);border:1px solid rgba(248,81,73,.3)}
+#recal-modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:2px}
+#recal-modal-submit{padding:6px 16px;background:var(--accent2);border:1px solid var(--accent);color:#fff;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;font-family:'Space Grotesk',sans-serif;transition:background .15s}
+#recal-modal-submit:hover{background:var(--accent)}
+#recal-modal-cancel{padding:6px 14px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:5px;cursor:pointer;font-size:12px;font-weight:500;transition:all .15s}
+#recal-modal-cancel:hover{background:var(--bg3);color:var(--text)}
 #toast.warn{border-color:var(--yellow);color:var(--yellow)}
 /* Filters dropdown panel — anchored to Campaign Monitor tab group */
 #filters{display:none;position:fixed;width:240px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow-y:auto;z-index:1200;padding:14px;gap:10px;flex-direction:column;box-shadow:0 8px 24px rgba(0,0,0,.5)}
@@ -732,6 +749,7 @@ setTimeout(function(){
               <span id="cb-scale-over" style="left:82%;color:var(--red)">OVERDUE</span>
             </div>
           </div>
+          <button id="cb-log-btn" title="Record a calibration event">+ Log Cal</button>
         </div>
       </div>
       <div id="cal-body">
@@ -1664,8 +1682,10 @@ const TWEAK_DEFAULTS = /*EDITMODE-START*/{"calBarMax":22,"calBarGreenEnd":10,"ca
 let CAL_BAR_MAX = TWEAK_DEFAULTS.calBarMax;
 let CAL_BAR_GREEN_END = TWEAK_DEFAULTS.calBarGreenEnd;
 let CAL_BAR_YELLOW_END = TWEAK_DEFAULTS.calBarYellowEnd;
+let _lastRecalEntry=null;
 
 function getLastCalibrationDate(){
+  if(_lastRecalEntry instanceof Date&&!isNaN(_lastRecalEntry))return _lastRecalEntry;
   let latest=null;
   if(Array.isArray(allWalks)&&allWalks.length){
     for(const w of allWalks){
@@ -2101,6 +2121,43 @@ function bindEvents(){
       }
     });
   }
+  // --- Calibration entry modal ---
+  const cbLogBtn=document.getElementById('cb-log-btn');
+  if(cbLogBtn){
+    cbLogBtn.addEventListener('click',()=>{
+      if(!requireAuth('Log Calibration'))return;
+      document.getElementById('recal-date').value=new Date().toISOString().slice(0,10);
+      document.getElementById('recal-modal-msg').style.display='none';
+      document.getElementById('recal-modal-bg').classList.add('open');
+    });
+  }
+  document.getElementById('recal-modal-cancel').addEventListener('click',()=>{
+    document.getElementById('recal-modal-bg').classList.remove('open');
+  });
+  document.getElementById('recal-modal-bg').addEventListener('click',e=>{
+    if(e.target===document.getElementById('recal-modal-bg'))document.getElementById('recal-modal-bg').classList.remove('open');
+  });
+  document.getElementById('recal-modal-submit').addEventListener('click',async()=>{
+    const dateVal=document.getElementById('recal-date').value;
+    const msg=document.getElementById('recal-modal-msg');
+    if(!dateVal){msg.className='err';msg.textContent='Please select a date.';msg.style.display='block';return;}
+    const pin=schedAuth.pin||'';
+    const btn=document.getElementById('recal-modal-submit');
+    btn.disabled=true;btn.textContent='Saving\u2026';
+    try{
+      const r=await fetch('/api/record-calibration',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:dateVal,pin})});
+      if(r.ok){
+        _lastRecalEntry=new Date(dateVal+'T12:00:00');
+        document.getElementById('recal-modal-bg').classList.remove('open');
+        updateCalibrationBar();
+        toast('Calibration logged for '+dateVal,'success');
+      }else{
+        const j=await r.json().catch(()=>({}));
+        msg.className='err';msg.textContent=j.error||'Failed to save.';msg.style.display='block';
+      }
+    }catch(e){msg.className='err';msg.textContent='Network error.';msg.style.display='block';}
+    finally{btn.disabled=false;btn.textContent='Record';}
+  });
 }
 // --- INIT ---
 async function init(){
@@ -2337,6 +2394,21 @@ document.addEventListener('DOMContentLoaded', function() {
     <div id="auth-modal-actions">
       <button id="auth-modal-cancel">Cancel</button>
       <button id="auth-modal-submit">Unlock</button>
+    </div>
+  </div>
+</div>
+<!--- Calibration entry modal --->
+<div id="recal-modal-bg">
+  <div id="recal-modal">
+    <h3>&#x1F4CB; Log Calibration</h3>
+    <div>
+      <label for="recal-date">Calibration Date</label>
+      <input type="date" id="recal-date">
+    </div>
+    <div id="recal-modal-msg"></div>
+    <div id="recal-modal-actions">
+      <button id="recal-modal-cancel">Cancel</button>
+      <button id="recal-modal-submit">Record</button>
     </div>
   </div>
 </div>

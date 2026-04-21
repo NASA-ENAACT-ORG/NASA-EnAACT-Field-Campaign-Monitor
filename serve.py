@@ -593,6 +593,35 @@ class Handler(BaseHTTPRequestHandler):
             t.start()
             self._send(200, "application/json",
                        json.dumps({"status": "ok", "message": "Rebuild started â€” check back in 30 seconds"}).encode())
+        elif endpoint == "/api/record-calibration":
+            _sched_pin = os.environ.get("SCHEDULER_PIN", "")
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body_bytes = self.rfile.read(length) if length else b"{}"
+                payload = json.loads(body_bytes)
+            except Exception:
+                self._send(400, "application/json",
+                           json.dumps({"error": "bad request"}).encode())
+                return
+            if _sched_pin and payload.get("pin", "") != _sched_pin:
+                self._send(403, "application/json",
+                           json.dumps({"error": "wrong pin"}).encode())
+                return
+            date_str = payload.get("date", "")
+            if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_str):
+                self._send(400, "application/json",
+                           json.dumps({"error": "invalid date"}).encode())
+                return
+            try:
+                y, m, d = date_str.split("-")
+                entry = f"RECAL_{m}_{d}_{y}\n"
+                with open(RECAL_LOG, "a") as fh:
+                    fh.write(entry)
+            except Exception as exc:
+                self._send(500, "application/json",
+                           json.dumps({"error": str(exc)}).encode())
+                return
+            self._send(200, "application/json", json.dumps({"ok": True}).encode())
         else:
             self._send(404, "text/plain", b"Unknown endpoint")
 
