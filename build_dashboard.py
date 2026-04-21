@@ -308,7 +308,7 @@ select option{background:var(--bg3)}
 #cal-bar .cb-last{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--text2);font-family:'Space Grotesk',sans-serif;line-height:1}
 #cal-bar .cb-last b{color:var(--text)}
 #cal-bar .cb-track{position:relative;flex-shrink:0;width:170px;height:12px;border-radius:7px;background:linear-gradient(90deg,rgba(63,185,80,.14) 0%,rgba(63,185,80,.14) 40%,rgba(210,153,34,.14) 44%,rgba(210,153,34,.14) 64%,rgba(248,81,73,.16) 68%,rgba(248,81,73,.16) 100%);border:1px solid rgba(255,255,255,.06);overflow:hidden}
-#cal-bar .cb-fill{position:absolute;top:0;left:0;bottom:0;width:0%;border-radius:7px 0 0 7px;background:linear-gradient(90deg,#3fb950 0%,#3fb950 38%,#d29922 52%,#d29922 73%,#f85149 85%,#f85149 100%);box-shadow:0 0 8px rgba(63,185,80,.25);transition:width .6s cubic-bezier(.22,.61,.36,1),box-shadow .4s ease}
+#cal-bar .cb-fill{position:absolute;top:0;left:0;bottom:0;width:0%;border-radius:7px 0 0 7px;background:linear-gradient(90deg,#3fb950 0%,#3fb950 38%,#d29922 52%,#d29922 73%,#f85149 85%,#f85149 100%);background-size:170px 100%;background-position:0 0;box-shadow:0 0 8px rgba(63,185,80,.25);transition:width .6s cubic-bezier(.22,.61,.36,1),box-shadow .4s ease}
 #cal-bar[data-zone="yellow"] .cb-fill{box-shadow:0 0 10px rgba(210,153,34,.35)}
 #cal-bar[data-zone="red"] .cb-fill{box-shadow:0 0 14px rgba(248,81,73,.5)}
 #cal-bar .cb-fill::after{content:'';position:absolute;right:0;top:0;bottom:0;width:10px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35));pointer-events:none}

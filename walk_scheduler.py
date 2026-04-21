@@ -95,7 +95,6 @@ import folium
 
 BASE_DIR      = Path(__file__).parent
 WALKS_LOG     = BASE_DIR / "Walks_Log.txt"
-RECAL_LOG     = BASE_DIR / "Recal_Log.txt"
 PREF_ROUTES    = BASE_DIR / "Preferred_Routes.xlsx"
 PREF_ROUTES_V2 = BASE_DIR / "V2_Preferred_Routes.xlsx"
 FORECAST_DIR  = BASE_DIR / "Forecast"
@@ -1208,87 +1207,6 @@ def score_combos(
 # RECALIBRATION DAY  (monthly, both backpacks, prefer bad-weather day)
 # ─────────────────────────────────────────────────────────────────────────────
 
-RECAL_TRIGGER_DAYS = 25   # start proposing a recal day (soft — picks worst-weather slot)
-RECAL_TARGET_DAYS  = 30   # ideal spacing goal (informational only)
-RECAL_MAX_DAYS     = 40   # hard limit — recal is required regardless of field conditions
-
-
-def parse_last_recal_date() -> Optional[date]:
-    """
-    Scan Recal_Log.txt for all RECAL_MM_DD_YYYY entries and
-    return the most recent date, or None if no recal has ever been logged.
-    Falls back to Walks_Log.txt for backwards compatibility if Recal_Log.txt
-    does not exist yet.
-    """
-    log_path = RECAL_LOG if RECAL_LOG.exists() else WALKS_LOG
-    try:
-        text = log_path.read_text(encoding="utf-8", errors="ignore")
-    except FileNotFoundError:
-        return None
-    pattern = re.compile(r"^RECAL_(\d{2})_(\d{2})_(\d{4})$")
-    latest: Optional[date] = None
-    for raw in text.splitlines():
-        m = pattern.match(raw.strip())
-        if not m:
-            continue
-        try:
-            d = date(int(m.group(3)), int(m.group(1)), int(m.group(2)))
-        except ValueError:
-            continue
-        if latest is None or d > latest:
-            latest = d
-    return latest
-
-
-def recal_status(today: date) -> Tuple[bool, bool, Optional[int]]:
-    """
-    Returns (propose, required, days_since_last).
-
-    propose   — True when days elapsed >= RECAL_TRIGGER_DAYS (25) or no log entry.
-                Scheduler picks the worst-weather slot but data collection takes
-                priority; a fully clear week can still proceed without a recal.
-    required  — True when days elapsed >= RECAL_MAX_DAYS (40) or no log entry.
-                At this point the recal day is hard-blocked in the calendar
-                regardless of field conditions.
-    days_since — integer day count, or None if no recal on record.
-    """
-    last = parse_last_recal_date()
-    if last is None:
-        return True, True, None
-    elapsed  = (today - last).days
-    propose  = elapsed >= RECAL_TRIGGER_DAYS
-    required = elapsed >= RECAL_MAX_DAYS
-    return propose, required, elapsed
-
-
-def pick_recal_day(
-    weather:   Dict[Tuple[date, str], bool],
-    week_days: List[date],
-) -> Optional[date]:
-    """
-    Choose the best day this week to bring both backpacks to CCNY.
-
-    Primary criterion  — maximise bad-weather TOD count (0-3).
-      A fully cloudy day wastes no field capacity; a fully clear day is
-      a last resort used only when 25+ days have passed and no better
-      week exists.
-    Secondary criterion — prefer weekdays (CCNY lab staff availability).
-    Tertiary criterion  — earliest date (get it done sooner rather than later
-                          so the next 30-day window starts as early as possible).
-
-    Returns None only if week_days is empty.
-    """
-    if not week_days:
-        return None
-    ranked = sorted(
-        week_days,
-        key=lambda d: (
-            -sum(1 for tod in TODS if not weather.get((d, tod), False)),  # more bad → first
-            0 if d.weekday() < 5 else 1,                                   # weekday beats weekend
-            d,                                                              # earlier beats later
-        ),
-    )
-    return ranked[0]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1766,7 +1684,6 @@ def build_weekly_calendar(
     route_coords:        Dict[str, Tuple[float, float]],
     week_start:          date,
     week_end:            date,
-    recal_day:           Optional[date] = None,
     top_n:               int = 8,
     season_counts:       Optional[Dict[str, int]] = None,
     bp_filter:           Optional[str] = None,
@@ -1781,9 +1698,6 @@ def build_weekly_calendar(
       • Continuity: among equal-load collectors, prefer the one whose
         already-assigned routes this week are geographically closest
         (greedy nearest-neighbor heuristic)
-      • recal_day (if set): that entire day is blocked on BOTH backpack
-        calendars for CCNY recalibration — no field walks are placed on it.
-
     Outputs two separate calendar grids — one for Backpack A, one for B.
     """
     top   = scored[:top_n]
@@ -1881,7 +1795,6 @@ def build_weekly_calendar(
                 1 for d in combo["good_weather_days"]
                 if d > today and d in cal[bp] and
                    availability.get(cid, {}).get((d, tod), True) and
-                   (recal_day is None or d != recal_day) and
                    cal[bp][d][tod] is None and
                    sum(1 for t in TODS if cal[bp][d].get(t) is not None and cal[bp][d][t].get("assigned_collector") == cid) < 2
             )
@@ -1930,8 +1843,6 @@ def build_weekly_calendar(
                 continue
             if d <= today:
                 continue  # never schedule today or any past day
-            if recal_day is not None and d == recal_day:
-                continue  # entire day reserved for CCNY recalibration
             if cal[bp][d][tod] is not None:
                 continue  # slot taken by this backpack
 
@@ -2008,23 +1919,14 @@ def build_weekly_calendar(
         col = 15
         print()
         print("═" * W)
-        recal_note = (
-            f"  —  ★ RECAL: {recal_day.strftime('%a %m/%d')}"
-            if recal_day else ""
-        )
         campus_name = CAMPUS_COORDS[bp_label][2]  # "CCNY" or "LAGCC"
         print(
             f"  BACKPACK {bp_label} ({campus_name}) — WEEKLY CALENDAR  "
             f"({week_start.strftime('%b %d')} – {week_end.strftime('%b %d, %Y')})"
-            f"{recal_note}"
         )
         print("═" * W)
 
-        # Mark recal column header with ★
-        day_labels = []
-        for d in all_week_days:
-            lbl = d.strftime("%a %m/%d")
-            day_labels.append(f"★{lbl}" if recal_day and d == recal_day else lbl)
+        day_labels = [d.strftime("%a %m/%d") for d in all_week_days]
 
         print("  TOD  |" + "".join(f"  {lbl:<{col}}" for lbl in day_labels))
         print("─" * W)
@@ -2033,10 +1935,6 @@ def build_weekly_calendar(
             cells = []
             for d in all_week_days:
                 marker = "*" if d < today else " "
-                if recal_day and d == recal_day:
-                    cell = "★ RECAL CCNY"
-                    cells.append(f"{marker}{cell:<{col - 1}}")
-                    continue
                 entry   = cal[bp_label][d][tod]
                 wx_good = weather.get((d, tod), False)
                 if entry:
@@ -2051,7 +1949,6 @@ def build_weekly_calendar(
         print("─" * W)
         print(
             f"  * = past   ☁ = cloudy TOD   (ID) = assigned collector"
-            + (f"   ★ = CCNY recalibration day (both backpacks)" if recal_day else "")
         )
         print()
 
@@ -2130,7 +2027,6 @@ def build_weekly_calendar(
         "weather_week_end": str(week_end),
         "weather": weather_snapshot,
         "bad_weather_slots": bad_weather_slots,
-        "recal_day":    str(recal_day) if recal_day else None,
         "assignments": [
             {
                 "route":     e["route"],
@@ -2383,49 +2279,6 @@ def main() -> None:
     print("▶ Step 7a Ranked recommendations …")
     print_ranked_table(scored, route_coords, top_n=20, bp_filter=bp_filter)
 
-    # ── Recalibration day ───────────────────────────────────────────────────
-    today_                       = date.today()
-    propose, required, days_since = recal_status(today_)
-    recal_day: Optional[date]    = None
-
-    if not propose:
-        days_until = RECAL_TRIGGER_DAYS - days_since
-        print(
-            f"  ✓ Last recalibration was {days_since} day(s) ago — "
-            f"next recal window opens in ~{days_until} day(s) "
-            f"(at {RECAL_TRIGGER_DAYS}-day mark, hard limit {RECAL_MAX_DAYS} days).\n"
-        )
-    else:
-        recal_day = pick_recal_day(weather, week_days)
-        bad_count = sum(1 for tod in TODS if not weather.get((recal_day, tod), False))
-
-        if days_since is None:
-            status_tag = "No recalibration on record — scheduling first recal."
-        elif required:
-            status_tag = (
-                f"⚠  REQUIRED — {days_since} days since last recal "
-                f"(hard limit: {RECAL_MAX_DAYS} days). "
-                f"Calendar day is blocked regardless of field conditions."
-            )
-        else:
-            days_left = RECAL_MAX_DAYS - days_since
-            status_tag = (
-                f"{days_since} days since last recal — recal window open. "
-                f"Proposing worst-weather slot; hard limit in ~{days_left} day(s)."
-            )
-
-        print(
-            f"  ★ {status_tag}\n"
-            f"    Proposed recal day : {recal_day.strftime('%A %b %d')}  "
-            f"({bad_count}/3 TODs have bad weather)\n"
-            f"    → When complete, append  RECAL_{recal_day.strftime('%m_%d_%Y')}  "
-            f"to Sample_Walks_Log.txt\n"
-        )
-
-        # Only hard-block the calendar when required (40+ days)
-        if not required:
-            recal_day = None   # proposed day shown in message; calendar stays open
-
     # ── Step 7b ─────────────────────────────────────────────────────────────
     print("▶ Step 7b Weekly calendars (one per backpack) …")
     season_counts = count_walks_by_collector()
@@ -2435,7 +2288,6 @@ def main() -> None:
     build_weekly_calendar(
         scored, availability, weather, route_coords,
         week_start, week_end,
-        recal_day=recal_day,
         top_n=30,
         season_counts=season_counts,
         bp_filter=bp_filter,
