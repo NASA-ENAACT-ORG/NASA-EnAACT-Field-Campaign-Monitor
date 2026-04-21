@@ -250,14 +250,12 @@ select option{background:var(--bg3)}
 .msc strong{display:block;font-size:17px;font-weight:700;color:var(--text);line-height:1.1}
 /* CALENDAR VIEW */
 #calendar-view{flex-direction:column;overflow:hidden}
-#cal-nav{display:flex;align-items:center;gap:6px;padding:0 16px;height:52px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
-#cal-nav h2{font-size:13px;font-weight:700;margin:0 8px;min-width:230px;text-align:center;white-space:nowrap}
-.cal-nav-btn{width:28px;height:28px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1;flex-shrink:0}
+#cal-nav{display:flex;align-items:center;gap:6px;padding:0 16px;height:66px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+#cal-nav h2{font-size:15px;font-weight:700;margin:0 8px;min-width:230px;text-align:center;white-space:nowrap}
+.cal-nav-btn{width:52px;height:52px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1;flex-shrink:0}
 .cal-nav-btn:hover{background:var(--bg3);border-color:var(--accent)}
 .cal-nav-btn:disabled{opacity:.28;cursor:default}
-#cal-today-btn{padding:3px 12px;border-radius:14px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-size:11px;font-weight:500}
-#cal-today-btn:hover{background:var(--bg3);border-color:var(--accent);color:var(--text)}
-.bp-toggle{padding:3px 8px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-size:10px;font-weight:600;transition:all .15s}
+.bp-toggle{height:52px;padding:0 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-size:12px;font-weight:600;transition:all .15s;display:inline-flex;align-items:center;gap:0}
 .bp-toggle:hover{background:var(--bg3);border-color:var(--accent);color:var(--text);cursor:pointer;position:relative}
 .bp-toggle.active{background:var(--bg3);border-color:var(--accent);color:var(--text)}
 .bp-toggle[data-backpack="A"].active{border-color:#f85149;color:#f85149}
@@ -268,7 +266,6 @@ select option{background:var(--bg3)}
 .bp-toggle:hover .bp-boro-tooltip{display:block}
 .bp-boro-tooltip .week-item{display:flex;align-items:center;gap:4px;padding:2px 0;color:#e6edf3}
 .bp-boro-tooltip .week-num{font-weight:700;color:var(--accent);min-width:20px}
-#cal-src-badge{font-size:10px;color:var(--text3);margin-left:auto;padding:2px 8px;background:var(--bg3);border-radius:9px;border:1px solid var(--border);white-space:nowrap}
 #cal-body{flex:1;overflow:auto;min-height:0}
 #cal-grid{display:grid;grid-template-columns:54px repeat(7,1fr);grid-template-rows:56px repeat(3,minmax(110px,1fr));min-height:100%}
 .cal-corner{background:var(--bg2);border-right:1px solid var(--border);border-bottom:2px solid var(--border);position:sticky;top:0;left:0;z-index:20}
@@ -282,9 +279,31 @@ select option{background:var(--bg3)}
 .cloud-pct-badge{position:absolute;top:4px;right:4px;font-size:9px;font-weight:700;letter-spacing:.2px;padding:1px 5px;border-radius:10px;pointer-events:none;z-index:3;opacity:.9}
 .cloud-pct-badge.good{color:#3fb950;background:rgba(63,185,80,.12);border:1px solid rgba(63,185,80,.28)}
 .cloud-pct-badge.bad{color:#ef4444;background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.28)}
-#wx-cutoff-pill{display:flex;align-items:center;gap:5px;padding:3px 10px;border-radius:6px;background:rgba(255,255,255,.05);border:1px solid var(--border);font-size:10px;font-weight:700;color:var(--text2);white-space:nowrap;font-family:'Space Grotesk',sans-serif;flex-shrink:0;letter-spacing:.1px}
+#wx-cutoff-pill{display:flex;align-items:center;gap:5px;padding:0 10px;height:52px;border-radius:6px;background:rgba(255,255,255,.05);border:1px solid var(--border);font-size:12px;font-weight:700;color:var(--text2);white-space:nowrap;font-family:'Space Grotesk',sans-serif;flex-shrink:0;letter-spacing:.1px}
 #wx-cutoff-pill .wx-good{color:var(--green)}
 #wx-cutoff-pill .wx-bad{color:var(--red)}
+/* -- Days Since Calibration bar -- */
+#cal-bar{display:flex;align-items:center;gap:12px;padding:0 14px;height:52px;border-radius:7px;background:rgba(255,255,255,.04);border:1px solid var(--border);font-family:'Space Grotesk',sans-serif;flex-shrink:0;margin-left:8px;box-sizing:border-box}
+#cal-bar .cb-label{display:flex;flex-direction:column;align-items:center;justify-content:space-evenly;height:100%;line-height:1;white-space:nowrap}
+#cal-bar .cb-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--text2)}
+#cal-bar .cb-count{font-size:18px;font-weight:700;color:var(--text);letter-spacing:-.5px;font-variant-numeric:tabular-nums;line-height:1}
+#cal-bar .cb-count .cb-count-num{transition:color .2s}
+#cal-bar .cb-last{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--text2);font-family:'Space Grotesk',sans-serif;line-height:1}
+#cal-bar .cb-last b{color:var(--text)}
+#cal-bar .cb-track{position:relative;flex-shrink:0;width:170px;height:12px;border-radius:7px;background:linear-gradient(90deg,rgba(63,185,80,.14) 0%,rgba(63,185,80,.14) 40%,rgba(210,153,34,.14) 44%,rgba(210,153,34,.14) 64%,rgba(248,81,73,.16) 68%,rgba(248,81,73,.16) 100%);border:1px solid rgba(255,255,255,.06);overflow:hidden}
+#cal-bar .cb-fill{position:absolute;top:0;left:0;bottom:0;width:0%;border-radius:7px 0 0 7px;background:linear-gradient(90deg,#3fb950 0%,#3fb950 38%,#d29922 52%,#d29922 73%,#f85149 85%,#f85149 100%);box-shadow:0 0 8px rgba(63,185,80,.25);transition:width .6s cubic-bezier(.22,.61,.36,1),box-shadow .4s ease}
+#cal-bar[data-zone="yellow"] .cb-fill{box-shadow:0 0 10px rgba(210,153,34,.35)}
+#cal-bar[data-zone="red"] .cb-fill{box-shadow:0 0 14px rgba(248,81,73,.5)}
+#cal-bar .cb-fill::after{content:'';position:absolute;right:0;top:0;bottom:0;width:10px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35));pointer-events:none}
+#cal-bar .cb-zonemark{position:absolute;top:-1px;bottom:-1px;width:1px;background:rgba(255,255,255,.18);pointer-events:none}
+#cal-bar[data-zone="green"] .cb-count-num{color:var(--green)}
+#cal-bar[data-zone="yellow"] .cb-count-num{color:var(--yellow)}
+#cal-bar[data-zone="red"] .cb-count-num{color:var(--red);animation:cb-red-pulse 1.8s ease-in-out infinite}
+@keyframes cb-red-pulse{0%,100%{text-shadow:0 0 0 rgba(248,81,73,0)}50%{text-shadow:0 0 8px rgba(248,81,73,.55)}}
+#cal-bar .cb-scale{display:flex;gap:0;font-size:8px;color:var(--text3);letter-spacing:.5px;font-weight:600;user-select:none;width:170px;position:relative;height:9px}
+#cal-bar .cb-scale-words{margin-top:2px}
+#cal-bar .cb-track-wrap{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;height:100%;padding:0 14px}
+#cal-bar .cb-scale span{position:absolute;transform:translateX(-50%);white-space:nowrap}
 .cal-cell.cal-today-col{background:rgba(56,139,253,.05)}
 .cal-cell.cal-past-col{background:rgba(0,0,0,.12)}
 .cal-cell.cal-weekend{background:rgba(255,255,255,.012)}
@@ -451,6 +470,7 @@ select option{background:var(--bg3)}
   #tempo-logo{height:30px}
   #header-divider{display:none}
   #wx-cutoff-pill{display:none}
+  #cal-bar{display:none}
   .sched-unlock-btn,.force-rebuild-btn{order:1;flex-shrink:0;margin:0}
   /* Row 2: title full width */
   #header-title{order:2;flex-basis:100%;flex-shrink:1;min-width:0;text-align:left;margin-top:6px}
@@ -686,16 +706,33 @@ setTimeout(function(){
         <button class="cal-nav-btn" id="cal-prev" title="Previous week">&#x2039;</button>
         <button class="cal-nav-btn" id="cal-next" title="Next week">&#x203A;</button>
         <h2 id="cal-title">-</h2>
-        <button id="cal-today-btn">Today</button>
         <div id="cal-bp-toggles" style="display:flex;gap:4px;margin-left:12px">
           <button class="bp-toggle active" data-backpack="A" title="Toggle Backpack A">BP A<span class="bp-boro-badge" data-bp="A"></span><div class="bp-boro-tooltip" data-bp="A"></div></button>
           <button class="bp-toggle active" data-backpack="B" title="Toggle Backpack B">BP B<span class="bp-boro-badge" data-bp="B"></span><div class="bp-boro-tooltip" data-bp="B"></div></button>
           <button class="bp-toggle active" data-backpack="X" title="Toggle Legacy X">BP X<span class="bp-boro-badge" data-bp="X"></span><div class="bp-boro-tooltip" data-bp="X"></div></button>
         </div>
-        <div id="wx-cutoff-pill" title="Cloud cover threshold — slots at or below 50% are marked GO" style="margin-left:auto">
+        <div id="wx-cutoff-pill" title="Cloud cover threshold &mdash; slots at or below 50% are marked GO" style="margin-left:auto">
           &#x2601; <span class="wx-good">&#x2264;50%&nbsp;GO</span>&nbsp;<span style="color:var(--border)">|</span>&nbsp;<span class="wx-bad">&gt;50%&nbsp;NO&nbsp;GO</span>
         </div>
-        <div id="cal-src-badge">No data loaded</div>
+        <div id="cal-bar" data-zone="green">
+          <div class="cb-label">
+            <span class="cb-title">Days Since Calibration</span>
+            <span class="cb-count"><span class="cb-count-num">0</span></span>
+            <div class="cb-last"><b id="cb-last-date">&mdash;</b></div>
+          </div>
+          <div class="cb-track-wrap">
+            <div class="cb-track" id="cb-track">
+              <div class="cb-zonemark" style="left:40%"></div>
+              <div class="cb-zonemark" style="left:64%"></div>
+              <div class="cb-fill" id="cb-fill"></div>
+            </div>
+            <div class="cb-scale cb-scale-words">
+              <span id="cb-scale-good" style="left:20%;color:var(--green)">GOOD</span>
+              <span id="cb-scale-soon" style="left:52%;color:var(--yellow)">SOON</span>
+              <span id="cb-scale-over" style="left:82%;color:var(--red)">OVERDUE</span>
+            </div>
+          </div>
+        </div>
       </div>
       <div id="cal-body">
         <div id="cal-grid"></div>
@@ -1623,17 +1660,97 @@ function updateBoroIndicators(weekIdx, weeks){
   }
 }
 
+const TWEAK_DEFAULTS = /*EDITMODE-START*/{"calBarMax":22,"calBarGreenEnd":10,"calBarYellowEnd":18}/*EDITMODE-END*/;
+let CAL_BAR_MAX = TWEAK_DEFAULTS.calBarMax;
+let CAL_BAR_GREEN_END = TWEAK_DEFAULTS.calBarGreenEnd;
+let CAL_BAR_YELLOW_END = TWEAK_DEFAULTS.calBarYellowEnd;
+
+function getLastCalibrationDate(){
+  let latest=null;
+  if(Array.isArray(allWalks)&&allWalks.length){
+    for(const w of allWalks){
+      if(w.date instanceof Date&&!isNaN(w.date)){
+        if(!latest||w.date>latest)latest=w.date;
+      }
+    }
+  }
+  if(!latest&&typeof logText==='string'&&logText){
+    const re=/(20\\d{2})(\\d{2})(\\d{2})/g;let m;
+    while((m=re.exec(logText))){
+      const d=new Date(+m[1],+m[2]-1,+m[3]);
+      if(!isNaN(d)&&(!latest||d>latest))latest=d;
+    }
+  }
+  return latest;
+}
+
+function updateCalibrationBar(){
+  const bar=document.getElementById('cal-bar');
+  const numEl=bar&&bar.querySelector('.cb-count-num');
+  const fill=document.getElementById('cb-fill');
+  if(!bar||!numEl||!fill)return;
+  const zMarks=bar.querySelectorAll('.cb-zonemark');
+  if(zMarks.length>=2){
+    zMarks[0].style.left=(CAL_BAR_GREEN_END/CAL_BAR_MAX*100).toFixed(2)+'%';
+    zMarks[1].style.left=(CAL_BAR_YELLOW_END/CAL_BAR_MAX*100).toFixed(2)+'%';
+  }
+  const gNum=document.getElementById('cb-scale-green');
+  const yNum=document.getElementById('cb-scale-yellow');
+  const mxNum=document.getElementById('cb-scale-max');
+  if(gNum){gNum.textContent=String(CAL_BAR_GREEN_END);gNum.style.left=(CAL_BAR_GREEN_END/CAL_BAR_MAX*100).toFixed(2)+'%';gNum.style.transform='translateX(-50%)';}
+  if(yNum){yNum.textContent=String(CAL_BAR_YELLOW_END);yNum.style.left=(CAL_BAR_YELLOW_END/CAL_BAR_MAX*100).toFixed(2)+'%';yNum.style.transform='translateX(-50%)';}
+  if(mxNum)mxNum.textContent=String(CAL_BAR_MAX);
+  const gLbl=document.getElementById('cb-scale-good');
+  const sLbl=document.getElementById('cb-scale-soon');
+  const oLbl=document.getElementById('cb-scale-over');
+  if(gLbl)gLbl.style.left=((CAL_BAR_GREEN_END/2)/CAL_BAR_MAX*100).toFixed(2)+'%';
+  if(sLbl)sLbl.style.left=(((CAL_BAR_GREEN_END+CAL_BAR_YELLOW_END)/2)/CAL_BAR_MAX*100).toFixed(2)+'%';
+  if(oLbl)oLbl.style.left=(((CAL_BAR_YELLOW_END+CAL_BAR_MAX)/2)/CAL_BAR_MAX*100).toFixed(2)+'%';
+  const track=bar.querySelector('.cb-track');
+  if(track){
+    const g1=(CAL_BAR_GREEN_END/CAL_BAR_MAX*100).toFixed(2);
+    const g2=((CAL_BAR_GREEN_END+0.8)/CAL_BAR_MAX*100).toFixed(2);
+    const y1=(CAL_BAR_YELLOW_END/CAL_BAR_MAX*100).toFixed(2);
+    const y2=((CAL_BAR_YELLOW_END+0.8)/CAL_BAR_MAX*100).toFixed(2);
+    track.style.background=
+      `linear-gradient(90deg,rgba(63,185,80,.14) 0%,rgba(63,185,80,.14) ${g1}%,rgba(210,153,34,.14) ${g2}%,rgba(210,153,34,.14) ${y1}%,rgba(248,81,73,.16) ${y2}%,rgba(248,81,73,.16) 100%)`;
+  }
+  const last=getLastCalibrationDate();
+  let days=0;
+  if(last){
+    const today=new Date();today.setHours(0,0,0,0);
+    const l=new Date(last);l.setHours(0,0,0,0);
+    days=Math.max(0,Math.round((today-l)/86400000));
+  }
+  const shown=Math.min(days,CAL_BAR_MAX);
+  numEl.textContent=last?String(days):'?';
+  const lastEl=document.getElementById('cb-last-date');
+  if(lastEl){
+    lastEl.textContent=last
+      ? last.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+      : 'No data in Walks_Log.txt';
+  }
+  let zone='green';
+  if(days>CAL_BAR_YELLOW_END)zone='red';
+  else if(days>CAL_BAR_GREEN_END)zone='yellow';
+  bar.dataset.zone=zone;
+  const pct=(shown/CAL_BAR_MAX)*100;
+  fill.style.width=pct+'%';
+  fill.style.opacity=days===0?'.25':'1';
+  if(!last)fill.style.width='0%';
+}
+
 function renderCalendar(){
   const grid=document.getElementById('cal-grid');
   const title=document.getElementById('cal-title');
-  const srcBadge=document.getElementById('cal-src-badge');
   if(!grid)return;
+
+  updateCalibrationBar();
 
   const weeks=buildTlWeeks();
   if(!weeks.length){
     grid.innerHTML='<div class="cal-empty-week">No walk data or schedule loaded yet - run the scheduler or load a log file.</div>';
     if(title)title.textContent='-';
-    if(srcBadge)srcBadge.textContent='No data loaded';
     return;
   }
 
@@ -1648,8 +1765,6 @@ function renderCalendar(){
   if(title)title.textContent=
     ws.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' - '+
     we.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-  if(srcBadge)srcBadge.textContent=
-    wk.source==='schedule'?'Scheduled week':wk.source==='weather'?'Weather-only week':'Completed walks';
 
   const prevBtn=document.getElementById('cal-prev');
   const nextBtn=document.getElementById('cal-next');
@@ -1871,9 +1986,6 @@ function bindEvents(){
   });
   document.getElementById('cal-next').addEventListener('click',()=>{
     if(calWeekIdx>0){calWeekIdx--;renderCalendar();}
-  });
-  document.getElementById('cal-today-btn').addEventListener('click',()=>{
-    calWeekIdx=findCurrentWeekIdx(buildTlWeeks());renderCalendar();
   });
   document.getElementById('close-panel').addEventListener('click',closePanel);
   document.querySelectorAll('.wtab').forEach(b=>b.addEventListener('click',()=>{
