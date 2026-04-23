@@ -347,8 +347,8 @@ select option{background:var(--bg3)}
 #avail-header{flex-shrink:0}
 #avail-hm-title{font-size:15px;font-weight:700;margin:0 0 4px;letter-spacing:-.3px;font-family:'Space Grotesk',sans-serif}
 #avail-hm-sub{font-size:11px;color:var(--text2)}
-#avail-panels{display:flex;gap:14px;flex-wrap:wrap;width:100%}
-#avail-panels .cgroup{flex:1;min-width:340px}
+#avail-panels{display:flex;flex-direction:column;gap:14px;width:100%}
+#avail-panels .cgroup{width:100%}
 .avail-tbl-wrap{padding:10px;overflow-x:auto}
 .avail-tbl{border-collapse:collapse;width:100%}
 .avail-tbl th{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);padding:5px 8px;text-align:center}
