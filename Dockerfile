@@ -22,4 +22,4 @@ ENV PORT=8080
 # 1. Restore GCS state (schedule_output.json etc) BEFORE building the dashboard
 # 2. Build static dashboards (now with fresh schedule baked in)
 # 3. Launch the server
-CMD ["sh", "-c", "python serve.py --restore-only && python build_dashboard.py && python build_collector_map.py && python serve.py"]
+CMD ["sh", "-c", "python app/server/serve.py --restore-only && python pipelines/dashboard/build_dashboard.py && python pipelines/maps/build_collector_map.py && python app/server/serve.py"]

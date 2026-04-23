@@ -1,20 +1,31 @@
-# Secrets and runtime state — never commit these
+# Secrets — NEVER commit these
 config.json
 Walk_Dash_API_key.txt
-drive_seen_files.json
 *.env
 .env
+ANTHROPIC_API_KEY.txt
+drive-service-account.json
 
-# Generated outputs — dashboard/schedule committed so Docker has them at startup
-# schedule_map.html is large/ephemeral, skip it
-schedule_map.html
+# Generated outputs (data/outputs/) — not committed; rebuilt at deploy time
+data/outputs/
+# Exception: transit_matrix.json is expensive to regenerate and has no auth requirement
+!data/outputs/site/transit_matrix.json
+!data/outputs/site/routes_data.json
 
-# Personal collector schedule files (privacy — named individuals)
+# Runtime ephemeral state — never committed
+data/runtime/local/
+data/runtime/persisted/drive_seen_files.json
+
+# Collector schedule PDFs (privacy — named individuals)
+data/inputs/collectors/
+# Legacy location also excluded
 Collector_Schedule/
 
-# Forecast PDFs (delivered via Google Drive, not source code)
+# Forecast PDFs (large, delivered via Google Drive)
+data/inputs/forecasts/*.pdf
+!data/inputs/forecasts/.gitkeep
+# Legacy location also excluded
 Forecast/*.pdf
-!Forecast/.gitkeep
 
 # Python bytecode
 __pycache__/
@@ -29,23 +40,6 @@ env/
 
 # Claude Code IDE local config
 .claude/
-
-# Binary Office docs (not well version-controlled)
-Architecture_Overview.docx
-
-# Credentials (NEVER commit)
-ANTHROPIC_API_KEY.txt
-drive-service-account.json
-
-# Generated/runtime output
-forecast_monitor.log
-scheduler_output.txt
-schedule_confirmations.json
-ALGORITHM_VERIFICATION.md
-
-# Local documentation (not tracked)
-GCP_SETUP_GUIDE.md
-LOCAL_TESTING.md
 
 # OS artifacts
 .DS_Store
