@@ -229,8 +229,10 @@ for g in _GROUP_DEFS:
     hull=_expand_hull(hull, cx, cy, buf=0.012)
     if "north_clamp" in g:
         hull=[[min(p[0], g["north_clamp"]), p[1]] for p in hull]
-    if "extra_waypoints" in g:
-        hull=_splice_waypoints(hull, cx, cy, g["extra_waypoints"])
+    for _wp in g.get("extra_waypoints", []):
+        # Single point [lat,lng] vs splice path [[lat,lng],...]
+        _pts=[_wp] if isinstance(_wp[0],(int,float)) else _wp
+        hull=_splice_waypoints(hull, cx, cy, _pts)
     _route_groups.append({"name":g["name"],"routes":full_codes,"color":g["color"],"hull":hull})
 
 route_groups_json=json.dumps(_route_groups)
@@ -1112,8 +1114,8 @@ function _smoothLoop(pts,iters=4){
     const np=[];
     for(let i=0;i<p.length;i++){
       const a=p[i],b=p[(i+1)%p.length];
-      np.push([a[0]*0.75+b[0]*0.25,a[1]*0.75+b[1]*0.25]);
-      np.push([a[0]*0.25+b[0]*0.75,a[1]*0.25+b[1]*0.75]);
+      np.push([a[0]*0.6+b[0]*0.4,a[1]*0.6+b[1]*0.4]);
+      np.push([a[0]*0.4+b[0]*0.6,a[1]*0.4+b[1]*0.6]);
     }
     p=np;
   }
@@ -1154,7 +1156,7 @@ function initMap(){
     document.getElementById('collector-homes-btn').classList.toggle('chb-on',collectorHomesVisible);
   });
   ROUTE_GROUPS.forEach((g,i)=>{
-    const poly=L.polygon(_smoothLoop(g.hull,14),{
+    const poly=L.polygon(_smoothLoop(g.hull),{
       color:g.color,fillColor:g.color,
       fillOpacity:0.07,opacity:0.55,
       weight:2,dashArray:'7,5',interactive:false
