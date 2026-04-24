@@ -16,6 +16,12 @@ from shared.paths import (
     SCHEDULE_OUTPUT_JSON, WEATHER_JSON, ROUTE_GROUPS,
     DASHBOARD_HTML, AVAILABILITY_HEATMAP_HTML,
 )
+from shared.gcs import pull_if_available as gcs_pull
+
+# Pull the latest bucket copies before reading — the bucket is authoritative.
+gcs_pull("Walks_Log.txt",        WALKS_LOG)
+gcs_pull("schedule_output.json", SCHEDULE_OUTPUT_JSON)
+gcs_pull("weather.json",         WEATHER_JSON)
 
 # Read sources
 with open(ROUTES_DATA_JSON, encoding="utf-8") as f:

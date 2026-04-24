@@ -52,10 +52,7 @@ from shared.paths import (
     SCHEDULE_MAP_HTML,
     WEATHER_JSON,
 )
-
-# GCS support (optional -- only initialized if GCS_BUCKET is set)
-_gcs_client = None
-_gcs_bucket = None
+from shared import gcs
 
 BASE_DIR           = REPO_ROOT
 SCHEDULER          = WALK_SCHEDULER
@@ -99,7 +96,7 @@ def _init_gcs():
         from google.cloud import storage
         _gcs_client = storage.Client()
         _gcs_bucket = _gcs_client.bucket(bucket_name)
-        print(f"[gcs] Initialized -- bucket: {bucket_name}")
+        print(f"[gcs] Initialized-- bucket: {bucket_name}")
         return True
     except Exception as e:
         print(f"[gcs] Warning: Failed to initialize GCS: {e}")
@@ -633,10 +630,17 @@ class Handler(BaseHTTPRequestHandler):
                            json.dumps({"error": "invalid date"}).encode())
                 return
             try:
+                # Pull the latest Recal_Log from GCS so the append is based on
+                # the authoritative bucket copy, not whatever the ephemeral
+                # container happens to have on disk.
+                _download_from_gcs("Recal_Log.txt", RECAL_LOG)
+                RECAL_LOG.parent.mkdir(parents=True, exist_ok=True)
                 y, m, d = date_str.split("-")
                 entry = f"RECAL_{m}_{d}_{y}\n"
                 with open(RECAL_LOG, "a") as fh:
                     fh.write(entry)
+                if _gcs_bucket:
+                    _upload_to_gcs(RECAL_LOG, "Recal_Log.txt")
             except Exception as exc:
                 self._send(500, "application/json",
                            json.dumps({"error": str(exc)}).encode())
@@ -731,6 +735,9 @@ def _restore_gcs_state():
     _download_from_gcs("weather.json", WEATHER_JSON)
     _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
 
+    # Recal_Log.txt -- calibration entries survive across redeploys only via GCS
+    _download_from_gcs("Recal_Log.txt", RECAL_LOG)
+
     # Pre-built HTML -- restore so server can serve immediately even if rebuild fails
     for _blob, _local in (
         ("dashboard.html",            DASHBOARD_HTML),
@@ -761,6 +768,8 @@ def main():
     if _gcs_bucket:
         # Walks_Log.txt " always pull from GCS (never rely on image-baked copy)
         _download_from_gcs("Walks_Log.txt", WALKS_LOG)
+        # Recal_Log.txt " calibration history survives redeploys only via GCS
+        _download_from_gcs("Recal_Log.txt", RECAL_LOG)
 
         # schedule_output.json is already
 

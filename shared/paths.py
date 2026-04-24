@@ -47,7 +47,6 @@ PERSISTED_DIR          = REPO_ROOT / "data" / "runtime" / "persisted"
 WALKS_LOG              = PERSISTED_DIR / "Walks_Log.txt"
 RECAL_LOG              = PERSISTED_DIR / "Recal_Log.txt"
 DRIVE_SEEN_FILES       = PERSISTED_DIR / "drive_seen_files.json"
-SCHEDULE_CONFIRMATIONS = PERSISTED_DIR / "schedule_confirmations.json"
 
 # ── Runtime — local/ephemeral (not persisted to GCS) ─────────────────────────
 LOCAL_DIR      = REPO_ROOT / "data" / "runtime" / "local"

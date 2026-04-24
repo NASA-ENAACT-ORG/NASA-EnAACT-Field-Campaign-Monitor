@@ -103,12 +103,12 @@ from shared.paths import (
     ROUTES_KML_DIR    as KML_DIR,
     WEATHER_JSON,
     SCHEDULE_OUTPUT_JSON,
-    SCHEDULE_CONFIRMATIONS,
     STUDENT_SCHEDULE_JSON,
     TRANSIT_MATRIX_JSON,
     AVAILABILITY_XLSX,
     SCHEDULE_MAP_HTML,
 )
+from shared.gcs import pull_if_available as gcs_pull, push as gcs_push
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CONFIGURATION
@@ -2073,6 +2073,7 @@ def build_weekly_calendar(
     with open(out_path, "w") as f:
         json.dump(schedule_data, f, indent=2)
     print(f"  Schedule saved -> schedule_output.json")
+    gcs_push(out_path, "schedule_output.json")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -2103,6 +2104,11 @@ def main() -> None:
         print(f"║   Backpack filter: {bp_filter} ({campus}){' ' * (28 - len(campus))}║")
     print("╚══════════════════════════════════════════════════╝")
     print()
+
+    # ── Prime reads from GCS so every input reflects the latest bucket state ──
+    gcs_pull("Walks_Log.txt",        WALKS_LOG)
+    gcs_pull("weather.json",         WEATHER_JSON)
+    gcs_pull("schedule_output.json", SCHEDULE_OUTPUT_JSON)
 
     # ── Step 0 — Load transit matrix ─────────────────────────────────────
     global _TRANSIT_MATRIX, _COLLECTOR_ROUTE_MATRIX
@@ -2164,14 +2170,6 @@ def main() -> None:
     # ── Load existing schedule — preserve assignments still in good weather ──
     preserved_assignments: List[Dict] = []
     existing_path = SCHEDULE_OUTPUT_JSON
-    confirmations_path = SCHEDULE_CONFIRMATIONS
-    # Load confirmation states so denied slots get re-scheduled
-    _confirmations: dict = {}
-    if confirmations_path.exists():
-        try:
-            _confirmations = json.loads(confirmations_path.read_text(encoding="utf-8"))
-        except Exception:
-            pass
     if existing_path.exists():
         try:
             with open(existing_path, encoding="utf-8") as _f:
@@ -2190,13 +2188,6 @@ def main() -> None:
             for _a in _existing.get("assignments", []):
                 _d   = date.fromisoformat(_a["date"])
                 _tod = _a["tod"]
-                # Build the canonical assignment ID used by the confirmation system
-                _aid = f"{_a['route']}_{_tod}_{_a['date']}"
-                _conf_status = _confirmations.get(_aid, {}).get("status", "pending")
-                # Skip if explicitly denied — it will be re-scheduled
-                if _conf_status == "denied":
-                    print(f"  ✗  Denied by scheduler — re-queuing: {_a['route']} {_tod} {_a['date']}")
-                    continue
                 # Skip if outside the current week
                 if not (week_start <= _d <= week_end):
                     continue

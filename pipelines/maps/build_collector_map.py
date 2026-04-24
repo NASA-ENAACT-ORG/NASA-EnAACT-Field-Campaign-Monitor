@@ -27,6 +27,11 @@ from shared.paths import (
     V2_PREFERRED_ROUTES, PREFERRED_ROUTES,
     AVAILABILITY_XLSX,
 )
+from shared.gcs import pull_if_available as gcs_pull
+
+# Pull the latest bucket copies so the map reflects live schedule + walk state.
+gcs_pull("Walks_Log.txt",        WALKS_LOG)
+gcs_pull("schedule_output.json", SCHEDULE_OUTPUT_JSON)
 
 # ── Collector registry ─────────────────────────────────────────────────────────
 # Backpack A = CCNY (purple pins), Backpack B = LaGCC (red pins)

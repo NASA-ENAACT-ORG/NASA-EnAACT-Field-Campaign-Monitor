@@ -52,6 +52,7 @@ if str(_REPO_ROOT) not in _sys.path:
     _sys.path.insert(0, str(_REPO_ROOT))
 
 from shared.paths import SERVICE_ACCOUNT_KEY, WEATHER_JSON
+from shared.gcs import push as gcs_push
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CONFIGURATION
@@ -432,6 +433,7 @@ def build_weather() -> Path:
         json.dump(output, f, indent=2)
 
     print(f"  ✓ Wrote {WEATHER_PATH.name}")
+    gcs_push(WEATHER_PATH, "weather.json")
     return WEATHER_PATH
 
 

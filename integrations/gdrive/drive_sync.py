@@ -39,6 +39,7 @@ if str(_REPO_ROOT) not in _sys.path:
     _sys.path.insert(0, str(_REPO_ROOT))
 
 from shared.paths import WALKS_LOG, SERVICE_ACCOUNT_KEY as SERVICE_ACCOUNT_JSON, DRIVE_SYNC_LOG as LOG_FILE
+from shared.gcs import pull_if_available as gcs_pull, push as gcs_push
 
 BASE_DIR = _REPO_ROOT
 
@@ -253,6 +254,10 @@ def load_existing_walks() -> Set[str]:
     """Load all existing walk entries from walks_log.txt."""
     existing = set()
 
+    # Pull the authoritative bucket copy before reading so appends are based on
+    # the latest state, not a stale local snapshot.
+    gcs_pull("Walks_Log.txt", WALKS_LOG)
+
     if not WALKS_LOG.exists():
         logger.warning(f"Walks log not found: {WALKS_LOG}")
         return existing
@@ -285,6 +290,8 @@ def append_walks_to_log(new_walks: Set[str]) -> int:
         with open(WALKS_LOG, "a", encoding="utf-8") as f:
             for walk in sorted(walks_to_add):
                 f.write(walk + "\n")
+
+        gcs_push(WALKS_LOG, "Walks_Log.txt")
 
         logger.info(f"Appended {len(walks_to_add)} new walks to {WALKS_LOG.name}")
         for walk in sorted(walks_to_add):

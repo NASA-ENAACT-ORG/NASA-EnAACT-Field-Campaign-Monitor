@@ -124,7 +124,6 @@ python app/server/serve.py                     # start HTTP server on $PORT (808
 │       ├── persisted/             # Durable state synced to/from GCS
 │       │   ├── Walks_Log.txt          # One line per completed walk
 │       │   ├── Recal_Log.txt          # Calibration dates
-│       │   ├── schedule_confirmations.json
 │       │   └── drive_seen_files.json  # Drive file IDs seen (git-ignored)
 │       └── local/                 # Ephemeral state, never committed
 │           └── .forecast_state.json
@@ -306,7 +305,6 @@ To add a new canonical path, edit only `shared/paths.py`. All consumers pick it 
 | `data/outputs/site/transit_matrix.json` | Expensive to regenerate; no auth required |
 | `data/outputs/site/routes_data.json` | Pre-parsed route geometry |
 | `data/runtime/persisted/Walks_Log.txt` | Seed log for a fresh container |
-| `data/runtime/persisted/schedule_confirmations.json` | Confirmed walk assignments |
 
 ### What is NOT committed (git-ignored)
 
