@@ -214,26 +214,31 @@ if _xlsx_path.exists():
 
 _route_groups=[]
 for g in _GROUP_DEFS:
-    all_pts,full_codes=[],[]
-    for sc in g["codes"]:
-        fc=_suffix_map.get(sc)
-        if not fc: continue
-        full_codes.append(fc)
-        for line in _routes_geo[fc]["lines"]:
-            all_pts.extend(line)
-    hull=_convex_hull(all_pts)
-    cx=sum(p[0] for p in hull)/len(hull)
-    cy=sum(p[1] for p in hull)/len(hull)
-    if "north_clamp" in g:
-        hull=[[min(p[0], g["north_clamp"]), p[1]] for p in hull]
-    hull=_expand_hull(hull, cx, cy, buf=0.012)
-    if "north_clamp" in g:
-        hull=[[min(p[0], g["north_clamp"]), p[1]] for p in hull]
-    for _wp in g.get("extra_waypoints", []):
-        # Single point [lat,lng] vs splice path [[lat,lng],...]
-        _pts=[_wp] if isinstance(_wp[0],(int,float)) else _wp
-        hull=_splice_waypoints(hull, cx, cy, _pts)
-    _route_groups.append({"name":g["name"],"routes":full_codes,"color":g["color"],"hull":hull})
+    try:
+        all_pts,full_codes=[],[]
+        for sc in g["codes"]:
+            fc=_suffix_map.get(sc)
+            if not fc: continue
+            full_codes.append(fc)
+            for line in _routes_geo[fc]["lines"]:
+                all_pts.extend(line)
+        if not all_pts:
+            continue
+        hull=_convex_hull(all_pts)
+        cx=sum(p[0] for p in hull)/len(hull)
+        cy=sum(p[1] for p in hull)/len(hull)
+        if "north_clamp" in g:
+            hull=[[min(p[0], g["north_clamp"]), p[1]] for p in hull]
+        hull=_expand_hull(hull, cx, cy, buf=0.012)
+        if "north_clamp" in g:
+            hull=[[min(p[0], g["north_clamp"]), p[1]] for p in hull]
+        for _wp in g.get("extra_waypoints", []):
+            # Single point [lat,lng] vs splice path [[lat,lng],...]
+            _pts=[_wp] if isinstance(_wp[0],(int,float)) else _wp
+            hull=_splice_waypoints(hull, cx, cy, _pts)
+        _route_groups.append({"name":g["name"],"routes":full_codes,"color":g["color"],"hull":hull})
+    except Exception as _e:
+        print(f"[build_dashboard] Warning: skipping route group '{g['name']}': {_e}")
 
 route_groups_json=json.dumps(_route_groups)
 
