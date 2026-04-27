@@ -18,11 +18,11 @@ Endpoints:
 """
 
 import argparse
-import email
-import email.policy
+import cgi
 import io
 import json
 import mimetypes
+import warnings
 import os
 import re
 import subprocess
@@ -228,31 +228,29 @@ def _parse_multipart(headers, body: bytes) -> tuple[dict, dict]:
     """Parse multipart/form-data. Returns (fields, files).
     fields: {name: str}
     files:  {name: [(filename, bytes), ...]}
+    Uses cgi.FieldStorage — the stdlib's purpose-built multipart parser —
+    so binary file payloads are read correctly.
     """
-    content_type = headers.get("Content-Type", "")
-    raw = f"Content-Type: {content_type}\r\n\r\n".encode() + body
-    msg = email.message_from_bytes(raw, policy=email.policy.compat32)
+    environ = {
+        "REQUEST_METHOD": "POST",
+        "CONTENT_TYPE": headers.get("Content-Type", ""),
+        "CONTENT_LENGTH": str(len(body)),
+    }
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        fs = cgi.FieldStorage(
+            fp=io.BytesIO(body),
+            environ=environ,
+            keep_blank_values=True,
+        )
     fields: dict = {}
     files: dict = {}
-    for part in msg.walk():
-        if part.get_content_maintype() == "multipart":
-            continue
-        cd = part.get("Content-Disposition", "")
-        if not cd:
-            continue
-        params: dict = {}
-        for chunk in cd.split(";")[1:]:
-            chunk = chunk.strip()
-            if "=" in chunk:
-                k, v = chunk.split("=", 1)
-                params[k.strip()] = v.strip().strip('"')
-        name = params.get("name", "")
-        filename = params.get("filename", "")
-        payload = part.get_payload(decode=True) or b""
-        if filename:
-            files.setdefault(name, []).append((filename, payload))
-        elif name:
-            fields[name] = payload.decode("utf-8", errors="replace").strip()
+    for key in fs.keys():
+        for item in fs.getlist(key):
+            if item.filename:
+                files.setdefault(key, []).append((item.filename, item.file.read()))
+            else:
+                fields[key] = item.value
     return fields, files
 
 
