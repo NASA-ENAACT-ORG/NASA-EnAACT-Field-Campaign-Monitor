@@ -922,7 +922,6 @@ setTimeout(function(){
         <div id="cal-bp-toggles" style="display:flex;gap:4px;margin-left:12px">
           <button class="bp-toggle active" data-backpack="A" title="Toggle Backpack A">BP A<span class="bp-boro-badge" data-bp="A"></span><div class="bp-boro-tooltip" data-bp="A"></div></button>
           <button class="bp-toggle active" data-backpack="B" title="Toggle Backpack B">BP B<span class="bp-boro-badge" data-bp="B"></span><div class="bp-boro-tooltip" data-bp="B"></div></button>
-          <button class="bp-toggle active" data-backpack="X" title="Toggle Legacy X">BP X<span class="bp-boro-badge" data-bp="X"></span><div class="bp-boro-tooltip" data-bp="X"></div></button>
         </div>
         <div id="wx-cutoff-pill" title="Cloud cover threshold &mdash; slots at or below 50% are marked GO" style="margin-left:auto">
           &#x2601; <span class="wx-good">&#x2264;50%&nbsp;GO</span>&nbsp;<span style="color:var(--border)">|</span>&nbsp;<span class="wx-bad">&gt;50%&nbsp;NO&nbsp;GO</span>
@@ -1506,8 +1505,8 @@ let tlWeekIdx=0;   // index into tlWeeks array (0 = most recent)
 const TOD_ORDER={AM:0,MD:1,PM:2};
 
 // -- Helper: snap any date to the Sunday that starts its week ---
-function toWeekMonday(d){
-  const s=new Date(d); s.setDate(d.getDate()-((d.getDay()+6)%7)); s.setHours(0,0,0,0); return s;
+function toWeekSunday(d){
+  const s=new Date(d); s.setDate(d.getDate()-d.getDay()); s.setHours(0,0,0,0); return s;
 }
 
 // -- Build sorted list of distinct Sun-Sat weeks across completed+scheduled walks --
@@ -1516,7 +1515,7 @@ function buildTlWeeks(){
   // Completed walks from log - key by the Sunday of the walk's week
   for(const w of allWalks){
     const d=new Date(w.date.getFullYear(),w.date.getMonth(),w.date.getDate());
-    const sun=toWeekMonday(d);
+    const sun=toWeekSunday(d);
     const key=sun.toISOString().slice(0,10);
     if(!byWeek[key])byWeek[key]={weekStart:key,walks:[],source:'log'};
     byWeek[key].walks.push({
@@ -1530,7 +1529,7 @@ function buildTlWeeks(){
   if(schedData&&schedData.assignments&&schedData.assignments.length){
     for(const a of schedData.assignments){
       const ad=new Date(a.date+'T00:00:00');
-      const sun=toWeekMonday(ad);
+      const sun=toWeekSunday(ad);
       const key=sun.toISOString().slice(0,10);
       if(!byWeek[key])byWeek[key]={weekStart:key,walks:[],source:'schedule'};
       else if(byWeek[key].source==='log')byWeek[key].source='schedule';
@@ -1540,7 +1539,7 @@ function buildTlWeeks(){
     // Tag recal_day to the week it falls in
     if(schedData.recal_day){
       const rd=new Date(schedData.recal_day+'T00:00:00');
-      const key=toWeekMonday(rd).toISOString().slice(0,10);
+      const key=toWeekSunday(rd).toISOString().slice(0,10);
       if(byWeek[key])byWeek[key].recal_day=schedData.recal_day;
     }
   }
@@ -1553,12 +1552,12 @@ function buildTlWeeks(){
       const dateStr=weatherKey.slice(0,cut);
       const wd=new Date(dateStr+'T00:00:00');
       if(Number.isNaN(wd.getTime()))continue;
-      const key=toWeekMonday(wd).toISOString().slice(0,10);
+      const key=toWeekSunday(wd).toISOString().slice(0,10);
       if(!byWeek[key])byWeek[key]={weekStart:key,walks:[],source:'weather'};
     }
   }
   // Always include the current week so the calendar anchors to today even when the schedule is stale
-  const _todayMon=toWeekMonday(new Date());
+  const _todayMon=toWeekSunday(new Date());
   const _todayKey=_todayMon.toISOString().slice(0,10);
   if(!byWeek[_todayKey])byWeek[_todayKey]={weekStart:_todayKey,walks:[],source:'log'};
   // Sort descending (index 0 = most recent / furthest future)
@@ -1568,7 +1567,7 @@ function buildTlWeeks(){
 // Returns the index of the current (this week's Sunday) entry in a weeks array
 function findCurrentWeekIdx(weeks){
   const today=new Date(); today.setHours(0,0,0,0);
-  const sun=toWeekMonday(today);
+  const sun=toWeekSunday(today);
   const key=sun.toISOString().slice(0,10);
   const exact=weeks.findIndex(w=>w.weekStart===key);
   if(exact>=0)return exact;
