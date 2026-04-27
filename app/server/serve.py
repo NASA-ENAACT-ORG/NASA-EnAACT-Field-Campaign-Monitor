@@ -771,7 +771,13 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     svc = _get_drive_write_service()
                     if svc:
-                        walk_folder_id = _drive_create_or_get_folder(svc, DRIVE_FOLDER_ID, walk_code)
+                        # Walks/{BOROUGH}/{ROUTE}/{walk_code}/
+                        borough_folder_id = _drive_create_or_get_folder(
+                            svc, DRIVE_FOLDER_ID, fields["borough"].upper())
+                        route_folder_id = _drive_create_or_get_folder(
+                            svc, borough_folder_id, fields["route"].upper()) if borough_folder_id else None
+                        walk_folder_id = _drive_create_or_get_folder(
+                            svc, route_folder_id, walk_code) if route_folder_id else None
                         if walk_folder_id and files:
                             # Subfolders named {walk_code}_{LABEL}.
                             # GPX/LOG go to the walk folder root, renamed to include the code.
