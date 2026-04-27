@@ -16,7 +16,6 @@ Scheduling and monitoring system for the NYC EnAACT air quality field campaign. 
   - [Dashboard Pipeline](#dashboard-pipeline--pipelinesdashboard)
   - [Maps Pipeline](#maps-pipeline--pipelinesmaps)
   - [Student Scheduler](#student-scheduler--pipelinesstudents)
-  - [Drive Integration](#drive-integration--integrationsgdrive)
 - [Shared Path Registry](#shared-path-registry)
 - [Data Layout](#data-layout)
 - [Running Locally](#running-locally)
@@ -76,11 +75,9 @@ python app/server/serve.py                     # start HTTP server on $PORT (808
 │       └── student_scheduler.py     # Generates EFD student bag-passing schedule
 │
 ├── integrations/
-│   ├── gas/                         # Google Apps Script sources
-│   │   ├── drive_watcher.js         # Watches Drive for new walk files → POSTs to /api/drive/poll
-│   │   └── forecast_monitor.js      # Watches Sheets for changes → POSTs to /api/force-rebuild
-│   └── gdrive/
-│       └── drive_sync.py            # Standalone Drive poller (alternative to GAS push triggers)
+│   └── gas/                         # Google Apps Script sources
+│       ├── drive_watcher.js         # Watches Drive for new walk files → POSTs to /api/drive/poll
+│       └── forecast_monitor.js      # Watches Sheets for changes → POSTs to /api/force-rebuild
 │
 ├── shared/
 │   └── paths.py                     # Canonical path registry — all scripts import from here
@@ -261,16 +258,6 @@ Key design: all subprocess calls pass `cwd=REPO_ROOT` so scripts can find `share
 - Reads `data/inputs/students/EFD_Google_form.csv` (Google Form export of student team availability)
 - Assigns each team a block of consecutive TOD slots with gap buffers between teams
 - Output: `data/outputs/site/student_schedule_output.json` and `student_schedule.html`
-
-### Drive Integration — `integrations/gdrive/`
-
-**`drive_sync.py`** — standalone alternative to GAS:
-- Polls the Google Drive walks folder every 60 seconds
-- Detects new filenames matching the walk log format (`A_SOT_MN_MT_20260314_AM`)
-- Appends new entries to `Walks_Log.txt`
-- Used for local development; in production, GAS push triggers replace polling
-
----
 
 ## Shared Path Registry
 

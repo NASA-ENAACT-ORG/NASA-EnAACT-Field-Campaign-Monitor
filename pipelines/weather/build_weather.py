@@ -36,6 +36,7 @@ if sys.stderr and hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 import json
+import os
 import re
 from collections import defaultdict
 from datetime import date, datetime
@@ -63,7 +64,7 @@ SERVICE_ACCOUNT_JSON = SERVICE_ACCOUNT_KEY
 WEATHER_PATH         = WEATHER_JSON
 
 SPREADSHEET_ID  = "1-AQk9LXHlzeakHBvwdhFLeDrZojkZj3vG2h6cAOumm4"
-CLOUD_THRESHOLD = 33                       # ≤ this % cloud cover = good weather
+CLOUD_THRESHOLD = 50                       # ≤ this % cloud cover = good weather
 HISTORY_START   = date(2026, 3, 16)        # hard floor: no entries before this
 TODS            = ["AM", "MD", "PM"]
 
@@ -81,9 +82,22 @@ MONTHS = {
 
 def authenticate_sheets():
     """Authenticate with Google Sheets API using service account."""
+    svc_json_str = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
+    if svc_json_str:
+        try:
+            creds = Credentials.from_service_account_info(
+                json.loads(svc_json_str),
+                scopes=SCOPES,
+            )
+            return build("sheets", "v4", credentials=creds)
+        except Exception as e:
+            print(f"  [ERROR] Failed to load GOOGLE_SERVICE_ACCOUNT_JSON: {e}")
+            sys.exit(1)
+
     if not SERVICE_ACCOUNT_JSON.exists():
         print(f"  [ERROR] Service account JSON not found: {SERVICE_ACCOUNT_JSON}")
         sys.exit(1)
+
     creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_JSON, scopes=SCOPES)
     return build("sheets", "v4", credentials=creds)
 

@@ -117,7 +117,7 @@ from shared.gcs import pull_if_available as gcs_pull, push as gcs_push
 BASE_DIR = _REPO_ROOT
 
 CURRENT_SEASON      = "Spring"
-CLOUD_THRESHOLD     = 33          # ≤ this % cloud cover = good weather
+CLOUD_THRESHOLD     = 50          # ≤ this % cloud cover = good weather
 TARGET_COMPLETIONS  = 6
 MIN_COMPLETIONS     = 4
 TODS                = ["AM", "MD", "PM"]
@@ -2191,7 +2191,7 @@ def main() -> None:
                 # Skip if outside the current week
                 if not (week_start <= _d <= week_end):
                     continue
-                # Check weather: HARD CONSTRAINT - must have good weather (cloud cover ≤ 33%)
+                # Check weather: HARD CONSTRAINT - must have good weather (cloud cover ≤ 50%)
                 is_good_weather = weather.get((_d, _tod), False)
 
                 # HARD REQUIREMENT: only keep if weather is good, unless slot is weather-exempt

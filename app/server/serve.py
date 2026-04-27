@@ -18,7 +18,11 @@ Endpoints:
 """
 
 import argparse
+import email
+import email.policy
+import io
 import json
+import mimetypes
 import os
 import re
 import subprocess
@@ -83,6 +87,10 @@ _scheduler_running    = threading.Lock()  # prevents concurrent scheduler runs
 
 
 # "" GCS helpers """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+_gcs_client = None
+_gcs_bucket = None
+
 
 def _init_gcs():
     """Initialize GCS client if GCS_BUCKET is configured."""
@@ -164,6 +172,88 @@ def _drive_find_folder(service, parent_id: str, name: str) -> str | None:
     except Exception as e:
         print(f"[drive] Find folder '{name}' error: {e}")
         return None
+
+
+def _get_drive_write_service():
+    """Return an authenticated Drive v3 service with full read/write access, or None."""
+    svc_json_str = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+    if not svc_json_str:
+        return None
+    try:
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build as gdrive_build
+        svc_info = json.loads(svc_json_str)
+        creds = service_account.Credentials.from_service_account_info(
+            svc_info, scopes=["https://www.googleapis.com/auth/drive"]
+        )
+        return gdrive_build("drive", "v3", credentials=creds, cache_discovery=False)
+    except Exception as e:
+        print(f"[drive] Write auth error: {e}")
+        return None
+
+
+def _drive_create_or_get_folder(service, parent_id: str, name: str) -> str | None:
+    """Return the ID of a named subfolder, creating it if it doesn't exist."""
+    fid = _drive_find_folder(service, parent_id, name)
+    if fid:
+        return fid
+    try:
+        meta = {
+            "name": name,
+            "mimeType": "application/vnd.google-apps.folder",
+            "parents": [parent_id],
+        }
+        f = service.files().create(body=meta, fields="id").execute()
+        return f.get("id")
+    except Exception as e:
+        print(f"[drive] Create folder '{name}' error: {e}")
+        return None
+
+
+def _drive_upload_file(service, folder_id: str, filename: str, data: bytes) -> bool:
+    """Upload raw bytes as a file into a Drive folder."""
+    try:
+        from googleapiclient.http import MediaIoBaseUpload
+        mime = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        meta = {"name": filename, "parents": [folder_id]}
+        media = MediaIoBaseUpload(io.BytesIO(data), mimetype=mime, resumable=False)
+        service.files().create(body=meta, media_body=media, fields="id").execute()
+        return True
+    except Exception as e:
+        print(f"[drive] Upload '{filename}' error: {e}")
+        return False
+
+
+def _parse_multipart(headers, body: bytes) -> tuple[dict, dict]:
+    """Parse multipart/form-data. Returns (fields, files).
+    fields: {name: str}
+    files:  {name: [(filename, bytes), ...]}
+    """
+    content_type = headers.get("Content-Type", "")
+    raw = f"Content-Type: {content_type}\r\n\r\n".encode() + body
+    msg = email.message_from_bytes(raw, policy=email.policy.compat32)
+    fields: dict = {}
+    files: dict = {}
+    for part in msg.walk():
+        if part.get_content_maintype() == "multipart":
+            continue
+        cd = part.get("Content-Disposition", "")
+        if not cd:
+            continue
+        params: dict = {}
+        for chunk in cd.split(";")[1:]:
+            chunk = chunk.strip()
+            if "=" in chunk:
+                k, v = chunk.split("=", 1)
+                params[k.strip()] = v.strip().strip('"')
+        name = params.get("name", "")
+        filename = params.get("filename", "")
+        payload = part.get_payload(decode=True) or b""
+        if filename:
+            files.setdefault(name, []).append((filename, payload))
+        elif name:
+            fields[name] = payload.decode("utf-8", errors="replace").strip()
+    return fields, files
 
 
 def _rebuild_dashboard_and_upload():
@@ -646,6 +736,99 @@ class Handler(BaseHTTPRequestHandler):
                            json.dumps({"error": str(exc)}).encode())
                 return
             self._send(200, "application/json", json.dumps({"ok": True}).encode())
+
+        elif endpoint == "/api/upload-walk":
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(length) if length else b""
+                fields, files = _parse_multipart(self.headers, body)
+            except Exception as exc:
+                self._send(400, "application/json",
+                           json.dumps({"error": f"bad request: {exc}"}).encode())
+                return
+
+            required = ["backpack", "collector", "borough", "route", "date", "tod"]
+            missing = [r for r in required if not fields.get(r)]
+            if missing:
+                self._send(400, "application/json",
+                           json.dumps({"error": f"missing fields: {', '.join(missing)}"}).encode())
+                return
+
+            date_clean = re.sub(r"[^0-9]", "", fields["date"])
+            walk_code = (
+                f"{fields['backpack']}_{fields['collector']}_{fields['borough']}"
+                f"_{fields['route']}_{date_clean}_{fields['tod']}"
+            ).upper()
+
+            if not _WALK_LOG_RE.match(walk_code):
+                self._send(400, "application/json",
+                           json.dumps({"error": f"invalid walk code: {walk_code}"}).encode())
+                return
+
+            # Create the walk folder in Drive (named with the walk code so that
+            # _run_drive_poll detects it, parses the name, and rebuilds Walks_Log.txt).
+            if DRIVE_FOLDER_ID:
+                try:
+                    svc = _get_drive_write_service()
+                    if svc:
+                        walk_folder_id = _drive_create_or_get_folder(svc, DRIVE_FOLDER_ID, walk_code)
+                        if walk_folder_id and files:
+                            # Subfolders named {walk_code}_{LABEL}.
+                            # GPX/LOG go to the walk folder root, renamed to include the code.
+                            subfolder_map = {
+                                "pom":            "POM",
+                                "pop":            "POP",
+                                "pam":            "PAM",
+                                "start_time_img": "TIMES",
+                                "walk_time_img":  "TIMES",
+                                "end_time_img":   "TIMES",
+                            }
+                            sub_ids: dict = {}
+                            for field_name, file_list in files.items():
+                                sub_label = subfolder_map.get(field_name)
+                                if sub_label:
+                                    folder_name = f"{walk_code}_{sub_label}"
+                                    if folder_name not in sub_ids:
+                                        sub_ids[folder_name] = _drive_create_or_get_folder(
+                                            svc, walk_folder_id, folder_name)
+                                    fid = sub_ids[folder_name]
+                                    if fid:
+                                        for filename, data in file_list:
+                                            _drive_upload_file(svc, fid, filename, data)
+                                elif field_name == "gpx_file":
+                                    for filename, data in file_list:
+                                        ext = Path(filename).suffix.lstrip(".").upper()
+                                        new_name = f"{walk_code}_{ext}{Path(filename).suffix.lower()}"
+                                        _drive_upload_file(svc, walk_folder_id, new_name, data)
+                        notes_text = fields.get("notes", "").strip()
+                        if notes_text:
+                            notes_bytes = notes_text.encode("utf-8")
+                            _drive_upload_file(svc, walk_folder_id,
+                                               f"{walk_code}_Notes.txt", notes_bytes)
+                        print(f"[upload] Drive folder ready: {walk_code}")
+                except Exception as exc:
+                    print(f"[upload] Drive error (non-fatal): {exc}")
+                # Run the poll in a background thread so it rebuilds Walks_Log.txt
+                # from the new Drive state and triggers dashboard rebuild.
+                threading.Thread(target=_run_drive_poll, args=("upload",), daemon=True).start()
+            else:
+                # No Drive configured — write directly and rebuild.
+                print(f"[upload] No Drive folder configured; writing {walk_code} directly")
+                WALKS_LOG.parent.mkdir(parents=True, exist_ok=True)
+                existing: set = set()
+                if WALKS_LOG.exists():
+                    existing = {l.strip().upper() for l in
+                                WALKS_LOG.read_text(encoding="utf-8").splitlines() if l.strip()}
+                if walk_code not in existing:
+                    with open(WALKS_LOG, "a", encoding="utf-8") as fh:
+                        fh.write(walk_code + "\n")
+                    if _gcs_bucket:
+                        _upload_to_gcs(WALKS_LOG, "Walks_Log.txt")
+                _trigger_rebuild()
+
+            self._send(200, "application/json",
+                       json.dumps({"ok": True, "walk": walk_code}).encode())
+
         else:
             self._send(404, "text/plain", b"Unknown endpoint")
 

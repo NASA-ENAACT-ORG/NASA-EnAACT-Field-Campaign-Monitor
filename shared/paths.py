@@ -40,7 +40,6 @@ TRANSIT_MATRIX_JSON       = SITE_DIR / "transit_matrix.json"
 LOGS_DIR             = REPO_ROOT / "data" / "outputs" / "logs"
 SCHEDULER_OUTPUT_TXT = LOGS_DIR / "scheduler_output.txt"
 FORECAST_MONITOR_LOG = LOGS_DIR / "forecast_monitor.log"
-DRIVE_SYNC_LOG       = LOGS_DIR / "drive_sync.log"
 
 # ── Runtime — persisted (synced to/from GCS across container restarts) ────────
 PERSISTED_DIR          = REPO_ROOT / "data" / "runtime" / "persisted"
