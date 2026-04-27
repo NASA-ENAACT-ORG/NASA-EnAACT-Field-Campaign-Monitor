@@ -246,11 +246,14 @@ def _parse_multipart(headers, body: bytes) -> tuple[dict, dict]:
     fields: dict = {}
     files: dict = {}
     for key in fs.keys():
-        for item in fs.getlist(key):
-            if item.filename:
+        items = fs[key]
+        if not isinstance(items, list):
+            items = [items]
+        for item in items:
+            if getattr(item, "filename", None):
                 files.setdefault(key, []).append((item.filename, item.file.read()))
             else:
-                fields[key] = item.value
+                fields[key] = item.value if hasattr(item, "value") else str(item)
     return fields, files
 
 
