@@ -162,7 +162,7 @@ def _get_drive_service():
 
 
 def _drive_find_folder(service, parent_id: str, name: str) -> str | None:
-    """Return the ID of a named subfolder, or None."""
+    """Return the ID of a named subfolder (exact match), or None."""
     try:
         q = (f"name='{name}' and mimeType='application/vnd.google-apps.folder'"
              f" and '{parent_id}' in parents and trashed=false")
@@ -171,6 +171,24 @@ def _drive_find_folder(service, parent_id: str, name: str) -> str | None:
         return files[0]["id"] if files else None
     except Exception as e:
         print(f"[drive] Find folder '{name}' error: {e}")
+        return None
+
+
+def _drive_find_folder_by_prefix(service, parent_id: str, prefix: str) -> str | None:
+    """Return the ID of the first subfolder whose name starts with `prefix` (case-insensitive).
+    Falls back to exact match if no prefix match found."""
+    try:
+        q = (f"mimeType='application/vnd.google-apps.folder'"
+             f" and '{parent_id}' in parents and trashed=false")
+        r = service.files().list(q=q, fields="files(id, name)", pageSize=200).execute()
+        prefix_up = prefix.strip().upper()
+        for f in r.get("files", []):
+            if f["name"].strip().upper().startswith(prefix_up):
+                print(f"[drive] Prefix match: '{prefix}' -> '{f['name']}'")
+                return f["id"]
+        return None
+    except Exception as e:
+        print(f"[drive] Prefix folder search '{prefix}' error: {e}")
         return None
 
 
@@ -211,17 +229,14 @@ def _drive_create_or_get_folder(service, parent_id: str, name: str) -> str | Non
 
 
 def _drive_upload_file(service, folder_id: str, filename: str, data: bytes) -> bool:
-    """Upload raw bytes as a file into a Drive folder."""
-    try:
-        from googleapiclient.http import MediaIoBaseUpload
-        mime = mimetypes.guess_type(filename)[0] or "application/octet-stream"
-        meta = {"name": filename, "parents": [folder_id]}
-        media = MediaIoBaseUpload(io.BytesIO(data), mimetype=mime, resumable=False)
-        service.files().create(body=meta, media_body=media, fields="id").execute()
-        return True
-    except Exception as e:
-        print(f"[drive] Upload '{filename}' error: {e}")
-        return False
+    """Upload raw bytes as a file into a Drive folder. Raises on failure."""
+    from googleapiclient.http import MediaIoBaseUpload
+    mime = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    meta = {"name": filename, "parents": [folder_id]}
+    media = MediaIoBaseUpload(io.BytesIO(data), mimetype=mime, resumable=False)
+    service.files().create(body=meta, media_body=media, fields="id").execute()
+    print(f"[drive] Uploaded '{filename}' ({len(data)} bytes)")
+    return True
 
 
 def _parse_multipart(headers, body: bytes) -> tuple[dict, dict]:
@@ -251,7 +266,11 @@ def _parse_multipart(headers, body: bytes) -> tuple[dict, dict]:
             items = [items]
         for item in items:
             if getattr(item, "filename", None):
-                files.setdefault(key, []).append((item.filename, item.file.read()))
+                if hasattr(item.file, "seek"):
+                    item.file.seek(0)
+                data = item.file.read()
+                print(f"[upload] file '{item.filename}' field='{key}' size={len(data)}")
+                files.setdefault(key, []).append((item.filename, data))
             else:
                 fields[key] = item.value if hasattr(item, "value") else str(item)
     return fields, files
@@ -773,10 +792,18 @@ class Handler(BaseHTTPRequestHandler):
                     svc = _get_drive_write_service()
                     if svc:
                         # Walks/{BOROUGH}/{ROUTE}/{walk_code}/
-                        borough_folder_id = _drive_create_or_get_folder(
+                        # Match borough and route by prefix so "MN - Manhattan" matches "MN" etc.
+                        borough_folder_id = _drive_find_folder_by_prefix(
                             svc, DRIVE_FOLDER_ID, fields["borough"].upper())
-                        route_folder_id = _drive_create_or_get_folder(
-                            svc, borough_folder_id, fields["route"].upper()) if borough_folder_id else None
+                        if not borough_folder_id:
+                            borough_folder_id = _drive_create_or_get_folder(
+                                svc, DRIVE_FOLDER_ID, fields["borough"].upper())
+                        route_folder_id = (_drive_find_folder_by_prefix(
+                            svc, borough_folder_id, fields["route"].upper())
+                            if borough_folder_id else None)
+                        if borough_folder_id and not route_folder_id:
+                            route_folder_id = _drive_create_or_get_folder(
+                                svc, borough_folder_id, fields["route"].upper())
                         walk_folder_id = _drive_create_or_get_folder(
                             svc, route_folder_id, walk_code) if route_folder_id else None
                         if walk_folder_id and files:
