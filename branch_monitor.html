@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Branch Divergence Monitor</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0a0f1a;
+    color: #e2e8f0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    min-height: 100vh;
+    padding: 32px 24px;
+  }
+  h1 {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: #f8fafc;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    font-size: 12px;
+    color: #475569;
+    margin-bottom: 28px;
+    font-family: monospace;
+  }
+  .stats-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+  }
+  .stat-box {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    padding: 14px 20px;
+    min-width: 160px;
+  }
+  .stat-label {
+    font-size: 11px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+  }
+  .stat-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: #f1f5f9;
+    font-family: monospace;
+  }
+  .stat-sub {
+    font-size: 11px;
+    color: #475569;
+    margin-top: 4px;
+    font-family: monospace;
+  }
+  .chart-section {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 36px;
+    overflow-x: auto;
+  }
+  .section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 16px;
+  }
+  .group-section {
+    margin-bottom: 28px;
+  }
+  .group-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding-left: 8px;
+    margin-bottom: 12px;
+  }
+  .cards-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .card {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    padding: 14px 16px;
+    min-width: 220px;
+    max-width: 300px;
+    flex: 1;
+  }
+  .card-name {
+    font-family: monospace;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    word-break: break-all;
+  }
+  .card-sha {
+    font-family: monospace;
+    font-size: 11px;
+    color: #475569;
+    margin-bottom: 8px;
+  }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    font-family: monospace;
+  }
+  .synced-badge   { background: #14532d; color: #4ade80; }
+  .ahead-badge    { background: #1e3a5f; color: #60a5fa; }
+  .behind-badge   { background: #450a0a; color: #f87171; }
+  .diverged-badge { background: #2e1065; color: #c084fc; }
+  .card-msg {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-bottom: 6px;
+    font-style: italic;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .card-meta {
+    font-size: 10px;
+    color: #475569;
+    font-family: monospace;
+  }
+  hr {
+    border: none;
+    border-top: 1px solid #1e293b;
+    margin: 32px 0;
+  }
+</style>
+</head>
+<body>
+
+<h1>Branch Divergence Monitor</h1>
+<div class="subtitle">NASA EnAACT Field Campaign Monitor · generated 2026-04-28 00:14:24</div>
+
+<div class="stats-row">
+  <div class="stat-box">
+    <div class="stat-label">Total branches</div>
+    <div class="stat-value">9</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-label">Synced with main</div>
+    <div class="stat-value" style="color:#22c55e">5</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-label">Diverged</div>
+    <div class="stat-value" style="color:#f97316">4</div>
+  </div>
+  <div class="stat-box" style="min-width:280px">
+    <div class="stat-label">Most diverged</div>
+    <div class="stat-value" style="font-size:13px;padding-top:4px;color:#a855f7">claude/brave-hertz (+76 / -69)</div>
+  </div>
+</div>
+
+<div class="chart-section">
+  <div class="section-title">Commit divergence from main</div>
+  <svg xmlns="http://www.w3.org/2000/svg" width="1020" height="528" viewBox="0 0 1020 528" style="display:block;max-width:100%">
+<rect width="1020" height="528" fill="#0f172a"/>
+<text x="224" y="24" fill="#64748b" font-size="11" font-family="monospace">← behind main</text>
+<text x="566" y="24" fill="#64748b" font-size="11" font-family="monospace">ahead of main →</text>
+<line x1="560" y1="32" x2="560" y2="512" stroke="#334155" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="212" y="70" fill="#22c55e" font-size="12" font-family="monospace" text-anchor="end">main</text>
+<polygon points="560,59 567,66 560,73 553,66" fill="#22c55e" opacity="0.9"/>
+<text x="571" y="70" fill="#22c55e" font-size="11" font-family="monospace" opacity="0.7">synced</text>
+<text x="982" y="70" fill="#475569" font-size="10" font-family="monospace">50bec38  2026-04-27</text>
+<line x1="220" y1="92" x2="980" y2="92" stroke="#1e293b" stroke-width="1"/>
+<text x="212" y="122" fill="#3b82f6" font-size="12" font-family="monospace" text-anchor="end">dev/algorithm-development</text>
+<polygon points="560,111 567,118 560,125 553,118" fill="#3b82f6" opacity="0.9"/>
+<text x="571" y="122" fill="#3b82f6" font-size="11" font-family="monospace" opacity="0.7">synced</text>
+<text x="982" y="122" fill="#475569" font-size="10" font-family="monospace">50bec38  2026-04-27</text>
+<line x1="220" y1="144" x2="980" y2="144" stroke="#1e293b" stroke-width="1"/>
+<text x="212" y="174" fill="#3b82f6" font-size="12" font-family="monospace" text-anchor="end">dev/data-processing</text>
+<polygon points="560,163 567,170 560,177 553,170" fill="#3b82f6" opacity="0.9"/>
+<text x="571" y="174" fill="#3b82f6" font-size="11" font-family="monospace" opacity="0.7">synced</text>
+<text x="982" y="174" fill="#475569" font-size="10" font-family="monospace">50bec38  2026-04-27</text>
+<line x1="220" y1="196" x2="980" y2="196" stroke="#1e293b" stroke-width="1"/>
+<text x="212" y="226" fill="#3b82f6" font-size="12" font-family="monospace" text-anchor="end">dev/ui-testing</text>
+<polygon points="560,215 567,222 560,229 553,222" fill="#3b82f6" opacity="0.9"/>
+<text x="571" y="226" fill="#3b82f6" font-size="11" font-family="monospace" opacity="0.7">synced</text>
+<text x="982" y="226" fill="#475569" font-size="10" font-family="monospace">50bec38  2026-04-27</text>
+<line x1="220" y1="248" x2="980" y2="248" stroke="#1e293b" stroke-width="1"/>
+<text x="212" y="278" fill="#f97316" font-size="12" font-family="monospace" text-anchor="end">feature/calendar-confirmations</text>
+<rect x="451.59420289855075" y="263" width="108.40579710144927" height="22" fill="#ef4444" opacity="0.75" rx="3"/>
+<text x="447.59420289855075" y="278" fill="#f87171" font-size="11" font-family="monospace" text-anchor="end">-22</text>
+<text x="982" y="278" fill="#475569" font-size="10" font-family="monospace">967ef38  2026-04-15</text>
+<line x1="220" y1="300" x2="980" y2="300" stroke="#1e293b" stroke-width="1"/>
+<text x="212" y="330" fill="#f97316" font-size="12" font-family="monospace" text-anchor="end">feature/gas-drive-watcher</text>
+<rect x="220.0" y="315" width="340.0" height="22" fill="#ef4444" opacity="0.75" rx="3"/>
+<text x="216.0" y="330" fill="#f87171" font-size="11" font-family="monospace" text-anchor="end">-69</text>
+<rect x="560" y="315" width="25.263157894736842" height="22" fill="#f97316" opacity="0.8" rx="3"/>
+<text x="589.2631578947369" y="330" fill="#f97316" font-size="11" font-family="monospace">+6</text>
+<text x="982" y="330" fill="#475569" font-size="10" font-family="monospace">ec703d5  2026-03-19</text>
+<line x1="220" y1="352" x2="980" y2="352" stroke="#1e293b" stroke-width="1"/>
+<text x="212" y="382" fill="#a855f7" font-size="12" font-family="monospace" text-anchor="end">claude/brave-hertz</text>
+<rect x="220.0" y="367" width="340.0" height="22" fill="#ef4444" opacity="0.75" rx="3"/>
+<text x="216.0" y="382" fill="#f87171" font-size="11" font-family="monospace" text-anchor="end">-69</text>
+<rect x="560" y="367" width="320.0" height="22" fill="#a855f7" opacity="0.8" rx="3"/>
+<text x="884.0" y="382" fill="#a855f7" font-size="11" font-family="monospace">+76</text>
+<text x="982" y="382" fill="#475569" font-size="10" font-family="monospace">ffda239  2026-03-23</text>
+<line x1="220" y1="404" x2="980" y2="404" stroke="#1e293b" stroke-width="1"/>
+<text x="212" y="434" fill="#a855f7" font-size="12" font-family="monospace" text-anchor="end">claude/check-dev-repos-identical-EWmaZ</text>
+<polygon points="560,423 567,430 560,437 553,430" fill="#a855f7" opacity="0.9"/>
+<text x="571" y="434" fill="#a855f7" font-size="11" font-family="monospace" opacity="0.7">synced</text>
+<text x="982" y="434" fill="#475569" font-size="10" font-family="monospace">50bec38  2026-04-27</text>
+<line x1="220" y1="456" x2="980" y2="456" stroke="#1e293b" stroke-width="1"/>
+<text x="212" y="486" fill="#94a3b8" font-size="12" font-family="monospace" text-anchor="end">route-grouping</text>
+<rect x="520.5797101449275" y="471" width="39.42028985507246" height="22" fill="#ef4444" opacity="0.75" rx="3"/>
+<text x="516.5797101449275" y="486" fill="#f87171" font-size="11" font-family="monospace" text-anchor="end">-8</text>
+<text x="982" y="486" fill="#475569" font-size="10" font-family="monospace">89cefa0  2026-04-24</text>
+</svg>
+</div>
+
+<div class="section-title">Branch details</div>
+<div class="group-section">
+<div class="group-label" style="color:#22c55e;border-left:3px solid #22c55e">  Main branches</div>
+<div class="cards-row">
+
+<div class="card" style="border-top:3px solid #22c55e;background:#14532d20">
+  <div class="card-name" style="color:#22c55e">main</div>
+  <div class="card-sha">50bec38</div>
+  <span class="badge synced-badge">✓ synced</span>
+  <div class="card-msg" title="Add WALK_UPLOAD_TOOL.md — context and troubleshooting for uplo…">Add WALK_UPLOAD_TOOL.md — context and troubleshooting for uplo…</div>
+  <div class="card-meta">2026-04-27  ·  Soto</div>
+</div>
+</div></div>
+<div class="group-section">
+<div class="group-label" style="color:#3b82f6;border-left:3px solid #3b82f6">  Dev branches</div>
+<div class="cards-row">
+
+<div class="card" style="border-top:3px solid #3b82f6;background:#1e3a5f20">
+  <div class="card-name" style="color:#3b82f6">dev/algorithm-development</div>
+  <div class="card-sha">50bec38</div>
+  <span class="badge synced-badge">✓ synced</span>
+  <div class="card-msg" title="Add WALK_UPLOAD_TOOL.md — context and troubleshooting for uplo…">Add WALK_UPLOAD_TOOL.md — context and troubleshooting for uplo…</div>
+  <div class="card-meta">2026-04-27  ·  Soto</div>
+</div>
+
+<div class="card" style="border-top:3px solid #3b82f6;background:#1e3a5f20">
+  <div class="card-name" style="color:#3b82f6">dev/data-processing</div>
+  <div class="card-sha">50bec38</div>
+  <span class="badge synced-badge">✓ synced</span>
+  <div class="card-msg" title="Add WALK_UPLOAD_TOOL.md — context and troubleshooting for uplo…">Add WALK_UPLOAD_TOOL.md — context and troubleshooting for uplo…</div>
+  <div class="card-meta">2026-04-27  ·  Soto</div>
+</div>
+
+<div class="card" style="border-top:3px solid #3b82f6;background:#1e3a5f20">
+  <div class="card-name" style="color:#3b82f6">dev/ui-testing</div>
+  <div class="card-sha">50bec38</div>
+  <span class="badge synced-badge">✓ synced</span>
+  <div class="card-msg" title="Add WALK_UPLOAD_TOOL.md — context and troubleshooting for uplo…">Add WALK_UPLOAD_TOOL.md — context and troubleshooting for uplo…</div>
+  <div class="card-meta">2026-04-27  ·  Soto</div>
+</div>
+</div></div>
+<div class="group-section">
+<div class="group-label" style="color:#f97316;border-left:3px solid #f97316">  Feature branches</div>
+<div class="cards-row">
+
+<div class="card" style="border-top:3px solid #f97316;background:#43140720">
+  <div class="card-name" style="color:#f97316">feature/calendar-confirmations</div>
+  <div class="card-sha">967ef38</div>
+  <span class="badge behind-badge">↓ 22 behind</span>
+  <div class="card-msg" title="Simplify map gradient to clean HSL red→green sweep">Simplify map gradient to clean HSL red→green sweep</div>
+  <div class="card-meta">2026-04-15  ·  Soto</div>
+</div>
+
+<div class="card" style="border-top:3px solid #f97316;background:#43140720">
+  <div class="card-name" style="color:#f97316">feature/gas-drive-watcher</div>
+  <div class="card-sha">ec703d5</div>
+  <span class="badge diverged-badge">⚡ 6↑ 69↓</span>
+  <div class="card-msg" title="Update Fly.io deployment configuration and add Docker/GitHub A…">Update Fly.io deployment configuration and add Docker/GitHub A…</div>
+  <div class="card-meta">2026-03-19  ·  Soto</div>
+</div>
+</div></div>
+<div class="group-section">
+<div class="group-label" style="color:#a855f7;border-left:3px solid #a855f7">  Claude branches</div>
+<div class="cards-row">
+
+<div class="card" style="border-top:3px solid #a855f7;background:#2e106520">
+  <div class="card-name" style="color:#a855f7">claude/brave-hertz</div>
+  <div class="card-sha">ffda239</div>
+  <span class="badge diverged-badge">⚡ 76↑ 69↓</span>
+  <div class="card-msg" title="Add availability heatmap page with tooltip; auto-rebuild from …">Add availability heatmap page with tooltip; auto-rebuild from …</div>
+  <div class="card-meta">2026-03-23  ·  Soto</div>
+</div>
+
+<div class="card" style="border-top:3px solid #a855f7;background:#2e106520">
+  <div class="card-name" style="color:#a855f7">claude/check-dev-repos-identical-EWmaZ</div>
+  <div class="card-sha">50bec38</div>
+  <span class="badge synced-badge">✓ synced</span>
+  <div class="card-msg" title="Add WALK_UPLOAD_TOOL.md — context and troubleshooting for uplo…">Add WALK_UPLOAD_TOOL.md — context and troubleshooting for uplo…</div>
+  <div class="card-meta">2026-04-27  ·  Soto</div>
+</div>
+</div></div>
+<div class="group-section">
+<div class="group-label" style="color:#94a3b8;border-left:3px solid #94a3b8">  Other branches</div>
+<div class="cards-row">
+
+<div class="card" style="border-top:3px solid #94a3b8;background:#1e293b20">
+  <div class="card-name" style="color:#94a3b8">route-grouping</div>
+  <div class="card-sha">89cefa0</div>
+  <span class="badge behind-badge">↓ 8 behind</span>
+  <div class="card-msg" title="Fix Cloud Run startup failure (3 causes)">Fix Cloud Run startup failure (3 causes)</div>
+  <div class="card-meta">2026-04-24  ·  Soto</div>
+</div>
+</div></div>
+
+</body>
+</html>
