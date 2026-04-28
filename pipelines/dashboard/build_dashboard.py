@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Generates dashboard.html with embedded route KML data and sample log."""
-import json, re, xml.etree.ElementTree as ET, math as _math, sys
+import json, re, xml.etree.ElementTree as ET, sys
 from pathlib import Path
-import openpyxl as _opxl
 
 BASE = Path(__file__).parent  # pipelines/dashboard/ — used for co-located imports
 
@@ -13,7 +12,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 from shared.paths import (
     ROUTES_DATA_JSON, WALKS_LOG, ROUTES_KML_DIR,
-    SCHEDULE_OUTPUT_JSON, WEATHER_JSON, ROUTE_GROUPS,
+    SCHEDULE_OUTPUT_JSON, WEATHER_JSON,
     DASHBOARD_HTML, AVAILABILITY_HEATMAP_HTML,
 )
 from shared.gcs import pull_if_available as gcs_pull
@@ -129,125 +128,6 @@ avail_max_a = len(GROUP_A)
 avail_max_b = len(GROUP_B)
 avail_days_json = json.dumps(_AVAIL_DAYS)
 
-# -- Compute route group convex hulls from Route_Groups.xlsx ---
-def _convex_hull(pts):
-    pts = sorted(set(map(tuple, pts)))
-    if len(pts) < 3: return [[p[0],p[1]] for p in pts]
-    def cross(O,A,B): return (A[0]-O[0])*(B[1]-O[1])-(A[1]-O[1])*(B[0]-O[0])
-    lo,hi=[],[]
-    for p in pts:
-        while len(lo)>=2 and cross(lo[-2],lo[-1],p)<=0: lo.pop()
-        lo.append(p)
-    for p in reversed(pts):
-        while len(hi)>=2 and cross(hi[-2],hi[-1],p)<=0: hi.pop()
-        hi.append(p)
-    return [[p[0],p[1]] for p in lo[:-1]+hi[:-1]]
-
-def _expand_hull(hull, cx, cy, buf=0.012):
-    out=[]
-    for (x,y) in hull:
-        dx,dy=x-cx,y-cy
-        d=_math.hypot(dx,dy) or 1
-        out.append([round(cx+(dx/d)*(d+buf),6), round(cy+(dy/d)*(d+buf),6)])
-    return out
-
-def _splice_waypoints(hull, cx, cy, waypoints):
-    """Replace the angular sector spanned by waypoints with the waypoints themselves."""
-    if not waypoints: return hull
-    def ang(p): return _math.atan2(p[1]-cy, p[0]-cx)
-    wps=[list(p) for p in waypoints]
-    if len(wps)==1:
-        result=hull+wps; result.sort(key=ang); return result
-    wa0,wa1=ang(wps[0]),ang(wps[-1])
-    # Remove hull vertices whose angle falls inside the arc wa0→wa1 (CCW)
-    if wa0<wa1:
-        keep=[p for p in hull if not(wa0<=ang(p)<=wa1)]
-    else:  # arc wraps past ±π
-        keep=[p for p in hull if ang(p)<wa1 or ang(p)>wa0]
-    result=keep+wps
-    result.sort(key=ang)
-    return result
-
-_routes_geo=json.loads(routes_json)
-_suffix_map={k.split('_')[1]:k for k in _routes_geo}
-
-_GROUP_DEFS=[
-    {"name":"Group 1","codes":["NW","WH","HT","UE","HP"],"color":"#ffd700"},
-    {"name":"Group 2","codes":["JA","FH","FU","EE","JH","LI","LA","WB"],"color":"#ff69b4"},
-    {
-        "name":"Group 3","codes":["UE","MT","LI","LA","WB","LE","DT"],"color":"#39d353",
-        "north_clamp":40.796,
-        # Each item is either [lat,lng] (single point) or [[lat,lng],...] (splice path)
-        "extra_waypoints":[
-            [40.693137744128705,-73.96982354212368],   # avoid Bed-Stuy
-            [40.8002841394381,-73.94670695713012],      # north boundary
-        ],
-    },
-    {
-        "name":"Group 4","codes":["JA","CI","SP","DT","WB","BS","CH"],"color":"#58a6ff",
-        "extra_waypoints":[
-            [   # Queens avoidance path (splice segment)
-                [40.73248944075242,-73.96267952377683],
-                [40.73889095609138,-73.95174642613894],
-                [40.73600407444921,-73.9426355114407],
-                [40.73667350743619,-73.93413199105566],
-                [40.731108641003075,-73.92551803534097],
-                [40.700302671372235,-73.84601148413843],
-            ],
-            [40.68833663959835,-73.84906720430156],    # SE boundary point
-        ],
-    },
-]
-
-_xlsx_path=ROUTE_GROUPS
-if _xlsx_path.exists():
-    _wb=_opxl.load_workbook(_xlsx_path,read_only=True,data_only=True)
-    _ws=_wb.active
-    _group_rows,_cur={},None
-    for row in _ws.iter_rows(values_only=True):
-        vals=[c for c in row if c]
-        if not vals: continue
-        first=str(vals[0]).strip()
-        if first.startswith("Group_"):
-            _cur=first.replace("_"," ")
-            _group_rows[_cur]=[str(v).strip() for v in vals[1:] if v]
-        elif _cur:
-            _group_rows[_cur].extend([str(v).strip() for v in vals])
-    _wb.close()
-    for g in _GROUP_DEFS:
-        if g["name"] in _group_rows:
-            g["codes"]=_group_rows[g["name"]]
-
-_route_groups=[]
-for g in _GROUP_DEFS:
-    try:
-        all_pts,full_codes=[],[]
-        for sc in g["codes"]:
-            fc=_suffix_map.get(sc)
-            if not fc: continue
-            full_codes.append(fc)
-            for line in _routes_geo[fc]["lines"]:
-                all_pts.extend(line)
-        if not all_pts:
-            continue
-        hull=_convex_hull(all_pts)
-        cx=sum(p[0] for p in hull)/len(hull)
-        cy=sum(p[1] for p in hull)/len(hull)
-        if "north_clamp" in g:
-            hull=[[min(p[0], g["north_clamp"]), p[1]] for p in hull]
-        hull=_expand_hull(hull, cx, cy, buf=0.012)
-        if "north_clamp" in g:
-            hull=[[min(p[0], g["north_clamp"]), p[1]] for p in hull]
-        for _wp in g.get("extra_waypoints", []):
-            # Single point [lat,lng] vs splice path [[lat,lng],...]
-            _pts=[_wp] if isinstance(_wp[0],(int,float)) else _wp
-            hull=_splice_waypoints(hull, cx, cy, _pts)
-        _route_groups.append({"name":g["name"],"routes":full_codes,"color":g["color"],"hull":hull})
-    except Exception as _e:
-        print(f"[build_dashboard] Warning: skipping route group '{g['name']}': {_e}")
-
-route_groups_json=json.dumps(_route_groups)
-
 HTML_TEMPLATE = """\
 <!DOCTYPE html>
 <html lang="en">
@@ -333,55 +213,6 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 #recal-modal-submit:hover{background:var(--accent)}
 #recal-modal-cancel{padding:6px 14px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:5px;cursor:pointer;font-size:12px;font-weight:500;transition:all .15s}
 #recal-modal-cancel:hover{background:var(--bg3);color:var(--text)}
-/* -- Upload Data button & modal -- */
-.upload-data-btn{padding:4px 11px;background:rgba(56,139,253,.12);border:1px solid rgba(56,139,253,.4);border-radius:6px;color:#60a5fa;cursor:pointer;font-size:11px;font-weight:600;transition:all .15s;font-family:'Space Grotesk',sans-serif;margin-right:4px;display:flex;align-items:center;gap:4px;white-space:nowrap;flex-shrink:0}
-.upload-data-btn:hover{background:rgba(56,139,253,.2);border-color:var(--accent);color:var(--text)}
-#upload-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:9500;align-items:flex-start;justify-content:center;backdrop-filter:blur(4px);overflow-y:auto;padding:24px 16px}
-#upload-modal-bg.open{display:flex}
-#upload-modal{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:28px 30px;width:100%;max-width:700px;display:flex;flex-direction:column;gap:20px;box-shadow:0 24px 64px rgba(0,0,0,.9);margin:auto}
-#upload-modal h2{font-size:16px;font-weight:700;font-family:'Space Grotesk',sans-serif;color:var(--text);margin:0}
-.um-section{display:flex;flex-direction:column;gap:10px}
-.um-section-title{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;padding-bottom:6px;border-bottom:1px solid var(--border)}
-.um-fields{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.um-field{display:flex;flex-direction:column;gap:4px}
-.um-field label{font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
-.um-field select,.um-field input[type=date]{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:5px 8px;font-size:12px;height:32px;outline:none;box-sizing:border-box;cursor:pointer}
-.um-field select:focus,.um-field input[type=date]:focus{border-color:var(--accent)}
-.um-field select option{background:var(--bg3)}
-.um-time-group{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-.um-time-card{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px}
-.um-time-card .um-tc-label{font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px}
-.um-time-radio{display:flex;gap:10px;font-size:11px;color:var(--text2)}
-.um-time-radio label{display:flex;align-items:center;gap:4px;cursor:pointer}
-.um-time-split{display:flex;align-items:center;gap:2px}
-.um-ts-part{width:36px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:4px 4px;font-size:12px;height:28px;outline:none;box-sizing:border-box;text-align:center;font-family:monospace;-moz-appearance:textfield}
-.um-ts-part:focus{border-color:var(--accent)}
-.um-ts-part::-webkit-inner-spin-button,.um-ts-part::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
-.um-ts-sep{color:var(--text2);font-size:14px;font-weight:600;line-height:1;user-select:none}
-.um-ts-utc{font-size:9px;color:var(--text3);margin-left:4px;align-self:center}
-.um-drop-zones{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-.um-drop-zone{background:var(--bg3);border:2px dashed var(--border);border-radius:8px;padding:16px 10px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;transition:border-color .15s,background .15s;text-align:center;min-height:88px;justify-content:center}
-.um-drop-zone:hover,.um-drop-zone.drag-over{border-color:var(--accent);background:rgba(56,139,253,.07)}
-.um-drop-zone .um-dz-icon{font-size:20px;line-height:1}
-.um-drop-zone .um-dz-label{font-size:11px;font-weight:600;color:var(--text2);font-family:'Space Grotesk',sans-serif}
-.um-drop-zone .um-dz-hint{font-size:9px;color:var(--text3)}
-.um-dz-files{font-size:9px;color:var(--accent);margin-top:3px;word-break:break-all}
-.um-toggle-label{font-size:11px;color:var(--text2);display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500}
-.um-toggle-label input{accent-color:var(--accent);cursor:pointer}
-.um-track-notes{display:grid;grid-template-columns:1fr 2fr;gap:12px}
-.um-notes-wrap{display:flex;flex-direction:column;gap:4px}
-.um-notes-label{font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
-.um-notes{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:12px;resize:vertical;min-height:88px;outline:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.5}
-.um-notes:focus{border-color:var(--accent)}
-#upload-modal-actions{display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-top:4px;padding-top:16px;border-top:1px solid var(--border)}
-#upload-modal-status{font-size:11px;flex:1}
-#upload-modal-status.ok{color:var(--green)}
-#upload-modal-status.err{color:var(--red)}
-#upload-modal-submit{padding:8px 20px;background:var(--accent2);border:1px solid var(--accent);color:#fff;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;font-family:'Space Grotesk',sans-serif;transition:background .15s}
-#upload-modal-submit:hover{background:var(--accent)}
-#upload-modal-submit:disabled{opacity:.5;cursor:not-allowed}
-#upload-modal-cancel{padding:8px 16px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;transition:all .15s}
-#upload-modal-cancel:hover{background:var(--bg3);color:var(--text)}
 #toast.warn{border-color:var(--yellow);color:var(--yellow)}
 /* Filters dropdown panel — anchored to Campaign Monitor tab group */
 #filters{display:none;position:fixed;width:240px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow-y:auto;z-index:1200;padding:14px;gap:10px;flex-direction:column;box-shadow:0 8px 24px rgba(0,0,0,.5)}
@@ -447,15 +278,6 @@ select option{background:var(--bg3)}
 #collector-homes-btn{position:absolute;bottom:100px;left:10px;z-index:1001;background:rgba(13,17,23,.88);border:1px solid var(--border);border-radius:7px;padding:5px 10px;font-size:11px;font-weight:600;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:6px;backdrop-filter:blur(4px);transition:background .15s,color .15s,border-color .15s;user-select:none;white-space:nowrap}
 #collector-homes-btn:hover{background:rgba(40,44,65,.95);color:var(--text)}
 #collector-homes-btn.chb-on{border-color:#4f8ef7;color:#4f8ef7;background:rgba(15,31,63,.88)}
-#route-groups-panel{position:absolute;bottom:140px;left:10px;z-index:1001;background:rgba(13,17,23,.92);border:1px solid var(--border);border-radius:7px;font-size:11px;font-weight:600;backdrop-filter:blur(4px);user-select:none;min-width:148px;overflow:hidden}
-.rgb-header{display:flex;align-items:center;justify-content:space-between;padding:5px 10px;color:var(--text);gap:10px;white-space:nowrap;border-bottom:1px solid var(--border)}
-#rgb-all-btn{font-size:9px;font-weight:700;padding:1px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;color:var(--text2);cursor:pointer;font-family:inherit;letter-spacing:.3px;transition:all .15s;flex-shrink:0}
-#rgb-all-btn:hover{color:var(--text);border-color:var(--text3)}
-.rgb-item{display:flex;align-items:center;gap:6px;padding:3px 10px;cursor:pointer;width:100%;box-sizing:border-box}
-.rgb-item:hover{background:rgba(255,255,255,.05)}
-.rgb-item input[type=checkbox]{cursor:pointer;flex-shrink:0;accent-color:currentColor}
-.rgb-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
-.rgb-lbl{color:var(--text2);font-size:11px;white-space:nowrap}
 #mstats{position:absolute;top:10px;left:10px;z-index:1000;display:flex;flex-direction:column;gap:5px;pointer-events:none}
 .msc{background:rgba(13,17,23,.88);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:10px;color:var(--text2)}
 .msc strong{display:block;font-size:17px;font-weight:700;color:var(--text);line-height:1.1}
@@ -823,7 +645,6 @@ setTimeout(function(){
     </div>
     <button id="sched-unlock-btn" class="sched-unlock-btn" title="Log in to Admin Mode">&#x1F511; Admin Login</button>
     <button id="force-rebuild-btn" class="force-rebuild-btn" title="Force rebuild: build weather, run scheduler, rebuild dashboard">&#x27F3; Rebuild</button>
-    <button class="upload-data-btn" onclick="openUploadModal()">&#x2B06; Upload Data</button>
     <div id="tabs">
       <div class="tab-group" id="campaign-tab-group">
         <span class="tab-group-label monitor">Campaign Monitor</span>
@@ -849,7 +670,6 @@ setTimeout(function(){
       <div id="map-wrap">
         <div id="map"></div>
         <div id="mstats"></div>
-        <div id="route-groups-panel"><div class="rgb-header"><span>&#9632; Route Groups</span><button id="rgb-all-btn">All</button></div><div id="rgb-list"></div></div>
         <button id="collector-homes-btn" title="Toggle collector areas">&#x1F3E0; Collector Areas</button>
         <div id="mlegend">
           <h4>Completion Progress</h4>
@@ -997,7 +817,6 @@ setTimeout(function(){
 // --- DATA ---
 const ROUTES_GEO = __ROUTES_JSON__;
 const COLLECTOR_HOMES = __COLLECTOR_HOMES__;
-const ROUTE_GROUPS = __ROUTE_GROUPS_JSON__;
 const BAKED_SCHEDULE = __BAKED_SCHEDULE__;
 const BAKED_WEATHER = __BAKED_WEATHER__;
 let RUNTIME_SCHEDULE = BAKED_SCHEDULE;
@@ -1064,7 +883,6 @@ let filters={season:'',tod:'',backpack:'',from:null,to:null};
 let visibleBackpacks={A:true,B:true,X:true};
 let map=null, routeLayers={}, routeCentroids={}, charts={};
 let collectorHomeLayer=null, collectorHomesVisible=false, collectorHomeMarkers={};
-let routeGroupLayers=[], routeGroupLabels=[], routeGroupVisible=[];
 
 // --- UTIL ---
 function getSeason(d){const m=d.getMonth()+1;return m>=3&&m<=5?'Spring':m>=6&&m<=8?'Summer':m>=9&&m<=11?'Fall':'Winter';}
@@ -1167,20 +985,6 @@ function makeHomeIcon(cid,count){
          'white-space:nowrap;margin-top:1px">'+lbl+'</div>'+
          '</div>'});
 }
-// Chaikin corner-cutting: stays inside control polygon, no overshoot
-function _smoothLoop(pts,iters=4){
-  let p=pts.slice();
-  for(let it=0;it<iters;it++){
-    const np=[];
-    for(let i=0;i<p.length;i++){
-      const a=p[i],b=p[(i+1)%p.length];
-      np.push([a[0]*0.6+b[0]*0.4,a[1]*0.6+b[1]*0.4]);
-      np.push([a[0]*0.4+b[0]*0.6,a[1]*0.4+b[1]*0.6]);
-    }
-    p=np;
-  }
-  return p;
-}
 function initMap(){
   map=L.map('map',{center:[40.72,-73.96],zoom:11,zoomControl:false});
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
@@ -1214,44 +1018,6 @@ function initMap(){
     if(collectorHomesVisible){collectorHomeLayer.addTo(map);}
     else{collectorHomeLayer.remove();}
     document.getElementById('collector-homes-btn').classList.toggle('chb-on',collectorHomesVisible);
-  });
-  ROUTE_GROUPS.forEach((g,i)=>{
-    const poly=L.polygon(_smoothLoop(g.hull),{
-      color:g.color,fillColor:g.color,
-      fillOpacity:0.07,opacity:0.55,
-      weight:2,dashArray:'7,5',interactive:false
-    });
-    routeGroupLayers.push(poly);
-    routeGroupVisible.push(false);
-    const cx=g.hull.reduce((s,p)=>s+p[0],0)/g.hull.length;
-    const cy=g.hull.reduce((s,p)=>s+p[1],0)/g.hull.length;
-    routeGroupLabels.push(L.marker([cx,cy],{
-      icon:L.divIcon({
-        html:`<div style="font-size:38px;font-weight:900;color:${g.color};text-shadow:-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000,2px 2px 0 #000,0 0 14px rgba(0,0,0,.95);line-height:1;pointer-events:none">${i+1}</div>`,
-        iconSize:[44,44],iconAnchor:[22,22],className:''
-      }),interactive:false,zIndexOffset:500
-    }));
-    const row=document.createElement('label');
-    row.className='rgb-item';
-    row.innerHTML=`<input type="checkbox" data-gi="${i}"><span class="rgb-dot" style="background:${g.color}"></span><span class="rgb-lbl">${g.name}</span>`;
-    row.querySelector('input').addEventListener('change',e=>{
-      routeGroupVisible[i]=e.target.checked;
-      if(e.target.checked){routeGroupLayers[i].addTo(map);routeGroupLabels[i].addTo(map);}
-      else{routeGroupLayers[i].remove();routeGroupLabels[i].remove();}
-      const allOn=routeGroupVisible.every(Boolean),allOff=routeGroupVisible.every(v=>!v);
-      document.getElementById('rgb-all-btn').textContent=allOn?'None':'All';
-    });
-    document.getElementById('rgb-list').appendChild(row);
-  });
-  document.getElementById('rgb-all-btn').addEventListener('click',()=>{
-    const newState=!routeGroupVisible.every(Boolean);
-    routeGroupVisible.fill(newState);
-    document.querySelectorAll('#rgb-list input').forEach((cb,i)=>{
-      cb.checked=newState;
-      if(newState){routeGroupLayers[i].addTo(map);routeGroupLabels[i].addTo(map);}
-      else{routeGroupLayers[i].remove();routeGroupLabels[i].remove();}
-    });
-    document.getElementById('rgb-all-btn').textContent=newState?'None':'All';
   });
 }
 function gradientColor(n){
@@ -2622,108 +2388,6 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
-// --- UPLOAD DATA MODAL ---
-var _umRoutes = {
-  MN:[['HT','Harlem'],['WH','Washington Heights'],['UE','Upper East Side'],['MT','Midtown'],['LE','Union Sq / LES']],
-  BX:[['HP','Hunts Point'],['NW','Norwood']],
-  BK:[['DT','Downtown BK'],['WB','Williamsburg'],['BS','Bed Stuy'],['CH','Crown Heights'],['SP','Sunset Park'],['CI','Coney Island']],
-  QN:[['FU','Flushing'],['LI','Astoria / LIC'],['JH','Jackson Heights'],['JA','Jamaica'],['FH','Forest Hills'],['LA','LaGuardia CC'],['EE','East Elmhurst']]
-};
-function openUploadModal(){
-  var t=new Date(),m=String(t.getMonth()+1).padStart(2,'0'),d=String(t.getDate()).padStart(2,'0');
-  document.getElementById('um-date').value=t.getFullYear()+'-'+m+'-'+d;
-  document.getElementById('upload-modal-status').textContent='';
-  document.getElementById('upload-modal-status').className='';
-  document.getElementById('upload-modal-submit').disabled=false;
-  document.getElementById('upload-modal-bg').classList.add('open');
-}
-function closeUploadModal(){document.getElementById('upload-modal-bg').classList.remove('open');}
-function umUpdateRoutes(){
-  var boro=document.getElementById('um-borough').value;
-  var sel=document.getElementById('um-route');
-  if(boro&&_umRoutes[boro]){
-    sel.innerHTML='<option value="">Select route...</option>';
-    _umRoutes[boro].forEach(function(r){
-      var o=document.createElement('option');o.value=r[0];o.textContent=r[1]+' ('+r[0]+')';sel.appendChild(o);
-    });
-    sel.disabled=false;
-  } else {
-    sel.innerHTML='<option value="">Select borough first</option>';
-    sel.disabled=true;
-  }
-}
-function umToggleTime(field,mode){
-  var dz=document.getElementById('um-'+field+'-dz');
-  var nm=document.getElementById('um-'+field+'-names');
-  var mn=document.getElementById('um-'+field+'-manual');
-  if(mode==='img'){dz.style.display='';nm.style.display='';mn.style.display='none';}
-  else{dz.style.display='none';nm.style.display='none';mn.style.display='flex';}
-}
-function umTsAdvance(inp,nextId){
-  if(String(inp.value).replace(/\\D/g,'').length>=2) document.getElementById(nextId).focus();
-}
-function umDragOver(e,el){e.preventDefault();el.classList.add('drag-over');}
-function umDragLeave(el){el.classList.remove('drag-over');}
-function umDrop(e,el,fileInputId,namesId){
-  e.preventDefault();el.classList.remove('drag-over');
-  var fi=document.getElementById(fileInputId);
-  var dt=e.dataTransfer;
-  if(dt&&dt.files&&dt.files.length){
-    try{var c=new DataTransfer();for(var i=0;i<dt.files.length;i++)c.items.add(dt.files[i]);fi.files=c.files;}catch(x){}
-    umShowNames(dt.files,namesId);
-  }
-}
-function umFileChosen(inp,namesId){umShowNames(inp.files,namesId);}
-function umShowNames(files,namesId){
-  var el=document.getElementById(namesId);
-  if(!files||!files.length){el.textContent='';return;}
-  var n=[];for(var i=0;i<files.length;i++)n.push(files[i].name);
-  el.textContent=n.join(', ');
-}
-function umSubmit(){
-  var date=document.getElementById('um-date').value;
-  var bp=document.getElementById('um-backpack').value;
-  var tod=document.getElementById('um-tod').value;
-  var col=document.getElementById('um-collector').value;
-  var bor=document.getElementById('um-borough').value;
-  var rt=document.getElementById('um-route').value;
-  if(!date||!bp||!tod||!col||!bor||!rt){umStatus('Please fill all walk metadata fields.','err');return;}
-  var fd=new FormData();
-  fd.append('date',date.replace(/-/g,''));
-  fd.append('backpack',bp);fd.append('tod',tod);fd.append('collector',col);fd.append('borough',bor);fd.append('route',rt);
-  ['start','walk','end'].forEach(function(f){
-    var mode=document.querySelector('input[name="um-'+f+'-mode"]:checked').value;
-    if(mode==='img'){var fi=document.getElementById('um-'+f+'-file');if(fi.files&&fi.files[0])fd.append(f+'_time_img',fi.files[0],fi.files[0].name);}
-    else{
-      var hh=String(document.getElementById('um-'+f+'-hh').value||'').padStart(2,'0');
-      var mm=String(document.getElementById('um-'+f+'-mm').value||'').padStart(2,'0');
-      var ss=String(document.getElementById('um-'+f+'-ss').value||'').padStart(2,'0');
-      if(document.getElementById('um-'+f+'-hh').value||document.getElementById('um-'+f+'-mm').value||document.getElementById('um-'+f+'-ss').value)
-        fd.append(f+'_time_manual',hh+':'+mm+':'+ss);
-    }
-  });
-  ['pom','pop','pam'].forEach(function(p){
-    var fi=document.getElementById('um-'+p+'-files');
-    if(fi.files)for(var i=0;i<fi.files.length;i++)fd.append(p,fi.files[i],fi.files[i].name);
-  });
-  var gpx=document.getElementById('um-gpx-file');
-  if(gpx.files&&gpx.files[0])fd.append('gpx_file',gpx.files[0],gpx.files[0].name);
-  var notes=document.getElementById('um-notes').value.trim();
-  if(notes)fd.append('notes',notes);
-  document.getElementById('upload-modal-submit').disabled=true;
-  umStatus('Uploading…','');
-  fetch('/api/upload-walk',{method:'POST',body:fd})
-    .then(function(r){return r.json().then(function(d){return{ok:r.ok,data:d};});})
-    .then(function(r){
-      if(r.ok){umStatus('Walk '+r.data.walk+' recorded.','ok');setTimeout(closeUploadModal,2000);}
-      else{umStatus('Error: '+(r.data.error||'unknown'),'err');document.getElementById('upload-modal-submit').disabled=false;}
-    })
-    .catch(function(e){umStatus('Network error: '+e.message,'err');document.getElementById('upload-modal-submit').disabled=false;});
-}
-function umStatus(msg,cls){var el=document.getElementById('upload-modal-status');el.textContent=msg;el.className=cls;}
-document.addEventListener('DOMContentLoaded',function(){
-  document.getElementById('upload-modal-bg').addEventListener('click',function(e){if(e.target===this)closeUploadModal();});
-});
 
 </script>
 <!--- Auth modal --->
@@ -2746,160 +2410,6 @@ document.addEventListener('DOMContentLoaded',function(){
     <div id="auth-modal-actions">
       <button id="auth-modal-cancel">Cancel</button>
       <button id="auth-modal-submit">Unlock</button>
-    </div>
-  </div>
-</div>
-<!--- Walk data upload modal --->
-<div id="upload-modal-bg">
-  <div id="upload-modal">
-    <h2>&#x2B06; Upload Walk Data</h2>
-    <div class="um-section">
-      <div class="um-section-title">Walk Metadata</div>
-      <div class="um-fields">
-        <div class="um-field"><label for="um-date">Date</label><input type="date" id="um-date"></div>
-        <div class="um-field"><label for="um-backpack">Backpack</label>
-          <select id="um-backpack"><option value="">Select...</option><option value="A">A — CCNY</option><option value="B">B — LaGCC</option></select></div>
-        <div class="um-field"><label for="um-tod">Time of Day</label>
-          <select id="um-tod"><option value="">Select...</option><option value="AM">AM</option><option value="MD">MD</option><option value="PM">PM</option></select></div>
-        <div class="um-field"><label for="um-collector">Collector</label>
-          <select id="um-collector"><option value="">Select...</option>
-            <option value="SOT">Soteri (SOT)</option><option value="AYA">Aya Nasri (AYA)</option>
-            <option value="ALX">Alex (ALX)</option><option value="TAH">Taha (TAH)</option>
-            <option value="JAM">James (JAM)</option><option value="JEN">Jennifer (JEN)</option>
-            <option value="SCT">Scott (SCT)</option><option value="TER">Terra (TER)</option>
-            <option value="ANG">Angy (ANG)</option><option value="NRS">Prof. Naresh (NRS)</option>
-            <option value="PRA">Prof. Prathap (PRA)</option><option value="NAT">Nathan (NAT)</option>
-          </select></div>
-        <div class="um-field"><label for="um-borough">Borough</label>
-          <select id="um-borough" onchange="umUpdateRoutes()"><option value="">Select...</option>
-            <option value="MN">Manhattan (MN)</option><option value="BX">Bronx (BX)</option>
-            <option value="BK">Brooklyn (BK)</option><option value="QN">Queens (QN)</option>
-          </select></div>
-        <div class="um-field"><label for="um-route">Route</label>
-          <select id="um-route" disabled><option value="">Select borough first</option></select></div>
-      </div>
-    </div>
-    <div class="um-section">
-      <div class="um-section-title">UTC Times</div>
-      <div class="um-time-group">
-        <div class="um-time-card">
-          <div class="um-tc-label">Start Time</div>
-          <div class="um-time-radio">
-            <label><input type="radio" name="um-start-mode" value="img" checked onchange="umToggleTime('start',this.value)"> Image</label>
-            <label><input type="radio" name="um-start-mode" value="manual" onchange="umToggleTime('start',this.value)"> Manual</label>
-          </div>
-          <div class="um-drop-zone" id="um-start-dz" onclick="document.getElementById('um-start-file').click()" ondragover="umDragOver(event,this)" ondragleave="umDragLeave(this)" ondrop="umDrop(event,this,'um-start-file','um-start-names')">
-            <div class="um-dz-icon">&#x1F4F7;</div><div class="um-dz-label">Drop image</div><div class="um-dz-hint">or click to browse</div>
-          </div>
-          <input type="file" id="um-start-file" accept="image/*" style="display:none" onchange="umFileChosen(this,'um-start-names')">
-          <div class="um-dz-files" id="um-start-names"></div>
-          <div id="um-start-manual" class="um-time-split" style="display:none">
-            <input type="number" class="um-ts-part" id="um-start-hh" min="0" max="23" placeholder="HH" oninput="umTsAdvance(this,'um-start-mm')">
-            <span class="um-ts-sep">:</span>
-            <input type="number" class="um-ts-part" id="um-start-mm" min="0" max="59" placeholder="MM" oninput="umTsAdvance(this,'um-start-ss')">
-            <span class="um-ts-sep">:</span>
-            <input type="number" class="um-ts-part" id="um-start-ss" min="0" max="59" placeholder="SS">
-            <span class="um-ts-utc">UTC</span>
-          </div>
-        </div>
-        <div class="um-time-card">
-          <div class="um-tc-label">Walk Time</div>
-          <div class="um-time-radio">
-            <label><input type="radio" name="um-walk-mode" value="img" checked onchange="umToggleTime('walk',this.value)"> Image</label>
-            <label><input type="radio" name="um-walk-mode" value="manual" onchange="umToggleTime('walk',this.value)"> Manual</label>
-          </div>
-          <div class="um-drop-zone" id="um-walk-dz" onclick="document.getElementById('um-walk-file').click()" ondragover="umDragOver(event,this)" ondragleave="umDragLeave(this)" ondrop="umDrop(event,this,'um-walk-file','um-walk-names')">
-            <div class="um-dz-icon">&#x1F4F7;</div><div class="um-dz-label">Drop image</div><div class="um-dz-hint">or click to browse</div>
-          </div>
-          <input type="file" id="um-walk-file" accept="image/*" style="display:none" onchange="umFileChosen(this,'um-walk-names')">
-          <div class="um-dz-files" id="um-walk-names"></div>
-          <div id="um-walk-manual" class="um-time-split" style="display:none">
-            <input type="number" class="um-ts-part" id="um-walk-hh" min="0" max="23" placeholder="HH" oninput="umTsAdvance(this,'um-walk-mm')">
-            <span class="um-ts-sep">:</span>
-            <input type="number" class="um-ts-part" id="um-walk-mm" min="0" max="59" placeholder="MM" oninput="umTsAdvance(this,'um-walk-ss')">
-            <span class="um-ts-sep">:</span>
-            <input type="number" class="um-ts-part" id="um-walk-ss" min="0" max="59" placeholder="SS">
-            <span class="um-ts-utc">UTC</span>
-          </div>
-        </div>
-        <div class="um-time-card">
-          <div class="um-tc-label">End Time</div>
-          <div class="um-time-radio">
-            <label><input type="radio" name="um-end-mode" value="img" checked onchange="umToggleTime('end',this.value)"> Image</label>
-            <label><input type="radio" name="um-end-mode" value="manual" onchange="umToggleTime('end',this.value)"> Manual</label>
-          </div>
-          <div class="um-drop-zone" id="um-end-dz" onclick="document.getElementById('um-end-file').click()" ondragover="umDragOver(event,this)" ondragleave="umDragLeave(this)" ondrop="umDrop(event,this,'um-end-file','um-end-names')">
-            <div class="um-dz-icon">&#x1F4F7;</div><div class="um-dz-label">Drop image</div><div class="um-dz-hint">or click to browse</div>
-          </div>
-          <input type="file" id="um-end-file" accept="image/*" style="display:none" onchange="umFileChosen(this,'um-end-names')">
-          <div class="um-dz-files" id="um-end-names"></div>
-          <div id="um-end-manual" class="um-time-split" style="display:none">
-            <input type="number" class="um-ts-part" id="um-end-hh" min="0" max="23" placeholder="HH" oninput="umTsAdvance(this,'um-end-mm')">
-            <span class="um-ts-sep">:</span>
-            <input type="number" class="um-ts-part" id="um-end-mm" min="0" max="59" placeholder="MM" oninput="umTsAdvance(this,'um-end-ss')">
-            <span class="um-ts-sep">:</span>
-            <input type="number" class="um-ts-part" id="um-end-ss" min="0" max="59" placeholder="SS">
-            <span class="um-ts-utc">UTC</span>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="um-section">
-      <div class="um-section-title">Data Uploads</div>
-      <div class="um-drop-zones">
-        <div>
-          <label class="um-toggle-label" style="margin-bottom:6px"><input type="checkbox" id="um-pom-toggle" onchange="document.getElementById('um-pom-zone').style.display=this.checked?'flex':'none'"> POM</label>
-          <div id="um-pom-zone" style="display:none;flex-direction:column">
-            <div class="um-drop-zone" onclick="document.getElementById('um-pom-files').click()" ondragover="umDragOver(event,this)" ondragleave="umDragLeave(this)" ondrop="umDrop(event,this,'um-pom-files','um-pom-names')">
-              <div class="um-dz-icon">&#x1F4C1;</div><div class="um-dz-label">POM</div><div class="um-dz-hint">Any type · Multiple</div>
-            </div>
-            <input type="file" id="um-pom-files" multiple style="display:none" onchange="umFileChosen(this,'um-pom-names')">
-            <div class="um-dz-files" id="um-pom-names"></div>
-          </div>
-        </div>
-        <div>
-          <label class="um-toggle-label" style="margin-bottom:6px"><input type="checkbox" id="um-pop-toggle" onchange="document.getElementById('um-pop-zone').style.display=this.checked?'flex':'none'"> POP</label>
-          <div id="um-pop-zone" style="display:none;flex-direction:column">
-            <div class="um-drop-zone" onclick="document.getElementById('um-pop-files').click()" ondragover="umDragOver(event,this)" ondragleave="umDragLeave(this)" ondrop="umDrop(event,this,'um-pop-files','um-pop-names')">
-              <div class="um-dz-icon">&#x1F4C1;</div><div class="um-dz-label">POP</div><div class="um-dz-hint">Any type · Multiple</div>
-            </div>
-            <input type="file" id="um-pop-files" multiple style="display:none" onchange="umFileChosen(this,'um-pop-names')">
-            <div class="um-dz-files" id="um-pop-names"></div>
-          </div>
-        </div>
-        <div>
-          <label class="um-toggle-label" style="margin-bottom:6px"><input type="checkbox" id="um-pam-toggle" onchange="document.getElementById('um-pam-zone').style.display=this.checked?'flex':'none'"> PAM</label>
-          <div id="um-pam-zone" style="display:none;flex-direction:column">
-            <div class="um-drop-zone" onclick="document.getElementById('um-pam-files').click()" ondragover="umDragOver(event,this)" ondragleave="umDragLeave(this)" ondrop="umDrop(event,this,'um-pam-files','um-pam-names')">
-              <div class="um-dz-icon">&#x1F4C1;</div><div class="um-dz-label">PAM</div><div class="um-dz-hint">Any type · Multiple</div>
-            </div>
-            <input type="file" id="um-pam-files" multiple style="display:none" onchange="umFileChosen(this,'um-pam-names')">
-            <div class="um-dz-files" id="um-pam-names"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="um-section">
-      <div class="um-section-title">Track &amp; Notes</div>
-      <div class="um-track-notes">
-        <div class="um-notes-wrap">
-          <label class="um-notes-label">GPX Track</label>
-          <div class="um-drop-zone" onclick="document.getElementById('um-gpx-file').click()" ondragover="umDragOver(event,this)" ondragleave="umDragLeave(this)" ondrop="umDrop(event,this,'um-gpx-file','um-gpx-names')">
-            <div class="um-dz-icon">&#x1F5FA;</div><div class="um-dz-hint">.gpx, .kml, .kmz</div>
-          </div>
-          <input type="file" id="um-gpx-file" accept=".gpx,.kml,.kmz" style="display:none" onchange="umFileChosen(this,'um-gpx-names')">
-          <div class="um-dz-files" id="um-gpx-names"></div>
-        </div>
-        <div class="um-notes-wrap">
-          <label class="um-notes-label" for="um-notes">Walk Notes</label>
-          <textarea id="um-notes" class="um-notes" placeholder="Describe the walk — conditions, observations, issues..."></textarea>
-        </div>
-      </div>
-    </div>
-    <div id="upload-modal-actions">
-      <div id="upload-modal-status"></div>
-      <button id="upload-modal-cancel" onclick="closeUploadModal()">Cancel</button>
-      <button id="upload-modal-submit" onclick="umSubmit()">&#x2B06; Submit Walk</button>
     </div>
   </div>
 </div>
@@ -2947,7 +2457,6 @@ HTML_TEMPLATE = HTML_TEMPLATE.replace('__ROUTES_JSON__', routes_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__AFFINITY_JSON__', affinity_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__SAMPLE_LOG__', sample_log_js)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__COLLECTOR_HOMES__', collector_homes_json)
-HTML_TEMPLATE = HTML_TEMPLATE.replace('__ROUTE_GROUPS_JSON__', route_groups_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__BAKED_SCHEDULE__', baked_schedule_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__BAKED_WEATHER__', baked_weather_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__AVAIL_DAYS_JSON__', avail_days_json)
