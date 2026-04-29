@@ -570,19 +570,9 @@ def _run_drive_poll(source: str = "background"):
     for e in all_entries:
         drive_set.add(e.upper())
 
-    # Load existing log entries (manually added entries not in Drive must be preserved)
-    existing_entries: set = set()
-    if WALKS_LOG.exists():
-        existing_entries = {
-            l.strip().upper() for l in WALKS_LOG.read_text(encoding="utf-8").splitlines()
-            if l.strip() and not l.strip().upper().startswith("RECAL_")
-        }
-
-    # Union: Drive entries + any manually-added entries not found in Drive
-    merged = sorted(drive_set | existing_entries)
-    log_changed = set(merged) != existing_entries
-
-    # Rebuild log from merged set (Drive state + preserved manual entries)
+    # Rebuild log from Drive entries only
+    merged = sorted(drive_set)
+    log_changed = set(merged) != drive_set
     _rebuild_walk_log(merged)
 
     new_count = len(current_ids - seen_ids)
