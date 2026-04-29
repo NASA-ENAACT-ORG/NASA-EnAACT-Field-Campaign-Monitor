@@ -58,6 +58,9 @@ from shared.paths import (
 )
 from shared import gcs
 
+import upload_buffer
+import drive_mover
+
 BASE_DIR           = REPO_ROOT
 SCHEDULER          = WALK_SCHEDULER
 BUILD_MAP          = BUILD_COLLECTOR_MAP
@@ -228,14 +231,22 @@ def _drive_create_or_get_folder(service, parent_id: str, name: str) -> str | Non
         return None
 
 
-def _drive_upload_file(service, folder_id: str, filename: str, data: bytes) -> bool:
-    """Upload raw bytes as a file into a Drive folder. Raises on failure."""
+def _drive_upload_file(service, folder_id: str, filename: str, data) -> bool:
+    """Upload bytes (or a binary file-like) as a file into a Drive folder.
+    Uses resumable=True with internal HttpError 5xx/429 retries to ride out
+    transient flakiness. Raises on terminal failure."""
     from googleapiclient.http import MediaIoBaseUpload
     mime = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    fp = io.BytesIO(data) if isinstance(data, (bytes, bytearray)) else data
+    size = len(data) if isinstance(data, (bytes, bytearray)) else "stream"
     meta = {"name": filename, "parents": [folder_id]}
-    media = MediaIoBaseUpload(io.BytesIO(data), mimetype=mime, resumable=False)
-    service.files().create(body=meta, media_body=media, fields="id").execute()
-    print(f"[drive] Uploaded '{filename}' ({len(data)} bytes)")
+    media = MediaIoBaseUpload(fp, mimetype=mime, resumable=True,
+                              chunksize=5 * 1024 * 1024)
+    req = service.files().create(body=meta, media_body=media, fields="id")
+    resp = None
+    while resp is None:
+        _, resp = req.next_chunk(num_retries=5)
+    print(f"[drive] Uploaded '{filename}' ({size} bytes)")
     return True
 
 
@@ -769,6 +780,11 @@ class Handler(BaseHTTPRequestHandler):
 
             required = ["backpack", "collector", "borough", "route", "date", "tod"]
             missing = [r for r in required if not fields.get(r)]
+            for slot in ("start", "walk", "end"):
+                if not (files.get(f"{slot}_time_img") or fields.get(f"{slot}_time_manual")):
+                    missing.append(f"{slot}_time")
+            if not files.get("gpx_file"):
+                missing.append("gpx_file")
             if missing:
                 self._send(400, "application/json",
                            json.dumps({"error": f"missing fields: {', '.join(missing)}"}).encode())
@@ -784,6 +800,28 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(400, "application/json",
                            json.dumps({"error": f"invalid walk code: {walk_code}"}).encode())
                 return
+
+            # Stage to GCS holding bucket first (decouples browser from Drive flakiness).
+            # On staging success → 200 immediately; mover thread drains to Drive async.
+            # On staging failure → fall through to legacy direct-Drive write.
+            if upload_buffer.holding_available():
+                try:
+                    staged = upload_buffer.stage_submission(
+                        walk_code=walk_code,
+                        fields=fields,
+                        files=files,
+                        client_ip=self.client_address[0],
+                    )
+                    self._send(200, "application/json", json.dumps({
+                        "ok": True,
+                        "walk": walk_code,
+                        "submission_id": staged.submission_id,
+                        "status": "staged",
+                    }).encode())
+                    return
+                except upload_buffer.StagingError as exc:
+                    print(f"[upload] Holding bucket staging failed: {exc} "
+                          f"— falling back to direct Drive")
 
             # Create the walk folder in Drive (named with the walk code so that
             # _run_drive_poll detects it, parses the name, and rebuilds Walks_Log.txt).
@@ -1004,6 +1042,20 @@ def main():
         print(f"  Walk-log poll : active (every {DRIVE_POLL_INTERVAL}s)")
     else:
         print(f"  Walk-log poll : DISABLED -- relying on GAS push triggers")
+
+    # "" Start GCS upload-buffer mover """"""""""""""""""""""""""""""""""""""""""
+    if upload_buffer.init_holding_bucket():
+        drive_mover.bind(
+            get_drive_service=_get_drive_write_service,
+            get_folder_id=lambda: DRIVE_FOLDER_ID,
+            find_folder_by_prefix=_drive_find_folder_by_prefix,
+            create_or_get_folder=_drive_create_or_get_folder,
+            run_drive_poll=_run_drive_poll,
+        )
+        drive_mover.start_mover_thread()
+        print(f"  Upload buffer : active (bucket: {os.environ.get('UPLOAD_HOLDING_BUCKET')})")
+    else:
+        print(f"  Upload buffer : DISABLED -- uploads will write directly to Drive")
 
     server = ThreadingHTTPServer(("0.0.0.0", args.port), Handler)
     url = f"http://localhost:{args.port}"

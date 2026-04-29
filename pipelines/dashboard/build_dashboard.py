@@ -12,7 +12,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from shared.paths import (
-    ROUTES_DATA_JSON, WALKS_LOG, ROUTES_KML_DIR,
+    ROUTES_DATA_JSON, WALKS_LOG, ROUTES_KML_DIR, PERSISTED_DIR,
     SCHEDULE_OUTPUT_JSON, WEATHER_JSON, ROUTE_GROUPS,
     DASHBOARD_HTML, AVAILABILITY_HEATMAP_HTML,
 )
@@ -22,6 +22,7 @@ from shared.gcs import pull_if_available as gcs_pull
 gcs_pull("Walks_Log.txt",        WALKS_LOG)
 gcs_pull("schedule_output.json", SCHEDULE_OUTPUT_JSON)
 gcs_pull("weather.json",         WEATHER_JSON)
+gcs_pull("upload_failures.json", PERSISTED_DIR / "upload_failures.json")
 
 # Read sources
 with open(ROUTES_DATA_JSON, encoding="utf-8") as f:
@@ -2688,6 +2689,22 @@ function umSubmit(){
   var bor=document.getElementById('um-borough').value;
   var rt=document.getElementById('um-route').value;
   if(!date||!bp||!tod||!col||!bor||!rt){umStatus('Please fill all walk metadata fields.','err');return;}
+  var timeErrs=[];
+  ['start','walk','end'].forEach(function(f){
+    var mode=document.querySelector('input[name="um-'+f+'-mode"]:checked').value;
+    if(mode==='img'){
+      var fi=document.getElementById('um-'+f+'-file');
+      if(!(fi.files&&fi.files[0]))timeErrs.push(f);
+    }else{
+      var hh=document.getElementById('um-'+f+'-hh').value;
+      var mm=document.getElementById('um-'+f+'-mm').value;
+      var ss=document.getElementById('um-'+f+'-ss').value;
+      if(hh===''||mm===''||ss==='')timeErrs.push(f);
+    }
+  });
+  if(timeErrs.length){umStatus('Please provide '+timeErrs.join(', ')+' time(s).','err');return;}
+  var gpxReq=document.getElementById('um-gpx-file');
+  if(!(gpxReq.files&&gpxReq.files[0])){umStatus('Please attach a GPX/KML/KMZ track.','err');return;}
   var fd=new FormData();
   fd.append('date',date.replace(/-/g,''));
   fd.append('backpack',bp);fd.append('tod',tod);fd.append('collector',col);fd.append('borough',bor);fd.append('route',rt);
@@ -2698,8 +2715,7 @@ function umSubmit(){
       var hh=String(document.getElementById('um-'+f+'-hh').value||'').padStart(2,'0');
       var mm=String(document.getElementById('um-'+f+'-mm').value||'').padStart(2,'0');
       var ss=String(document.getElementById('um-'+f+'-ss').value||'').padStart(2,'0');
-      if(document.getElementById('um-'+f+'-hh').value||document.getElementById('um-'+f+'-mm').value||document.getElementById('um-'+f+'-ss').value)
-        fd.append(f+'_time_manual',hh+':'+mm+':'+ss);
+      fd.append(f+'_time_manual',hh+':'+mm+':'+ss);
     }
   });
   ['pom','pop','pam'].forEach(function(p){
@@ -2783,7 +2799,7 @@ document.addEventListener('DOMContentLoaded',function(){
       <div class="um-section-title">UTC Times</div>
       <div class="um-time-group">
         <div class="um-time-card">
-          <div class="um-tc-label">Start Time</div>
+          <div class="um-tc-label">Start Time *</div>
           <div class="um-time-radio">
             <label><input type="radio" name="um-start-mode" value="img" checked onchange="umToggleTime('start',this.value)"> Image</label>
             <label><input type="radio" name="um-start-mode" value="manual" onchange="umToggleTime('start',this.value)"> Manual</label>
@@ -2803,7 +2819,7 @@ document.addEventListener('DOMContentLoaded',function(){
           </div>
         </div>
         <div class="um-time-card">
-          <div class="um-tc-label">Walk Time</div>
+          <div class="um-tc-label">Walk Time *</div>
           <div class="um-time-radio">
             <label><input type="radio" name="um-walk-mode" value="img" checked onchange="umToggleTime('walk',this.value)"> Image</label>
             <label><input type="radio" name="um-walk-mode" value="manual" onchange="umToggleTime('walk',this.value)"> Manual</label>
@@ -2823,7 +2839,7 @@ document.addEventListener('DOMContentLoaded',function(){
           </div>
         </div>
         <div class="um-time-card">
-          <div class="um-tc-label">End Time</div>
+          <div class="um-tc-label">End Time *</div>
           <div class="um-time-radio">
             <label><input type="radio" name="um-end-mode" value="img" checked onchange="umToggleTime('end',this.value)"> Image</label>
             <label><input type="radio" name="um-end-mode" value="manual" onchange="umToggleTime('end',this.value)"> Manual</label>
@@ -2883,7 +2899,7 @@ document.addEventListener('DOMContentLoaded',function(){
       <div class="um-section-title">Track &amp; Notes</div>
       <div class="um-track-notes">
         <div class="um-notes-wrap">
-          <label class="um-notes-label">GPX Track</label>
+          <label class="um-notes-label">GPX Track *</label>
           <div class="um-drop-zone" onclick="document.getElementById('um-gpx-file').click()" ondragover="umDragOver(event,this)" ondragleave="umDragLeave(this)" ondrop="umDrop(event,this,'um-gpx-file','um-gpx-names')">
             <div class="um-dz-icon">&#x1F5FA;</div><div class="um-dz-hint">.gpx, .kml, .kmz</div>
           </div>
@@ -2955,6 +2971,45 @@ HTML_TEMPLATE = HTML_TEMPLATE.replace('__AVAIL_CELLS_A__', avail_cells_a_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__AVAIL_CELLS_B__', avail_cells_b_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__MAX_A__', str(avail_max_a))
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__MAX_B__', str(avail_max_b))
+
+# -- Upload-failure banner (rendered if upload_failures.json has recent entries) --
+import datetime as _dt
+_failure_banner_html = ""
+_failures_path = PERSISTED_DIR / "upload_failures.json"
+if _failures_path.exists():
+    try:
+        _records = json.loads(_failures_path.read_text(encoding="utf-8"))
+        _cutoff = _dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(days=7)
+        _recent = []
+        for _r in _records if isinstance(_records, list) else []:
+            try:
+                _ft = _dt.datetime.strptime(
+                    _r.get("failed_at", ""), "%Y-%m-%dT%H:%M:%SZ"
+                ).replace(tzinfo=_dt.timezone.utc)
+            except Exception:
+                continue
+            if _ft >= _cutoff:
+                _recent.append(_r)
+        if _recent:
+            _items = "".join(
+                f"<li><code>{_r.get('walk_code','?')}</code> — "
+                f"{_r.get('failed_at','?')} — {_r.get('error','?')[:200]}</li>"
+                for _r in _recent[-10:]
+            )
+            _failure_banner_html = (
+                "<div id=\"upload-failure-banner\" style=\""
+                "background:#5a1d1d;color:#ffd6d6;border-bottom:2px solid #f85149;"
+                "padding:10px 16px;font-family:system-ui,sans-serif;font-size:13px;"
+                "z-index:9999;position:relative\">"
+                f"<strong>⚠ {len(_recent)} upload(s) failed to sync to Drive in the last 7 days.</strong> "
+                "Files remain in <code>upload_holding_bucket/failed/</code>. "
+                f"<details style=\"display:inline-block;margin-left:8px\"><summary>show recent</summary>"
+                f"<ul style=\"margin:6px 0 0 18px\">{_items}</ul></details>"
+                "</div>"
+            )
+    except Exception as _exc:
+        print(f"[dashboard] upload-failure banner read warning: {_exc}")
+HTML_TEMPLATE = HTML_TEMPLATE.replace("<body>", "<body>\n" + _failure_banner_html, 1)
 
 # Fix double file reader issue
 HTML_TEMPLATE = HTML_TEMPLATE.replace(
