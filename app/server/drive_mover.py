@@ -26,8 +26,6 @@ MAX_ATTEMPTS = int(os.environ.get("UPLOAD_MAX_ATTEMPTS", "6"))
 DONE_RETENTION_DAYS = int(os.environ.get("UPLOAD_DONE_RETENTION_DAYS", "7"))
 FAILED_RETENTION_DAYS = int(os.environ.get("UPLOAD_FAILED_RETENTION_DAYS", "30"))
 
-_DEBOUNCE_SECONDS = 30
-_last_poll_trigger: float = 0.0
 _cleanup_last: float = 0.0
 _thread_started = False
 _helpers: dict = {}
@@ -44,13 +42,12 @@ class PermanentDriveError(Exception):
 # ── Public API ───────────────────────────────────────────────────────────────
 
 def bind(*, get_drive_service, get_folder_id, find_folder_by_prefix,
-         create_or_get_folder, run_drive_poll) -> None:
+         create_or_get_folder) -> None:
     """Inject helpers from serve.py. Must be called before start_mover_thread()."""
     _helpers["get_drive_service"] = get_drive_service
     _helpers["get_folder_id"] = get_folder_id
     _helpers["find_folder_by_prefix"] = find_folder_by_prefix
     _helpers["create_or_get_folder"] = create_or_get_folder
-    _helpers["run_drive_poll"] = run_drive_poll
 
 
 def start_mover_thread() -> None:
@@ -117,7 +114,6 @@ def _process_one(ref) -> None:
             return
 
         upload_buffer.archive_submission(claimed)
-        _maybe_trigger_drive_poll()
     finally:
         upload_buffer.release_claim(claimed)
 
@@ -295,23 +291,6 @@ def _upload_stream_to_drive(svc, folder_id: str, filename: str, fp) -> str:
         raise
     except Exception as exc:
         raise TransientDriveError(f"upload error: {exc}") from exc
-
-
-# ── Drive poll debounce ──────────────────────────────────────────────────────
-
-def _maybe_trigger_drive_poll() -> None:
-    global _last_poll_trigger
-    now = time.time()
-    if now - _last_poll_trigger < _DEBOUNCE_SECONDS:
-        return
-    _last_poll_trigger = now
-    fn = _helpers.get("run_drive_poll")
-    if fn is None:
-        return
-    try:
-        threading.Thread(target=fn, args=("upload-mover",), daemon=True).start()
-    except Exception as exc:
-        print(f"[upload-mover] poll trigger error: {exc}")
 
 
 def _utc_now_iso() -> str:

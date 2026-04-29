@@ -7,7 +7,7 @@ The **Upload Data** button in the dashboard top bar opens a modal that lets fiel
 1. Validates the walk code against the standard regex
 2. **Stages all files into the GCS holding bucket** (`upload_holding_bucket`) and returns 200 to the browser as soon as that staging succeeds — so the user-visible response is decoupled from Drive flakiness
 3. A background **mover thread** asynchronously moves the staged submission into Drive (creating the borough → route → walk folder hierarchy and uploading each file with idempotent retries)
-4. On Drive success the holding-bucket payload is archived and `_run_drive_poll("upload-mover")` rebuilds `Walks_Log.txt` and triggers a dashboard rebuild
+4. On Drive success the holding-bucket payload is archived; `Walks_Log.txt` is updated later by the regular Drive poll path
 5. On terminal Drive failure the payload is moved to `failed/` and a banner is rendered on the dashboard
 
 If `UPLOAD_HOLDING_BUCKET` is unset, or holding-bucket staging itself fails, the handler **falls back** to the legacy direct-Drive write path so local dev and degraded deployments stay functional.
@@ -197,7 +197,7 @@ Check Cloud Run logs for `[upload] file '...' field='...' size=N` lines:
 - If size is correct but no `[drive] Uploaded '...'` line follows: `_drive_upload_file` raised an exception — look for the error message immediately after
 
 ### Walk not appearing in `Walks_Log.txt` / dashboard not updating
-The `_run_drive_poll("upload-mover")` call runs in a background thread after the mover archives a successful submission. It can take 15–60 seconds end-to-end (up to one mover-loop interval plus Drive write time). If it still doesn't appear:
+Uploads do not immediately rebuild `Walks_Log.txt`. The mover first has to place the files in Drive, and then the normal Drive poll path has to run. If it still doesn't appear after the next poll:
 - Check `gsutil ls gs://upload_holding_bucket/pending/` to see if the submission is stuck staged
 - Look for `[upload-mover]` lines in server logs
 - Confirm the walk folder was created in Drive (if not, the mover is failing — check its attempt logs in the manifest)

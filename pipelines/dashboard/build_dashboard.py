@@ -318,8 +318,10 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 #auth-modal-cancel{padding:6px 14px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:5px;cursor:pointer;font-size:12px;font-weight:500;transition:all .15s}
 #auth-modal-cancel:hover{background:var(--bg3);color:var(--text)}
 /* -- Calibration entry button & modal -- */
-#cb-log-btn{padding:3px 9px;background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text2);border-radius:5px;cursor:pointer;font-size:10px;font-weight:600;font-family:'Space Grotesk',sans-serif;letter-spacing:.4px;transition:all .15s;white-space:nowrap;align-self:center;flex-shrink:0}
-#cb-log-btn:hover{background:rgba(255,255,255,.12);color:var(--text);border-color:rgba(255,255,255,.2)}
+.cb-log-btn{padding:3px 9px;background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text2);border-radius:5px;cursor:pointer;font-size:10px;font-weight:600;font-family:'Space Grotesk',sans-serif;letter-spacing:.4px;transition:all .15s;white-space:nowrap;align-self:center;flex-shrink:0}
+.cb-log-btn:hover{background:rgba(255,255,255,.12);color:var(--text);border-color:rgba(255,255,255,.2)}
+.cal-bar[data-bp="A"] .cb-log-btn{border-color:rgba(124,58,237,.4);color:rgba(167,139,250,.9)}
+.cal-bar[data-bp="B"] .cb-log-btn{border-color:rgba(220,38,38,.4);color:rgba(252,165,165,.9)}
 #recal-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
 #recal-modal-bg.open{display:flex}
 #recal-modal{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:22px 24px;width:300px;display:flex;flex-direction:column;gap:14px;box-shadow:0 16px 48px rgba(0,0,0,.8)}
@@ -327,6 +329,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 #recal-modal label{font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px}
 #recal-modal input[type=date]{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:5px 8px;font-size:12px;height:32px;outline:none;box-sizing:border-box}
 #recal-modal input[type=date]:focus{border-color:var(--accent)}
+#recal-bp-choices{display:flex;gap:10px;margin-top:4px}
+#recal-bp-choices label{font-size:12px;color:var(--text);text-transform:none;letter-spacing:0;display:flex;align-items:center;gap:5px;cursor:pointer}
+#recal-bp-choices input[type=radio]{accent-color:var(--accent);cursor:pointer}
 #recal-modal-msg{font-size:11px;border-radius:5px;padding:6px 9px;display:none}
 #recal-modal-msg.err{color:var(--red);background:var(--red-bg);border:1px solid rgba(248,81,73,.3)}
 #recal-modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:2px}
@@ -494,28 +499,33 @@ select option{background:var(--bg3)}
 #wx-cutoff-pill{display:flex;align-items:center;gap:5px;padding:0 10px;height:40px;border-radius:6px;background:rgba(255,255,255,.05);border:1px solid var(--border);font-size:12px;font-weight:700;color:var(--text2);white-space:nowrap;font-family:'Space Grotesk',sans-serif;flex-shrink:0;letter-spacing:.1px}
 #wx-cutoff-pill .wx-good{color:var(--green)}
 #wx-cutoff-pill .wx-bad{color:var(--red)}
-/* -- Days Since Calibration bar -- */
-#cal-bar{display:flex;align-items:center;gap:12px;padding:0 14px;height:40px;border-radius:7px;background:rgba(255,255,255,.04);border:1px solid var(--border);font-family:'Space Grotesk',sans-serif;flex-shrink:0;margin-left:8px;box-sizing:border-box}
-#cal-bar .cb-label{display:flex;flex-direction:column;align-items:center;justify-content:space-evenly;height:100%;line-height:1;white-space:nowrap}
-#cal-bar .cb-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--text2)}
-#cal-bar .cb-count{font-size:16px;font-weight:700;color:var(--text);letter-spacing:-.5px;font-variant-numeric:tabular-nums;line-height:1}
-#cal-bar .cb-count .cb-count-num{transition:color .2s}
-#cal-bar .cb-last{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--text2);font-family:'Space Grotesk',sans-serif;line-height:1}
-#cal-bar .cb-last b{color:var(--text)}
-#cal-bar .cb-track{position:relative;flex-shrink:0;width:170px;height:12px;border-radius:7px;background:linear-gradient(90deg,rgba(63,185,80,.14) 0%,rgba(63,185,80,.14) 40%,rgba(210,153,34,.14) 44%,rgba(210,153,34,.14) 64%,rgba(248,81,73,.16) 68%,rgba(248,81,73,.16) 100%);border:1px solid rgba(255,255,255,.06);overflow:hidden}
-#cal-bar .cb-fill{position:absolute;top:0;left:0;bottom:0;width:0%;border-radius:7px 0 0 7px;background:linear-gradient(90deg,#3fb950 0%,#3fb950 38%,#d29922 52%,#d29922 73%,#f85149 85%,#f85149 100%);background-size:170px 100%;background-position:0 0;box-shadow:0 0 8px rgba(63,185,80,.25);transition:width .6s cubic-bezier(.22,.61,.36,1),box-shadow .4s ease}
-#cal-bar[data-zone="yellow"] .cb-fill{box-shadow:0 0 10px rgba(210,153,34,.35)}
-#cal-bar[data-zone="red"] .cb-fill{box-shadow:0 0 14px rgba(248,81,73,.5)}
-#cal-bar .cb-fill::after{content:'';position:absolute;right:0;top:0;bottom:0;width:10px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35));pointer-events:none}
-#cal-bar .cb-zonemark{position:absolute;top:-1px;bottom:-1px;width:1px;background:rgba(255,255,255,.18);pointer-events:none}
-#cal-bar[data-zone="green"] .cb-count-num{color:var(--green)}
-#cal-bar[data-zone="yellow"] .cb-count-num{color:var(--yellow)}
-#cal-bar[data-zone="red"] .cb-count-num{color:var(--red);animation:cb-red-pulse 1.8s ease-in-out infinite}
+/* -- Days Since Calibration bars -- */
+#cal-bars{display:flex;flex-direction:row;gap:6px;flex-shrink:0;margin-left:8px}
+.cal-bar{display:flex;align-items:center;gap:12px;padding:0 14px;height:40px;border-radius:7px;background:rgba(255,255,255,.04);border:1px solid var(--border);font-family:'Space Grotesk',sans-serif;flex-shrink:0;box-sizing:border-box}
+.cal-bar[data-bp="A"]{border-color:rgba(124,58,237,.35)}
+.cal-bar[data-bp="B"]{border-color:rgba(220,38,38,.35)}
+.cal-bar .cb-label{display:flex;flex-direction:column;align-items:center;justify-content:space-evenly;height:100%;line-height:1;white-space:nowrap}
+.cal-bar .cb-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--text2)}
+.cal-bar[data-bp="A"] .cb-title{color:rgba(167,139,250,.85)}
+.cal-bar[data-bp="B"] .cb-title{color:rgba(252,165,165,.85)}
+.cal-bar .cb-count{font-size:16px;font-weight:700;color:var(--text);letter-spacing:-.5px;font-variant-numeric:tabular-nums;line-height:1}
+.cal-bar .cb-count .cb-count-num{transition:color .2s}
+.cal-bar .cb-last{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--text2);font-family:'Space Grotesk',sans-serif;line-height:1}
+.cal-bar .cb-last b{color:var(--text)}
+.cal-bar .cb-track{position:relative;flex-shrink:0;width:170px;height:12px;border-radius:7px;background:linear-gradient(90deg,rgba(63,185,80,.14) 0%,rgba(63,185,80,.14) 40%,rgba(210,153,34,.14) 44%,rgba(210,153,34,.14) 64%,rgba(248,81,73,.16) 68%,rgba(248,81,73,.16) 100%);border:1px solid rgba(255,255,255,.06);overflow:hidden}
+.cal-bar .cb-fill{position:absolute;top:0;left:0;bottom:0;width:0%;border-radius:7px 0 0 7px;background:linear-gradient(90deg,#3fb950 0%,#3fb950 38%,#d29922 52%,#d29922 73%,#f85149 85%,#f85149 100%);background-size:170px 100%;background-position:0 0;box-shadow:0 0 8px rgba(63,185,80,.25);transition:width .6s cubic-bezier(.22,.61,.36,1),box-shadow .4s ease}
+.cal-bar[data-zone="yellow"] .cb-fill{box-shadow:0 0 10px rgba(210,153,34,.35)}
+.cal-bar[data-zone="red"] .cb-fill{box-shadow:0 0 14px rgba(248,81,73,.5)}
+.cal-bar .cb-fill::after{content:'';position:absolute;right:0;top:0;bottom:0;width:10px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35));pointer-events:none}
+.cal-bar .cb-zonemark{position:absolute;top:-1px;bottom:-1px;width:1px;background:rgba(255,255,255,.18);pointer-events:none}
+.cal-bar[data-zone="green"] .cb-count-num{color:var(--green)}
+.cal-bar[data-zone="yellow"] .cb-count-num{color:var(--yellow)}
+.cal-bar[data-zone="red"] .cb-count-num{color:var(--red);animation:cb-red-pulse 1.8s ease-in-out infinite}
 @keyframes cb-red-pulse{0%,100%{text-shadow:0 0 0 rgba(248,81,73,0)}50%{text-shadow:0 0 8px rgba(248,81,73,.55)}}
-#cal-bar .cb-scale{display:flex;gap:0;font-size:8px;color:var(--text3);letter-spacing:.5px;font-weight:600;user-select:none;width:170px;position:relative;height:9px}
-#cal-bar .cb-scale-words{margin-top:2px}
-#cal-bar .cb-track-wrap{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;height:100%;padding:0 14px}
-#cal-bar .cb-scale span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+.cal-bar .cb-scale{display:flex;gap:0;font-size:8px;color:var(--text3);letter-spacing:.5px;font-weight:600;user-select:none;width:170px;position:relative;height:9px}
+.cal-bar .cb-scale-words{margin-top:2px}
+.cal-bar .cb-track-wrap{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;height:100%;padding:0 14px}
+.cal-bar .cb-scale span{position:absolute;transform:translateX(-50%);white-space:nowrap}
 .cal-cell.cal-today-col{background:rgba(56,139,253,.05)}
 .cal-cell.cal-past-col{background:rgba(0,0,0,.12)}
 .cal-cell.cal-weekend{background:rgba(255,255,255,.012)}
@@ -530,7 +540,10 @@ select option{background:var(--bg3)}
 .cal-event.completed .ce-bp::before{content:'[OK] '}
 .ce-route{font-size:11px;font-weight:600;color:var(--text);line-height:1.3}
 .ce-col{font-size:9.5px;color:var(--text2);margin-top:3px}
-.cal-recal-tag{background:rgba(240,165,0,.12);border:1px dashed #f0a500;border-radius:4px;padding:5px 8px;font-size:9.5px;color:#f0a500;text-align:center;font-weight:700;letter-spacing:.3px}
+.cal-recal-tag{border-radius:4px;padding:4px 7px;font-size:9.5px;text-align:center;font-weight:700;letter-spacing:.3px;margin-top:2px}
+.cal-recal-tag.proposed{background:rgba(240,165,0,.12);border:1px dashed #f0a500;color:#f0a500}
+.cal-recal-tag.bp-a{background:rgba(124,58,237,.15);border:1px solid rgba(124,58,237,.5);color:#a78bfa}
+.cal-recal-tag.bp-b{background:rgba(220,38,38,.15);border:1px solid rgba(220,38,38,.5);color:#fca5a5}
 /* Weather Bad indicator */
 .weather-bad{position:absolute;inset:0;background:rgba(255,140,0,.24);border-radius:5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;z-index:1;pointer-events:none}
 .weather-bad .bad-label{font-size:9px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:.3px;margin-bottom:1px}
@@ -682,7 +695,7 @@ select option{background:var(--bg3)}
   #tempo-logo{height:30px}
   #header-divider{display:none}
   #wx-cutoff-pill{display:none}
-  #cal-bar{display:none}
+  #cal-bars{display:none}
   .sched-unlock-btn,.force-rebuild-btn{order:1;flex-shrink:0;margin:0}
   /* Row 2: title full width */
   #header-title{order:2;flex-basis:100%;flex-shrink:1;min-width:0;text-align:left;margin-top:6px}
@@ -927,25 +940,47 @@ setTimeout(function(){
         <div id="wx-cutoff-pill" title="Cloud cover threshold &mdash; slots at or below 50% are marked GO" style="margin-left:auto">
           &#x2601; <span class="wx-good">&#x2264;50%&nbsp;GO</span>&nbsp;<span style="color:var(--border)">|</span>&nbsp;<span class="wx-bad">&gt;50%&nbsp;NO&nbsp;GO</span>
         </div>
-        <div id="cal-bar" data-zone="green">
-          <div class="cb-label">
-            <span class="cb-title">Days Since Calibration</span>
-            <span class="cb-count"><span class="cb-count-num">0</span></span>
-            <div class="cb-last"><b id="cb-last-date">&mdash;</b></div>
-          </div>
-          <div class="cb-track-wrap">
-            <div class="cb-track" id="cb-track">
-              <div class="cb-zonemark" style="left:40%"></div>
-              <div class="cb-zonemark" style="left:64%"></div>
-              <div class="cb-fill" id="cb-fill"></div>
+        <div id="cal-bars">
+          <div class="cal-bar" data-bp="A" data-zone="green">
+            <div class="cb-label">
+              <span class="cb-title">BP A &middot; CCNY &middot; Days Since Cal</span>
+              <span class="cb-count"><span class="cb-count-num">0</span></span>
+              <div class="cb-last"><b class="cb-last-date">&mdash;</b></div>
             </div>
-            <div class="cb-scale cb-scale-words">
-              <span id="cb-scale-good" style="left:20%;color:var(--green)">GOOD</span>
-              <span id="cb-scale-soon" style="left:52%;color:var(--yellow)">SOON</span>
-              <span id="cb-scale-over" style="left:82%;color:var(--red)">OVERDUE</span>
+            <div class="cb-track-wrap">
+              <div class="cb-track">
+                <div class="cb-zonemark" style="left:40%"></div>
+                <div class="cb-zonemark" style="left:64%"></div>
+                <div class="cb-fill"></div>
+              </div>
+              <div class="cb-scale cb-scale-words">
+                <span class="cb-scale-good" style="left:20%;color:var(--green)">GOOD</span>
+                <span class="cb-scale-soon" style="left:52%;color:var(--yellow)">SOON</span>
+                <span class="cb-scale-over" style="left:82%;color:var(--red)">OVERDUE</span>
+              </div>
             </div>
+            <button class="cb-log-btn" data-bp="A" title="Record Backpack A calibration">+ Log Cal A</button>
           </div>
-          <button id="cb-log-btn" title="Record a calibration event">+ Log Cal</button>
+          <div class="cal-bar" data-bp="B" data-zone="green">
+            <div class="cb-label">
+              <span class="cb-title">BP B &middot; LaGCC &middot; Days Since Cal</span>
+              <span class="cb-count"><span class="cb-count-num">0</span></span>
+              <div class="cb-last"><b class="cb-last-date">&mdash;</b></div>
+            </div>
+            <div class="cb-track-wrap">
+              <div class="cb-track">
+                <div class="cb-zonemark" style="left:40%"></div>
+                <div class="cb-zonemark" style="left:64%"></div>
+                <div class="cb-fill"></div>
+              </div>
+              <div class="cb-scale cb-scale-words">
+                <span class="cb-scale-good" style="left:20%;color:var(--green)">GOOD</span>
+                <span class="cb-scale-soon" style="left:52%;color:var(--yellow)">SOON</span>
+                <span class="cb-scale-over" style="left:82%;color:var(--red)">OVERDUE</span>
+              </div>
+            </div>
+            <button class="cb-log-btn" data-bp="B" title="Record Backpack B calibration">+ Log Cal B</button>
+          </div>
         </div>
       </div>
       <div id="cal-body">
@@ -1932,47 +1967,50 @@ const TWEAK_DEFAULTS = /*EDITMODE-START*/{"calBarMax":22,"calBarGreenEnd":10,"ca
 let CAL_BAR_MAX = TWEAK_DEFAULTS.calBarMax;
 let CAL_BAR_GREEN_END = TWEAK_DEFAULTS.calBarGreenEnd;
 let CAL_BAR_YELLOW_END = TWEAK_DEFAULTS.calBarYellowEnd;
-let _lastRecalEntry=null;
+let recalEntries={A:[],B:[]};
 
-function getLastCalibrationDate(){
-  if(_lastRecalEntry instanceof Date&&!isNaN(_lastRecalEntry))return _lastRecalEntry;
-  let latest=null;
-  if(Array.isArray(allWalks)&&allWalks.length){
-    for(const w of allWalks){
-      if(w.date instanceof Date&&!isNaN(w.date)){
-        if(!latest||w.date>latest)latest=w.date;
-      }
+async function loadRecalLog(){
+  try{
+    const r=await fetch('Recal_Log.txt?_ts='+Date.now(),{cache:'no-store'});
+    if(!r.ok)return;
+    const text=await r.text();
+    const next={A:[],B:[]};
+    const re=/^RECAL_([AB])_(\\d{4})(\\d{2})(\\d{2})\\s*$/;
+    for(const line of text.split(/\\r?\\n/)){
+      const m=re.exec(line.trim());
+      if(!m)continue;
+      const d=new Date(+m[2],+m[3]-1,+m[4]);
+      if(!isNaN(d))next[m[1]].push(d);
     }
-  }
-  if(!latest&&typeof logText==='string'&&logText){
-    const re=/(20\\d{2})(\\d{2})(\\d{2})/g;let m;
-    while((m=re.exec(logText))){
-      const d=new Date(+m[1],+m[2]-1,+m[3]);
-      if(!isNaN(d)&&(!latest||d>latest))latest=d;
-    }
-  }
-  return latest;
+    next.A.sort((a,b)=>a-b);
+    next.B.sort((a,b)=>a-b);
+    recalEntries=next;
+  }catch(_e){}
 }
 
-function updateCalibrationBar(){
-  const bar=document.getElementById('cal-bar');
-  const numEl=bar&&bar.querySelector('.cb-count-num');
-  const fill=document.getElementById('cb-fill');
-  if(!bar||!numEl||!fill)return;
+function getLastCalibrationDate(bp){
+  const arr=(recalEntries&&recalEntries[bp])||[];
+  return arr.length?arr[arr.length-1]:null;
+}
+
+function _isSameDay(a,b){
+  return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
+}
+
+function updateCalibrationBar(bp){
+  const bar=document.querySelector(`.cal-bar[data-bp="${bp}"]`);
+  if(!bar)return;
+  const numEl=bar.querySelector('.cb-count-num');
+  const fill=bar.querySelector('.cb-fill');
+  if(!numEl||!fill)return;
   const zMarks=bar.querySelectorAll('.cb-zonemark');
   if(zMarks.length>=2){
     zMarks[0].style.left=(CAL_BAR_GREEN_END/CAL_BAR_MAX*100).toFixed(2)+'%';
     zMarks[1].style.left=(CAL_BAR_YELLOW_END/CAL_BAR_MAX*100).toFixed(2)+'%';
   }
-  const gNum=document.getElementById('cb-scale-green');
-  const yNum=document.getElementById('cb-scale-yellow');
-  const mxNum=document.getElementById('cb-scale-max');
-  if(gNum){gNum.textContent=String(CAL_BAR_GREEN_END);gNum.style.left=(CAL_BAR_GREEN_END/CAL_BAR_MAX*100).toFixed(2)+'%';gNum.style.transform='translateX(-50%)';}
-  if(yNum){yNum.textContent=String(CAL_BAR_YELLOW_END);yNum.style.left=(CAL_BAR_YELLOW_END/CAL_BAR_MAX*100).toFixed(2)+'%';yNum.style.transform='translateX(-50%)';}
-  if(mxNum)mxNum.textContent=String(CAL_BAR_MAX);
-  const gLbl=document.getElementById('cb-scale-good');
-  const sLbl=document.getElementById('cb-scale-soon');
-  const oLbl=document.getElementById('cb-scale-over');
+  const gLbl=bar.querySelector('.cb-scale-good');
+  const sLbl=bar.querySelector('.cb-scale-soon');
+  const oLbl=bar.querySelector('.cb-scale-over');
   if(gLbl)gLbl.style.left=((CAL_BAR_GREEN_END/2)/CAL_BAR_MAX*100).toFixed(2)+'%';
   if(sLbl)sLbl.style.left=(((CAL_BAR_GREEN_END+CAL_BAR_YELLOW_END)/2)/CAL_BAR_MAX*100).toFixed(2)+'%';
   if(oLbl)oLbl.style.left=(((CAL_BAR_YELLOW_END+CAL_BAR_MAX)/2)/CAL_BAR_MAX*100).toFixed(2)+'%';
@@ -1985,7 +2023,7 @@ function updateCalibrationBar(){
     track.style.background=
       `linear-gradient(90deg,rgba(63,185,80,.14) 0%,rgba(63,185,80,.14) ${g1}%,rgba(210,153,34,.14) ${g2}%,rgba(210,153,34,.14) ${y1}%,rgba(248,81,73,.16) ${y2}%,rgba(248,81,73,.16) 100%)`;
   }
-  const last=getLastCalibrationDate();
+  const last=getLastCalibrationDate(bp);
   let days=0;
   if(last){
     const today=new Date();today.setHours(0,0,0,0);
@@ -1994,11 +2032,11 @@ function updateCalibrationBar(){
   }
   const shown=Math.min(days,CAL_BAR_MAX);
   numEl.textContent=last?String(days):'?';
-  const lastEl=document.getElementById('cb-last-date');
+  const lastEl=bar.querySelector('.cb-last-date');
   if(lastEl){
     lastEl.textContent=last
       ? last.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
-      : 'No data in Walks_Log.txt';
+      : 'No entries yet';
   }
   let zone='green';
   if(days>CAL_BAR_YELLOW_END)zone='red';
@@ -2010,12 +2048,14 @@ function updateCalibrationBar(){
   if(!last)fill.style.width='0%';
 }
 
+function updateCalibrationBars(){updateCalibrationBar('A');updateCalibrationBar('B');}
+
 function renderCalendar(){
   const grid=document.getElementById('cal-grid');
   const title=document.getElementById('cal-title');
   if(!grid)return;
 
-  updateCalibrationBar();
+  updateCalibrationBars();
 
   const weeks=buildTlWeeks();
   if(!weeks.length){
@@ -2090,9 +2130,17 @@ function renderCalendar(){
       if(isBadWeather){
         cellContent+=`<div class="weather-bad"><div class="bad-label">BAD</div><div class="no-sign">NO GO</div><div class="weather-label">WEATHER</div></div>`;
       }
-      // Recalibration tag in AM cell
-      if(isRecal&&ctod==='AM'){
-        cellContent+=`<div class="cal-recal-tag">* Recalibration - CCNY</div>`;
+      // Recalibration tags in AM cell
+      if(ctod==='AM'){
+        if(isRecal){
+          cellContent+=`<div class="cal-recal-tag proposed">&#x2605; Recal proposed</div>`;
+        }
+        for(const bp of['A','B']){
+          if((recalEntries[bp]||[]).some(d=>_isSameDay(d,dd))){
+            const campus=bp==='A'?'CCNY':'LaGCC';
+            cellContent+=`<div class="cal-recal-tag bp-${bp.toLowerCase()}">&#x2713; Recal ${bp} \xb7 ${campus}</div>`;
+          }
+        }
       }
       // Walk event cards
       for(const w of walks){
@@ -2372,15 +2420,21 @@ function bindEvents(){
     });
   }
   // --- Calibration entry modal ---
-  const cbLogBtn=document.getElementById('cb-log-btn');
-  if(cbLogBtn){
-    cbLogBtn.addEventListener('click',()=>{
-      if(!requireAuth('Log Calibration'))return;
-      document.getElementById('recal-date').value=new Date().toISOString().slice(0,10);
-      document.getElementById('recal-modal-msg').style.display='none';
-      document.getElementById('recal-modal-bg').classList.add('open');
-    });
+  function openRecalModal(prefillBp){
+    if(!requireAuth('Log Calibration'))return;
+    document.getElementById('recal-date').value=new Date().toISOString().slice(0,10);
+    document.getElementById('recal-modal-msg').style.display='none';
+    // Reset radio selection, then optionally prefill
+    document.querySelectorAll('input[name="recal-bp"]').forEach(r=>r.checked=false);
+    if(prefillBp){
+      const r=document.querySelector(`input[name="recal-bp"][value="${prefillBp}"]`);
+      if(r)r.checked=true;
+    }
+    document.getElementById('recal-modal-bg').classList.add('open');
   }
+  document.querySelectorAll('.cb-log-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>openRecalModal(btn.dataset.bp));
+  });
   document.getElementById('recal-modal-cancel').addEventListener('click',()=>{
     document.getElementById('recal-modal-bg').classList.remove('open');
   });
@@ -2389,18 +2443,23 @@ function bindEvents(){
   });
   document.getElementById('recal-modal-submit').addEventListener('click',async()=>{
     const dateVal=document.getElementById('recal-date').value;
+    const bpSel=document.querySelector('input[name="recal-bp"]:checked');
     const msg=document.getElementById('recal-modal-msg');
     if(!dateVal){msg.className='err';msg.textContent='Please select a date.';msg.style.display='block';return;}
+    if(!bpSel){msg.className='err';msg.textContent='Please select which backpack was calibrated.';msg.style.display='block';return;}
+    const bp=bpSel.value;
     const pin=schedAuth.pin||'';
     const btn=document.getElementById('recal-modal-submit');
     btn.disabled=true;btn.textContent='Saving\u2026';
     try{
-      const r=await fetch('/api/record-calibration',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:dateVal,pin})});
+      const r=await fetch('/api/record-calibration',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:dateVal,backpack:bp,pin})});
       if(r.ok){
-        _lastRecalEntry=new Date(dateVal+'T12:00:00');
         document.getElementById('recal-modal-bg').classList.remove('open');
-        updateCalibrationBar();
-        toast('Calibration logged for '+dateVal,'success');
+        await loadRecalLog();
+        updateCalibrationBars();
+        renderCalendar();
+        const campus=bp==='A'?'CCNY':'LaGCC';
+        toast(`Calibration logged for Backpack ${bp} \xb7 ${campus} on ${dateVal}`,'success');
       }else{
         const j=await r.json().catch(()=>({}));
         msg.className='err';msg.textContent=j.error||'Failed to save.';msg.style.display='block';
@@ -2417,6 +2476,7 @@ async function init(){
     const r=await fetch('Walks_Log.txt?_ts='+Date.now(),{cache:'no-store'});
     if(r.ok){logText=await r.text();src='Walks_Log.txt';}
   }catch(e){}
+  await loadRecalLog();
   let schedLoaded=false;
   if(RUNTIME_SCHEDULE&&RUNTIME_SCHEDULE.assignments){
     schedData=RUNTIME_SCHEDULE;schedLoaded=true;loadScheduleJSON(JSON.stringify(RUNTIME_SCHEDULE));
@@ -2926,6 +2986,13 @@ document.addEventListener('DOMContentLoaded',function(){
     <div>
       <label for="recal-date">Calibration Date</label>
       <input type="date" id="recal-date">
+    </div>
+    <div>
+      <label>Backpack *</label>
+      <div id="recal-bp-choices" role="radiogroup">
+        <label><input type="radio" name="recal-bp" value="A"> Backpack A &mdash; CCNY</label>
+        <label><input type="radio" name="recal-bp" value="B"> Backpack B &mdash; LaGCC</label>
+      </div>
     </div>
     <div id="recal-modal-msg"></div>
     <div id="recal-modal-actions">

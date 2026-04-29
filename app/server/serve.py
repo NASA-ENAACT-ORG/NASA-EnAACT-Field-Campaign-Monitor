@@ -18,11 +18,11 @@ Endpoints:
 """
 
 import argparse
-import cgi
+import email.parser
+import email.policy
 import io
 import json
 import mimetypes
-import warnings
 import os
 import re
 import subprocess
@@ -42,6 +42,7 @@ if str(_REPO_ROOT) not in sys.path:
 from shared.paths import (
     REPO_ROOT,
     SITE_DIR,
+    PERSISTED_DIR,
     WALK_SCHEDULER,
     BUILD_WEATHER,
     BUILD_DASHBOARD,
@@ -254,36 +255,36 @@ def _parse_multipart(headers, body: bytes) -> tuple[dict, dict]:
     """Parse multipart/form-data. Returns (fields, files).
     fields: {name: str}
     files:  {name: [(filename, bytes), ...]}
-    Uses cgi.FieldStorage — the stdlib's purpose-built multipart parser —
-    so binary file payloads are read correctly.
+    Uses email.parser — pure stdlib, works on Python 3.13+.
     """
-    environ = {
-        "REQUEST_METHOD": "POST",
-        "CONTENT_TYPE": headers.get("Content-Type", ""),
-        "CONTENT_LENGTH": str(len(body)),
-    }
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        fs = cgi.FieldStorage(
-            fp=io.BytesIO(body),
-            environ=environ,
-            keep_blank_values=True,
-        )
+    content_type = headers.get("Content-Type", "")
+    # Build a minimal MIME message so email.parser can parse it
+    raw = b"Content-Type: " + content_type.encode() + b"\r\n\r\n" + body
+    msg = email.parser.BytesParser(policy=email.policy.compat32).parsebytes(raw)
+
     fields: dict = {}
     files: dict = {}
-    for key in fs.keys():
-        items = fs[key]
-        if not isinstance(items, list):
-            items = [items]
-        for item in items:
-            if getattr(item, "filename", None):
-                if hasattr(item.file, "seek"):
-                    item.file.seek(0)
-                data = item.file.read()
-                print(f"[upload] file '{item.filename}' field='{key}' size={len(data)}")
-                files.setdefault(key, []).append((item.filename, data))
-            else:
-                fields[key] = item.value if hasattr(item, "value") else str(item)
+    for part in msg.get_payload():
+        disposition = part.get("Content-Disposition", "")
+        # Extract name= and optional filename= from the disposition header
+        name = None
+        filename = None
+        for segment in disposition.split(";"):
+            segment = segment.strip()
+            if segment.lower().startswith("name="):
+                name = segment[5:].strip().strip('"')
+            elif segment.lower().startswith("filename="):
+                filename = segment[9:].strip().strip('"')
+        if name is None:
+            continue
+        payload = part.get_payload(decode=True)
+        if payload is None:
+            payload = b""
+        if filename:
+            print(f"[upload] file '{filename}' field='{name}' size={len(payload)}")
+            files.setdefault(name, []).append((filename, payload))
+        else:
+            fields[name] = payload.decode("utf-8", errors="replace")
     return fields, files
 
 
@@ -637,8 +638,12 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, "application/json", body)
             return
 
-        # Static files -- served from the generated site output directory
-        file_path = SITE_DIR / path
+        # Static files -- served from the generated site output directory.
+        # Runtime logs are persisted separately and served from PERSISTED_DIR.
+        if path in ("Walks_Log.txt", "Recal_Log.txt"):
+            file_path = PERSISTED_DIR / path
+        else:
+            file_path = SITE_DIR / path
         if not file_path.exists() or not file_path.is_file():
             self._send(404, "text/plain", b"Not found")
             return
@@ -746,9 +751,14 @@ class Handler(BaseHTTPRequestHandler):
                            json.dumps({"error": "wrong pin"}).encode())
                 return
             date_str = payload.get("date", "")
+            bp = (payload.get("backpack", "") or "").upper()
             if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_str):
                 self._send(400, "application/json",
                            json.dumps({"error": "invalid date"}).encode())
+                return
+            if bp not in ("A", "B"):
+                self._send(400, "application/json",
+                           json.dumps({"error": "backpack must be 'A' or 'B'"}).encode())
                 return
             try:
                 # Pull the latest Recal_Log from GCS so the append is based on
@@ -757,7 +767,7 @@ class Handler(BaseHTTPRequestHandler):
                 _download_from_gcs("Recal_Log.txt", RECAL_LOG)
                 RECAL_LOG.parent.mkdir(parents=True, exist_ok=True)
                 y, m, d = date_str.split("-")
-                entry = f"RECAL_{m}_{d}_{y}\n"
+                entry = f"RECAL_{bp}_{y}{m}{d}\n"
                 with open(RECAL_LOG, "a") as fh:
                     fh.write(entry)
                 if _gcs_bucket:
@@ -823,8 +833,8 @@ class Handler(BaseHTTPRequestHandler):
                     print(f"[upload] Holding bucket staging failed: {exc} "
                           f"— falling back to direct Drive")
 
-            # Create the walk folder in Drive (named with the walk code so that
-            # _run_drive_poll detects it, parses the name, and rebuilds Walks_Log.txt).
+            # Create the walk folder in Drive. Walks_Log.txt is updated only by
+            # the regular Drive poll path, not immediately by this upload handler.
             if DRIVE_FOLDER_ID:
                 try:
                     svc = _get_drive_write_service()
@@ -880,23 +890,9 @@ class Handler(BaseHTTPRequestHandler):
                         print(f"[upload] Drive folder ready: {walk_code}")
                 except Exception as exc:
                     print(f"[upload] Drive error (non-fatal): {exc}")
-                # Run the poll in a background thread so it rebuilds Walks_Log.txt
-                # from the new Drive state and triggers dashboard rebuild.
-                threading.Thread(target=_run_drive_poll, args=("upload",), daemon=True).start()
             else:
-                # No Drive configured — write directly and rebuild.
-                print(f"[upload] No Drive folder configured; writing {walk_code} directly")
-                WALKS_LOG.parent.mkdir(parents=True, exist_ok=True)
-                existing: set = set()
-                if WALKS_LOG.exists():
-                    existing = {l.strip().upper() for l in
-                                WALKS_LOG.read_text(encoding="utf-8").splitlines() if l.strip()}
-                if walk_code not in existing:
-                    with open(WALKS_LOG, "a", encoding="utf-8") as fh:
-                        fh.write(walk_code + "\n")
-                    if _gcs_bucket:
-                        _upload_to_gcs(WALKS_LOG, "Walks_Log.txt")
-                _trigger_rebuild()
+                print(f"[upload] No Drive folder configured; accepted {walk_code} "
+                      f"without updating Walks_Log.txt")
 
             self._send(200, "application/json",
                        json.dumps({"ok": True, "walk": walk_code}).encode())
@@ -1050,7 +1046,6 @@ def main():
             get_folder_id=lambda: DRIVE_FOLDER_ID,
             find_folder_by_prefix=_drive_find_folder_by_prefix,
             create_or_get_folder=_drive_create_or_get_folder,
-            run_drive_poll=_run_drive_poll,
         )
         drive_mover.start_mover_thread()
         print(f"  Upload buffer : active (bucket: {os.environ.get('UPLOAD_HOLDING_BUCKET')})")
