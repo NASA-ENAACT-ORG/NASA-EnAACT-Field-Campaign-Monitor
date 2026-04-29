@@ -345,8 +345,15 @@ def _run_scheduler_and_rebuild():
 
         # Upload fresh weather.json to GCS right away.
         if WEATHER_JSON.exists() and _gcs_bucket:
-            _upload_to_gcs(WEATHER_JSON, "weather.json")
-        print("[forecast] Uploaded weather.json -> GCS")
+            ok = _upload_to_gcs(WEATHER_JSON, "weather.json")
+            if ok:
+                print("[forecast] Uploaded weather.json -> GCS")
+            else:
+                print("[forecast] WARNING: GCS upload of weather.json failed")
+        elif not _gcs_bucket:
+            print("[forecast] WARNING: GCS not configured -- weather.json not uploaded")
+        elif not WEATHER_JSON.exists():
+            print("[forecast] WARNING: weather.json missing -- nothing to upload")
 
         # Rebuild the dashboard immediately so the site shows up-to-date weather
         # regardless of whether the scheduler succeeds below.
@@ -471,10 +478,25 @@ def _save_seen_ids(ids: set):
 
 def _rebuild_walk_log(entries: list):
     """Rewrite Walks_Log.txt from scratch with all discovered walk entries.
-    Never writes RECAL lines " those live exclusively in Recal_Log.txt."""
-    content = "\n".join(entries) + "\n" if entries else ""
+    Never writes RECAL lines — those live exclusively in Recal_Log.txt.
+    Validates each entry and skips malformed ones."""
+    validated = []
+    skipped = []
+    for e in entries:
+        line = e.strip() if isinstance(e, str) else str(e)
+        if not line or line.startswith("RECAL_"):
+            continue
+        if _WALK_LOG_RE.match(line.upper()):
+            validated.append(line.upper())
+        else:
+            skipped.append(line)
+
+    if skipped:
+        print(f"[drive] WARNING: Skipped {len(skipped)} invalid walk entries: {skipped[:5]}")
+
+    content = "\n".join(validated) + "\n" if validated else ""
     WALKS_LOG.write_text(content, encoding="utf-8")
-    print(f"[drive] Rebuilt Walks_Log.txt: {len(entries)} walk entries")
+    print(f"[drive] Rebuilt Walks_Log.txt: {len(validated)} valid walk entries")
     if _gcs_bucket:
         _upload_to_gcs(WALKS_LOG, "Walks_Log.txt")
 
@@ -896,6 +918,80 @@ class Handler(BaseHTTPRequestHandler):
 
             self._send(200, "application/json",
                        json.dumps({"ok": True, "walk": walk_code}).encode())
+
+        elif endpoint == "/api/admin/clear-walks-log":
+            _sched_pin = os.environ.get("SCHEDULER_PIN", "")
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body_bytes = self.rfile.read(length) if length else b"{}"
+                payload = json.loads(body_bytes)
+            except Exception:
+                self._send(400, "application/json",
+                           json.dumps({"error": "bad request"}).encode())
+                return
+            if _sched_pin and payload.get("pin", "") != _sched_pin:
+                self._send(403, "application/json",
+                           json.dumps({"error": "wrong pin"}).encode())
+                return
+            try:
+                WALKS_LOG.write_text("", encoding="utf-8")
+                if _gcs_bucket:
+                    _upload_to_gcs(WALKS_LOG, "Walks_Log.txt")
+                print("[API] Walks_Log.txt cleared")
+                self._send(200, "application/json",
+                           json.dumps({"ok": True, "message": "Walks_Log.txt cleared"}).encode())
+            except Exception as e:
+                self._send(500, "application/json",
+                           json.dumps({"error": str(e)}).encode())
+
+        elif endpoint == "/api/admin/rebuild-walks-log-now":
+            _sched_pin = os.environ.get("SCHEDULER_PIN", "")
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body_bytes = self.rfile.read(length) if length else b"{}"
+                payload = json.loads(body_bytes)
+            except Exception:
+                self._send(400, "application/json",
+                           json.dumps({"error": "bad request"}).encode())
+                return
+            if _sched_pin and payload.get("pin", "") != _sched_pin:
+                self._send(403, "application/json",
+                           json.dumps({"error": "wrong pin"}).encode())
+                return
+            try:
+                count, err = _run_drive_poll(source="manual-admin")
+                if err:
+                    self._send(500, "application/json",
+                               json.dumps({"error": err}).encode())
+                else:
+                    body = json.dumps({
+                        "ok": True,
+                        "message": "Drive poll triggered and log rebuilt",
+                        "new_files": count
+                    }).encode()
+                    self._send(200, "application/json", body)
+            except Exception as e:
+                self._send(500, "application/json",
+                           json.dumps({"error": str(e)}).encode())
+
+        elif endpoint == "/api/admin/get-walks-log":
+            try:
+                if not WALKS_LOG.exists():
+                    entries = []
+                else:
+                    entries = [
+                        l.strip() for l in WALKS_LOG.read_text(encoding="utf-8").splitlines()
+                        if l.strip()
+                    ]
+                body = json.dumps({
+                    "ok": True,
+                    "count": len(entries),
+                    "entries": entries
+                }).encode()
+                self._send(200, "application/json", body)
+            except Exception as e:
+                self._send(500, "application/json",
+                           json.dumps({"error": str(e)}).encode())
 
         else:
             self._send(404, "text/plain", b"Unknown endpoint")
