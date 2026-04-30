@@ -153,7 +153,7 @@ LAST_RESORT_COLLECTORS = ["ANG"]
 LAST_RESORT_BACKPACK   = "A"
 
 # Professors / support staff — excluded from regular scheduling
-STAFF_COLLECTORS = ["NRS", "PRA", "NAT"]
+STAFF_COLLECTORS = ["NRS", "PRA", "NAT", "EFD"]
 
 # Full collector list (students + ANG; excludes staff)
 COLLECTORS = ["SOT", "AYA", "ALX", "TAH", "JAM", "JEN", "SCT", "TER", "ANG"]
@@ -171,6 +171,7 @@ COLLECTOR_KML_NAMES = {
     "TAH": "Taha",
     "NRS": "Prof. Naresh Devineni",
     "PRA": "Prof. Prathap Ramamurthy",
+    "EFD": "EFD",
 }
 COLLECTOR_ID_TO_NAME = COLLECTOR_KML_NAMES
 
@@ -244,6 +245,7 @@ FILENAME_TO_COLLECTOR = {
     "nat":   "NAT", "natalie": "NAT",
     "nrs":   "NRS",
     "tah":   "TAH", "tahani":  "TAH",
+    "efd":   "EFD",
 }
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -20,7 +20,7 @@ If `UPLOAD_HOLDING_BUCKET` is unset, or holding-bucket staging itself fails, the
 |---|---|---|
 | Date | Yes | YYYY-MM-DD picker, sent as YYYYMMDD |
 | Backpack | Yes | A or B |
-| Collector | Yes | 3-letter code (SOT, AYA, ALX, TAH, JAM, JEN, SCT, TER, ANG, NRS, PRA, NAT) |
+| Collector | Yes | 3-4 letter code (SOT, AYA, ALX, TAH, JAM, JEN, SCT, TER, ANG, NRS, PRA, NAT, EFD) |
 | Borough | Yes | MN / BX / BK / QN |
 | Route | Yes | 2-letter code, filtered by borough selection |
 | Time of Day | Yes | AM / MD / PM |

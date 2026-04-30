@@ -46,6 +46,7 @@ affinity_json = json.dumps({
     "PRA": [],
     "NAT": [],
     "NRS": [],
+    "EFD": [],
 })
 
 # -- Collector home locations from KML ---
@@ -66,7 +67,7 @@ _COLLECTOR_FULL = {
     "SOT":"Soteri","AYA":"Aya Nasri","ALX":"Alex","TAH":"Taha",
     "JAM":"James","JEN":"Jennifer","SCT":"Scott","TER":"Terra",
     "PRA":"Prof. Prathap","NAT":"Nathan","NRS":"Prof. Naresh",
-    "ANG":"Angy",
+    "ANG":"Angy","EFD":"EFD",
 }
 _NON_COLLECTORS = {"ANG"}
 _collector_homes = {}
@@ -1074,12 +1075,12 @@ const ROUTE_LABELS = {
   "QN_LA":"Queens - LaGuardia CC","QN_EE":"Queens - East Elmhurst",
 };
 const ALL_ROUTES = new Set(Object.keys(ROUTE_LABELS));
-const COLLECTORS = ["SOT","AYA","ALX","TAH","JAM","JEN","SCT","TER","PRA","NAT","NRS"];
-const STUDENT_COLLECTORS = COLLECTORS.filter(c => !["NRS","PRA","NAT"].includes(c));
+const COLLECTORS = ["SOT","AYA","ALX","TAH","JAM","JEN","SCT","TER","PRA","NAT","NRS","EFD"];
+const STUDENT_COLLECTORS = COLLECTORS.filter(c => !["NRS","PRA","NAT","EFD"].includes(c));
 const CNAMES = {
   SOT:"Soteri",AYA:"Aya Nasri",ALX:"Alex",TAH:"Taha",JAM:"James",
   JEN:"Jennifer",SCT:"Scott",TER:"Terra",
-  PRA:"Prathap",NAT:"Nathan",NRS:"Naresh"
+  PRA:"Prathap",NAT:"Nathan",NRS:"Naresh",EFD:"EFD"
 };
 const AFFINITY = __AFFINITY_JSON__;
 const SAMPLE_LOG = `__SAMPLE_LOG__`;
@@ -1381,7 +1382,7 @@ function getWinsFor(cid,win){
 const COLLECTOR_GROUPS=[
   {id:'ccny', cls:'ccny', title:'CCNY', sub:'Backpack A', members:['SOT','AYA','JEN','TAH']},
   {id:'lagcc',cls:'lagcc',title:'LaGCC',sub:'Backpack B', members:['TER','ALX','SCT','JAM']},
-  {id:'staff',cls:'staff',title:'Professors',sub:'Non-scheduled',members:['NRS','PRA','NAT']},
+  {id:'staff',cls:'staff',title:'ETC',sub:'Non-scheduled',members:['NRS','PRA','NAT','EFD']},
 ];
 function _buildGroupHTML(g){
   const tiles=g.members.map(cid=>{
@@ -2770,6 +2771,7 @@ document.addEventListener('DOMContentLoaded',function(){
             <option value="SCT">Scott (SCT)</option><option value="TER">Terra (TER)</option>
             <option value="ANG">Angy (ANG)</option><option value="NRS">Prof. Naresh (NRS)</option>
             <option value="PRA">Prof. Prathap (PRA)</option><option value="NAT">Nathan (NAT)</option>
+            <option value="EFD">EFD (EFD)</option>
           </select></div>
         <div class="um-field"><label for="um-borough">Borough</label>
           <select id="um-borough" onchange="umUpdateRoutes()"><option value="">Select...</option>
