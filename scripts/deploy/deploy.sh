@@ -82,7 +82,7 @@ gcloud run deploy ${SERVICE_NAME} \
   --timeout=3600 \
   --concurrency=100 \
   --max-instances=10 \
-  --min-instances=0 \
+  --min-instances=1 \
   --service-account=cloud-run-sa@${PROJECT_ID}.iam.gserviceaccount.com \
   --set-env-vars="\
 GPS_STALE_SECONDS=300,\
