@@ -65,10 +65,10 @@ jobs:
             --timeout=3600 \
             --concurrency=100 \
             --max-instances=10 \
-            --min-instances=0 \
+            --min-instances=1 \
             --service-account=cloud-run-sa@${PROJECT_ID}.iam.gserviceaccount.com \
             --set-env-vars="DRIVE_POLL_INTERVAL=0,GCS_BUCKET=enact-walk-dashboard-data-${PROJECT_ID}" \
-            --set-secrets="ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,GOOGLE_SERVICE_ACCOUNT_JSON=GOOGLE_SERVICE_ACCOUNT_JSON:latest,GOOGLE_DRIVE_WALKS_FOLDER_ID=GOOGLE_DRIVE_WALKS_FOLDER_ID:latest,GAS_SECRET=GAS_SECRET:latest,DRIVE_FORECASTS_FOLDER_ID=DRIVE_FORECASTS_FOLDER_ID:latest" \
+            --set-secrets="ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,GOOGLE_SERVICE_ACCOUNT_JSON=GOOGLE_SERVICE_ACCOUNT_JSON:latest,GOOGLE_DRIVE_WALKS_FOLDER_ID=GOOGLE_DRIVE_WALKS_FOLDER_ID:latest,GAS_SECRET=GAS_SECRET:latest,DRIVE_FORECASTS_FOLDER_ID=DRIVE_FORECASTS_FOLDER_ID:latest,UPLOAD_HOLDING_BUCKET=UPLOAD_HOLDING_BUCKET:latest" \
             --allow-unauthenticated
 
       - name: Get deployment URL
