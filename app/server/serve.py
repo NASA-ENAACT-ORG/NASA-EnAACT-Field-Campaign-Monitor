@@ -9,10 +9,13 @@ Endpoints:
   GET  /                        ' redirect to /dashboard.html
   GET  /<filename>              ' serve static file
   GET  /api/status              ' JSON with file mod times, Drive status
+  GET  /api/schedule            ' JSON schedule document
+  GET  /api/schedule/slots      ' slot-oriented schedule view
   POST /api/rerun               ' run scheduler (both backpacks) + rebuild dashboards, stream output
   POST /api/rerun/a             ' run scheduler for Backpack A (CCNY) only + rebuild dashboards
   POST /api/rerun/b             ' run scheduler for Backpack B (LaGCC) only + rebuild dashboards
   POST /api/rebuild             ' rebuild dashboards only, stream output
+  POST /api/schedule/rebuild-site ' weather + site rebuild (no scheduler)
   POST /api/forecast-stability  ' run forecast stability analysis, stream output
   POST /api/drive/poll          ' manually trigger one Google Drive poll cycle
 """
@@ -390,6 +393,63 @@ def _run_scheduler_and_rebuild():
         print("[forecast] Scheduler timed out (6 min limit)")
     except Exception as e:
         print(f"[forecast] Pipeline error: {e}")
+    finally:
+        _scheduler_running.release()
+
+
+def _run_weather_and_rebuild_site():
+    """Run build_weather.py then rebuild site artifacts (no scheduler)."""
+    if not _scheduler_running.acquire(blocking=False):
+        print("[forecast] Rebuild already running -- skipping this trigger")
+        return
+
+    try:
+        print("[forecast] Running build_weather.py ...")
+        r_weather = subprocess.run(
+            [sys.executable, str(BUILD_WEATHER)],
+            cwd=str(REPO_ROOT),
+            capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
+            timeout=120,
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+        )
+        out_w = (r_weather.stdout or "") + (r_weather.stderr or "")
+        if out_w:
+            print(out_w[-2000:])
+        print(f"[forecast] build_weather.py exit={r_weather.returncode}")
+
+        if r_weather.returncode != 0:
+            print("[forecast] build_weather.py failed -- aborting rebuild")
+            return
+
+        if WEATHER_JSON.exists() and _gcs_bucket:
+            _upload_to_gcs(WEATHER_JSON, "weather.json")
+            print("[forecast] Uploaded weather.json -> GCS")
+
+        print("[forecast] Rebuilding dashboard (scheduler-free) ...")
+        _rebuild_dashboard_and_upload()
+
+        print("[forecast] Rebuilding collector map (scheduler-free) ...")
+        r_map = subprocess.run(
+            [sys.executable, str(BUILD_MAP)],
+            cwd=str(REPO_ROOT),
+            capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
+            timeout=180,
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+        )
+        out_m = (r_map.stdout or "") + (r_map.stderr or "")
+        if out_m:
+            print(out_m[-2000:])
+        print(f"[forecast] build_collector_map.py exit={r_map.returncode}")
+
+        if r_map.returncode == 0 and COLLECTOR_MAP_HTML.exists() and _gcs_bucket:
+            _upload_to_gcs(COLLECTOR_MAP_HTML, "collector_map.html")
+            print("[forecast] Uploaded collector_map.html -> GCS")
+    except subprocess.TimeoutExpired:
+        print("[forecast] Weather/site rebuild timed out")
+    except Exception as e:
+        print(f"[forecast] Weather/site rebuild error: {e}")
     finally:
         _scheduler_running.release()
 
@@ -1077,7 +1137,7 @@ class Handler(BaseHTTPRequestHandler):
                 body = json.dumps({"status": "ok", "new_files": count}).encode()
                 self._send(200, "application/json", body)
         elif endpoint == "/api/force-rebuild":
-            # Force immediate rebuild: build weather, run scheduler, rebuild dashboard
+            # Force immediate rebuild: build weather + rebuild site (no scheduler)
             # Accepts either a valid GAS_SECRET bearer token (automated triggers)
             # or a valid SCHEDULER_PIN in the request body (browser UI).
             _sched_pin  = os.environ.get("SCHEDULER_PIN", "")
@@ -1098,10 +1158,29 @@ class Handler(BaseHTTPRequestHandler):
                                json.dumps({"error": "wrong pin"}).encode())
                     return
             print("[API] Force rebuild triggered")
-            t = threading.Thread(target=_run_scheduler_and_rebuild, daemon=True)
+            t = threading.Thread(target=_run_weather_and_rebuild_site, daemon=True)
             t.start()
             self._send(200, "application/json",
                        json.dumps({"status": "ok", "message": "Rebuild started -- check back in 30 seconds"}).encode())
+        elif endpoint == "/api/schedule/rebuild-site":
+            _sched_pin  = os.environ.get("SCHEDULER_PIN", "")
+            _gas_secret = os.environ.get("GAS_SECRET", "")
+            auth_header = self.headers.get("Authorization", "")
+            gas_authed  = bool(_gas_secret and auth_header == f"Bearer {_gas_secret}")
+            if not gas_authed:
+                payload, err = self._read_json_body()
+                if err:
+                    self._send(400, "application/json",
+                               json.dumps({"error": err}).encode())
+                    return
+                if _sched_pin and payload.get("pin", "") != _sched_pin:
+                    self._send(403, "application/json",
+                               json.dumps({"error": "wrong pin"}).encode())
+                    return
+            t = threading.Thread(target=_run_weather_and_rebuild_site, daemon=True)
+            t.start()
+            self._send(200, "application/json",
+                       json.dumps({"status": "ok", "message": "Scheduler-free rebuild started"}).encode())
         elif endpoint == "/api/record-calibration":
             _sched_pin = os.environ.get("SCHEDULER_PIN", "")
             try:
