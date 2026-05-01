@@ -669,6 +669,38 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):  # suppress per-request console noise
         pass
 
+    def _assignment_id(self, assignment: dict) -> str:
+        aid = str(assignment.get("id", "")).strip()
+        if aid:
+            return aid
+        return (
+            f"{assignment.get('backpack', '')}_"
+            f"{assignment.get('route', '')}_"
+            f"{assignment.get('date', '')}_"
+            f"{assignment.get('tod', '')}"
+        )
+
+    def _read_json_body(self) -> tuple[dict, str | None]:
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            body_bytes = self.rfile.read(length) if length else b"{}"
+            payload = json.loads(body_bytes)
+            if not isinstance(payload, dict):
+                return {}, "bad request"
+            return payload, None
+        except Exception:
+            return {}, "bad request"
+
+    def _pin_ok(self, payload: dict) -> bool:
+        sched_pin = os.environ.get("SCHEDULER_PIN", "")
+        if not sched_pin:
+            return True
+        provided = (
+            str(payload.get("pin", "")).strip()
+            or str(self.headers.get("X-Scheduler-Pin", "")).strip()
+        )
+        return provided == sched_pin
+
     # "" GET """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
@@ -1233,6 +1265,140 @@ class Handler(BaseHTTPRequestHandler):
 
         else:
             self._send(404, "text/plain", b"Unknown endpoint")
+
+    def do_PATCH(self):
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        prefix = "/api/schedule/assignments/"
+        if not path.startswith(prefix):
+            self._send(404, "text/plain", b"Unknown endpoint")
+            return
+
+        assignment_id = urllib.parse.unquote(path[len(prefix):]).strip()
+        if not assignment_id:
+            self._send(400, "application/json",
+                       json.dumps({"error": "missing assignment id"}).encode())
+            return
+
+        payload, err = self._read_json_body()
+        if err:
+            self._send(400, "application/json",
+                       json.dumps({"error": err}).encode())
+            return
+        if not self._pin_ok(payload):
+            self._send(403, "application/json",
+                       json.dumps({"error": "wrong pin"}).encode())
+            return
+
+        allowed = {"backpack", "route", "date", "tod", "collector", "label", "status"}
+        updates = {k: v for k, v in payload.items() if k in allowed and v is not None}
+        if not updates:
+            self._send(400, "application/json",
+                       json.dumps({"error": "no updatable fields provided"}).encode())
+            return
+
+        with _schedule_write_lock:
+            _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
+            try:
+                schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
+            except ScheduleValidationError as exc:
+                self._send(500, "application/json",
+                           json.dumps({"error": f"invalid schedule data: {exc}"}).encode())
+                return
+
+            target = None
+            for assignment in schedule_data.get("assignments", []):
+                if self._assignment_id(assignment) == assignment_id:
+                    target = assignment
+                    break
+            if target is None:
+                self._send(404, "application/json",
+                           json.dumps({"error": "assignment not found"}).encode())
+                return
+
+            for key, value in updates.items():
+                if key in {"backpack", "route", "tod", "collector"}:
+                    target[key] = str(value).upper().strip()
+                else:
+                    target[key] = str(value).strip()
+
+            if "route" in updates:
+                parts = str(target.get("route", "")).split("_", 1)
+                target["boro"] = parts[0] if parts else ""
+                target["neigh"] = parts[1] if len(parts) > 1 else str(target.get("route", ""))
+                target.setdefault("label", str(target.get("route", "")))
+            target["updated_at"] = datetime.now().isoformat()
+            target["id"] = self._assignment_id(target)
+
+            try:
+                save_schedule(schedule_data, SCHEDULE_OUTPUT, make_backup=True)
+            except ScheduleValidationError as exc:
+                self._send(409, "application/json",
+                           json.dumps({"error": f"validation failed: {exc}"}).encode())
+                return
+
+            if _gcs_bucket:
+                _upload_to_gcs(SCHEDULE_OUTPUT, "schedule_output.json")
+
+        self._send(200, "application/json",
+                   json.dumps({"ok": True, "assignment": target}).encode())
+
+    def do_DELETE(self):
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        prefix = "/api/schedule/assignments/"
+        if not path.startswith(prefix):
+            self._send(404, "text/plain", b"Unknown endpoint")
+            return
+
+        assignment_id = urllib.parse.unquote(path[len(prefix):]).strip()
+        if not assignment_id:
+            self._send(400, "application/json",
+                       json.dumps({"error": "missing assignment id"}).encode())
+            return
+
+        payload, err = self._read_json_body()
+        if err:
+            self._send(400, "application/json",
+                       json.dumps({"error": err}).encode())
+            return
+        if not self._pin_ok(payload):
+            self._send(403, "application/json",
+                       json.dumps({"error": "wrong pin"}).encode())
+            return
+
+        with _schedule_write_lock:
+            _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
+            try:
+                schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
+            except ScheduleValidationError as exc:
+                self._send(500, "application/json",
+                           json.dumps({"error": f"invalid schedule data: {exc}"}).encode())
+                return
+
+            removed = None
+            assignments = schedule_data.get("assignments", [])
+            for idx, assignment in enumerate(assignments):
+                if self._assignment_id(assignment) == assignment_id:
+                    removed = assignments.pop(idx)
+                    break
+            if removed is None:
+                self._send(404, "application/json",
+                           json.dumps({"error": "assignment not found"}).encode())
+                return
+
+            try:
+                save_schedule(schedule_data, SCHEDULE_OUTPUT, make_backup=True)
+            except ScheduleValidationError as exc:
+                self._send(409, "application/json",
+                           json.dumps({"error": f"validation failed: {exc}"}).encode())
+                return
+
+            if _gcs_bucket:
+                _upload_to_gcs(SCHEDULE_OUTPUT, "schedule_output.json")
+
+        self._send(200, "application/json",
+                   json.dumps({"ok": True, "removed": removed}).encode())
 
     def _stream_response(self, run_scheduler: bool, backpack: str = None):
         self.send_response(200)
