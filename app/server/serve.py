@@ -16,6 +16,8 @@ Endpoints:
   POST /api/rerun/b             ' run scheduler for Backpack B (LaGCC) only + rebuild dashboards
   POST /api/rebuild             ' rebuild dashboards only, stream output
   POST /api/schedule/rebuild-site ' weather + site rebuild (no scheduler)
+  POST /api/notifications/preview ' preview next-day confirmation/advisory payload
+  POST /api/notifications/send  ' record/send next-day notifications
   POST /api/forecast-stability  ' run forecast stability analysis, stream output
   POST /api/drive/poll          ' manually trigger one Google Drive poll cycle
 """
@@ -76,6 +78,7 @@ BUILD_MAP          = BUILD_COLLECTOR_MAP
 FORECAST_STABILITY = REPO_ROOT / "scripts" / "ops" / "forecast_stability_analysis.py"
 SEEN_FILES_PATH    = DRIVE_SEEN_FILES
 SCHEDULE_OUTPUT    = SCHEDULE_OUTPUT_JSON
+NOTIFICATION_LOG   = PERSISTED_DIR / "notification_dispatch_log.jsonl"
 
 # "" Drive config """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
@@ -452,6 +455,69 @@ def _run_weather_and_rebuild_site():
         print(f"[forecast] Weather/site rebuild error: {e}")
     finally:
         _scheduler_running.release()
+
+
+def _resolve_notification_date(date_value: str | None) -> str:
+    """Resolve notification date, defaulting to tomorrow in local server time."""
+    if date_value:
+        return date_value
+    return str(datetime.now().date() + timedelta(days=1))
+
+
+def _build_notifications_preview(target_date: str) -> dict:
+    """Build a preview payload for assignments on one date."""
+    _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
+    schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
+    weather = schedule_data.get("weather", {})
+    assignments = [
+        a for a in schedule_data.get("assignments", [])
+        if str(a.get("date", "")) == target_date
+    ]
+    assignments.sort(key=lambda a: (
+        str(a.get("backpack", "")),
+        str(a.get("tod", "")),
+        str(a.get("route", "")),
+    ))
+
+    messages = []
+    collectors = {}
+    for assignment in assignments:
+        date_str = str(assignment.get("date", ""))
+        tod = str(assignment.get("tod", "")).upper()
+        weather_key = f"{date_str}_{tod}"
+        advisory = weather.get(weather_key) is False
+        advisory_text = (
+            "Weather advisory: forecast is unfavorable, verify before departure."
+            if advisory else
+            "Weather check: no advisory for this slot."
+        )
+        collector = str(assignment.get("collector", "")).upper()
+        route_label = assignment.get("label") or assignment.get("route")
+        backpack = str(assignment.get("backpack", "")).upper()
+        msg = {
+            "collector": collector,
+            "date": date_str,
+            "tod": tod,
+            "backpack": backpack,
+            "route": assignment.get("route"),
+            "route_label": route_label,
+            "weather_advisory": advisory,
+            "advisory_text": advisory_text,
+            "message_text": (
+                f"Reminder for {collector}: {date_str} {tod}, Backpack {backpack}, "
+                f"{route_label}. {advisory_text}"
+            ),
+        }
+        messages.append(msg)
+        collectors.setdefault(collector, []).append(msg)
+
+    return {
+        "date": target_date,
+        "assignment_count": len(assignments),
+        "collector_count": len(collectors),
+        "messages": messages,
+        "collectors": collectors,
+    }
 
 
 # "" Forecast monitor " polls Drive for new forecast PDFs """"""""""""""""""""""
@@ -920,7 +986,9 @@ class Handler(BaseHTTPRequestHandler):
 
     # "" POST """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     def do_POST(self):
-        endpoint = self.path.split("?")[0]
+        parsed = urllib.parse.urlparse(self.path)
+        endpoint = parsed.path
+        query_params = urllib.parse.parse_qs(parsed.query)
 
         # Authenticate /api/drive/poll and /api/rerun with GAS_SECRET bearer token.
         # If GAS_SECRET is not set, these endpoints remain open (local dev compatible).
@@ -1181,6 +1249,76 @@ class Handler(BaseHTTPRequestHandler):
             t.start()
             self._send(200, "application/json",
                        json.dumps({"status": "ok", "message": "Scheduler-free rebuild started"}).encode())
+        elif endpoint == "/api/notifications/preview":
+            payload, err = self._read_json_body()
+            if err:
+                self._send(400, "application/json",
+                           json.dumps({"error": err}).encode())
+                return
+            query_date = query_params.get("date", [None])[0]
+            target_date = _resolve_notification_date(payload.get("date") or query_date)
+            if not re.match(r"^\d{4}-\d{2}-\d{2}$", target_date):
+                self._send(400, "application/json",
+                           json.dumps({"error": "date must be YYYY-MM-DD"}).encode())
+                return
+            try:
+                preview = _build_notifications_preview(target_date)
+            except ScheduleValidationError as exc:
+                self._send(500, "application/json",
+                           json.dumps({"error": f"invalid schedule data: {exc}"}).encode())
+                return
+            self._send(200, "application/json",
+                       json.dumps({"ok": True, "preview": preview}).encode())
+        elif endpoint == "/api/notifications/send":
+            payload, err = self._read_json_body()
+            if err:
+                self._send(400, "application/json",
+                           json.dumps({"error": err}).encode())
+                return
+            if not self._pin_ok(payload):
+                self._send(403, "application/json",
+                           json.dumps({"error": "wrong pin"}).encode())
+                return
+            query_date = query_params.get("date", [None])[0]
+            target_date = _resolve_notification_date(payload.get("date") or query_date)
+            if not re.match(r"^\d{4}-\d{2}-\d{2}$", target_date):
+                self._send(400, "application/json",
+                           json.dumps({"error": "date must be YYYY-MM-DD"}).encode())
+                return
+            try:
+                preview = _build_notifications_preview(target_date)
+            except ScheduleValidationError as exc:
+                self._send(500, "application/json",
+                           json.dumps({"error": f"invalid schedule data: {exc}"}).encode())
+                return
+
+            sender = str(payload.get("sender", "")).strip() or "manual"
+            dispatch_record = {
+                "dispatched_at": datetime.now().isoformat(),
+                "dispatched_by": sender,
+                "date": target_date,
+                "assignment_count": preview.get("assignment_count", 0),
+                "collector_count": preview.get("collector_count", 0),
+                "channels": payload.get("channels", ["email", "slack"]),
+                "messages": preview.get("messages", []),
+            }
+            try:
+                NOTIFICATION_LOG.parent.mkdir(parents=True, exist_ok=True)
+                with open(NOTIFICATION_LOG, "a", encoding="utf-8") as fh:
+                    fh.write(json.dumps(dispatch_record) + "\n")
+                if _gcs_bucket:
+                    _upload_to_gcs(NOTIFICATION_LOG, "notification_dispatch_log.jsonl")
+            except Exception as exc:
+                self._send(500, "application/json",
+                           json.dumps({"error": f"failed to persist dispatch log: {exc}"}).encode())
+                return
+
+            self._send(200, "application/json", json.dumps({
+                "ok": True,
+                "mode": "recorded",
+                "message": "Notification dispatch recorded. Email/Slack transport integration pending.",
+                "dispatch": dispatch_record,
+            }).encode())
         elif endpoint == "/api/record-calibration":
             _sched_pin = os.environ.get("SCHEDULER_PIN", "")
             try:
