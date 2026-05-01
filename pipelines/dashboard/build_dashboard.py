@@ -493,6 +493,7 @@ select option{background:var(--bg3)}
 .cal-tod-lbl{background:var(--bg2);border-right:1px solid var(--border);border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:flex-end;padding:10px 6px 0 0;font-size:10px;font-weight:700;letter-spacing:.3px;position:sticky;left:0;z-index:5}
 .cal-tod-lbl.am{color:var(--tod-am)}.cal-tod-lbl.md{color:var(--tod-md)}.cal-tod-lbl.pm{color:var(--tod-pm)}
 .cal-cell{border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:5px;display:flex;flex-direction:column;gap:4px;background:var(--bg);position:relative}
+.cal-slot-click{cursor:pointer}
 .cloud-pct-badge{position:absolute;top:4px;right:4px;font-size:9px;font-weight:700;letter-spacing:.2px;padding:1px 5px;border-radius:10px;pointer-events:none;z-index:3;opacity:.9}
 .cloud-pct-badge.good{color:#3fb950;background:rgba(63,185,80,.12);border:1px solid rgba(63,185,80,.28)}
 .cloud-pct-badge.bad{color:#ef4444;background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.28)}
@@ -572,6 +573,34 @@ select option{background:var(--bg3)}
 #avail-tip .atip-name{font-size:11px;color:var(--text)}
 #avail-tip .atip-none{font-size:10px;color:var(--text3);font-style:italic}
 .cal-empty-week{grid-column:1/-1;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:12px;padding:48px}
+/* CALENDAR SLOT SCHEDULER */
+#slot-sched-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9200;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+#slot-sched-bg.open{display:flex}
+#slot-sched-modal{width:min(920px,94vw);max-height:86vh;overflow:auto;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px}
+#slot-sched-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#slot-sched-title{font-size:15px;font-weight:700;font-family:'Space Grotesk',sans-serif}
+#slot-sched-sub{font-size:11px;color:var(--text2)}
+#slot-sched-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+#slot-sched-grid .ss-field{display:flex;flex-direction:column;gap:4px}
+#slot-sched-grid label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;font-weight:700}
+#slot-sched-grid input,#slot-sched-grid select{height:32px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:12px}
+.ss-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px}
+.ss-btn{height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;font-size:12px;font-weight:600;font-family:'Space Grotesk',sans-serif}
+.ss-btn:hover{color:var(--text);border-color:var(--accent)}
+.ss-btn.primary{background:rgba(56,139,253,.15);border-color:rgba(56,139,253,.45);color:#60a5fa}
+.ss-btn.warn{background:rgba(248,81,73,.1);border-color:rgba(248,81,73,.35);color:#f87171}
+#slot-sched-msg{font-size:11px;color:var(--text2)}
+#slot-sched-msg.err{color:var(--red)}
+#slot-sched-msg.ok{color:var(--green)}
+#ss-table-wrap{overflow:auto}
+#ss-table{width:100%;border-collapse:collapse}
+#ss-table th,#ss-table td{padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px;text-align:left}
+#ss-table th{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.6px}
+.ss-pill{display:inline-block;border-radius:999px;padding:2px 8px;font-size:10px;font-weight:700}
+.ss-pill.a{background:rgba(248,81,73,.16);color:#f87171}
+.ss-pill.b{background:rgba(56,139,253,.16);color:#60a5fa}
+.ss-adv{color:#d29922;font-size:10px;font-weight:700;letter-spacing:.4px}
+.ss-muted{color:var(--text3);font-size:11px}
 /* COLLECTOR VIEW */
 #collector-view{flex-direction:column;overflow-y:auto;padding:14px 16px;gap:14px}
 /* Collector groups */
@@ -730,6 +759,7 @@ select option{background:var(--bg3)}
   .tab-btn{font-size:10px}
   select,input[type=date]{font-size:11px;padding:4px 6px}
   .btn{font-size:10px;padding:3px 8px}
+  #slot-sched-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media(max-width:480px){
   #header h1{font-size:12px;font-family:'Space Grotesk',sans-serif;letter-spacing:-.3px}
@@ -749,6 +779,7 @@ select option{background:var(--bg3)}
   #route-panel.open{max-width:95vw}
   #mstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;width:fit-content}
   .msc{width:80px;height:80px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:6px}
+  #slot-sched-grid{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -836,7 +867,7 @@ setTimeout(function(){
       <h1>NASA EnAACT Field Campaign Data Desk</h1>
     </div>
     <button id="sched-unlock-btn" class="sched-unlock-btn" title="Log in to Admin Mode">&#x1F511; Admin Login</button>
-    <button id="force-rebuild-btn" class="force-rebuild-btn" title="Force rebuild: build weather, run scheduler, rebuild dashboard">&#x27F3; Rebuild</button>
+    <button id="force-rebuild-btn" class="force-rebuild-btn" title="Force rebuild: build weather, rebuild site artifacts">&#x27F3; Rebuild</button>
     <button class="upload-data-btn" onclick="openUploadModal()">&#x2B06; Upload Data</button>
     <div id="tabs">
       <div class="tab-group" id="campaign-tab-group">
@@ -1083,6 +1114,7 @@ const ROUTE_LABELS = {
 const ALL_ROUTES = new Set(Object.keys(ROUTE_LABELS));
 const COLLECTORS = ["SOT","AYA","ALX","TAH","JAM","JEN","SCT","TER","PRA","NAT","NRS"];
 const STUDENT_COLLECTORS = COLLECTORS.filter(c => !["NRS","PRA","NAT"].includes(c));
+const SLOT_SCHEDULE_COLLECTORS = STUDENT_COLLECTORS.slice();
 const CNAMES = {
   SOT:"Soteri",AYA:"Aya Nasri",ALX:"Alex",TAH:"Taha",JAM:"James",
   JEN:"Jennifer",SCT:"Scott",TER:"Terra",
@@ -1533,6 +1565,7 @@ function updateStatus(src){
 // --- SCHEDULE ---
 let schedMap=null, schedData=null, schedLayers={};
 let schedAuth={unlocked:false, scheduler:null, pin:null};
+let slotSchedState={date:null,tod:null};
 
 function assignId(a){return `${a.route}_${a.tod}_${a.date}`;}
 let schedStep=-1, schedPlaying=false, schedPlayTimer=null;
@@ -1887,6 +1920,158 @@ function loadScheduleJSON(text){
   }
 }
 
+// --- SLOT SCHEDULER (CALENDAR-INTEGRATED) ---
+function _escHtml(v){
+  return String(v ?? '').replace(/[&<>"']/g,(ch)=>(
+    ch==='&'?'&amp;':ch==='<'?'&lt;':ch==='>'?'&gt;':ch==='"'?'&quot;':'&#39;'
+  ));
+}
+function _setSlotSchedMsg(msg,kind=''){
+  const el=document.getElementById('slot-sched-msg');
+  if(!el)return;
+  el.textContent=msg;
+  el.className=kind?kind:'ss-muted';
+}
+function _ensureSlotSchedulerInputs(){
+  const routeSel=document.getElementById('slot-route');
+  const collectorSel=document.getElementById('slot-collector');
+  if(routeSel&&!routeSel.dataset.ready){
+    routeSel.innerHTML=Object.keys(ROUTE_LABELS).sort()
+      .map(r=>`<option value="${r}">${r} - ${ROUTE_LABELS[r]}</option>`)
+      .join('');
+    routeSel.dataset.ready='1';
+  }
+  if(collectorSel&&!collectorSel.dataset.ready){
+    collectorSel.innerHTML=SLOT_SCHEDULE_COLLECTORS
+      .map(cid=>`<option value="${cid}">${CNAMES[cid]||cid} (${cid})</option>`)
+      .join('');
+    collectorSel.dataset.ready='1';
+  }
+}
+function _slotClaims(dateStr,tod){
+  if(!schedData||!Array.isArray(schedData.assignments))return [];
+  return schedData.assignments.filter(a=>String(a.date)===dateStr&&String(a.tod).toUpperCase()===tod);
+}
+function closeSlotScheduler(){
+  const bg=document.getElementById('slot-sched-bg');
+  if(bg)bg.classList.remove('open');
+}
+function renderSlotSchedulerClaims(){
+  const body=document.getElementById('ss-body');
+  if(!body)return;
+  const dateStr=slotSchedState.date||'';
+  const tod=slotSchedState.tod||'';
+  const claims=_slotClaims(dateStr,tod).sort((a,b)=>String(a.backpack).localeCompare(String(b.backpack)));
+  if(!claims.length){
+    body.innerHTML='<tr><td colspan="7" class="ss-muted">No claims yet for this slot.</td></tr>';
+    return;
+  }
+  body.innerHTML=claims.map(a=>{
+    const bp=String(a.backpack||'').toUpperCase();
+    const bpCls=bp==='A'?'a':'b';
+    const routeLabel=ROUTE_LABELS[a.route]||a.route;
+    const advisory=isBadWeatherSlot(String(a.date||''),String(a.tod||'').toUpperCase())
+      ? '<span class="ss-adv">WEATHER ADVISORY</span>' : '';
+    return `<tr>
+      <td>${_escHtml(a.date||'')}</td>
+      <td>${_escHtml(a.tod||'')}</td>
+      <td><span class="ss-pill ${bpCls}">${_escHtml(bp)}</span></td>
+      <td>${_escHtml(routeLabel)}</td>
+      <td>${_escHtml(CNAMES[a.collector]||a.collector||'-')}</td>
+      <td>${_escHtml(String(a.status||'claimed').toUpperCase())} ${advisory}</td>
+      <td><button type="button" class="ss-btn warn ss-unclaim-btn"
+          data-backpack="${_escHtml(bp)}"
+          data-route="${_escHtml(a.route||'')}"
+          data-date="${_escHtml(a.date||'')}"
+          data-tod="${_escHtml(String(a.tod||'').toUpperCase())}"
+          data-collector="${_escHtml(a.collector||'')}">Unclaim</button></td>
+    </tr>`;
+  }).join('');
+}
+function openSlotScheduler(dateStr,tod){
+  _ensureSlotSchedulerInputs();
+  slotSchedState={date:dateStr,tod:tod};
+  const bg=document.getElementById('slot-sched-bg');
+  const title=document.getElementById('slot-sched-title');
+  const sub=document.getElementById('slot-sched-sub');
+  if(title)title.textContent=`Schedule Slot - ${dateStr} ${tod}`;
+  if(sub){
+    const advisory=isBadWeatherSlot(dateStr,tod)
+      ? 'Weather advisory is active for this slot (still claimable).'
+      : 'No weather advisory for this slot.';
+    sub.textContent=advisory;
+  }
+  const d=document.getElementById('slot-date');
+  const t=document.getElementById('slot-tod');
+  if(d)d.value=dateStr;
+  if(t)t.value=tod;
+  renderSlotSchedulerClaims();
+  _setSlotSchedMsg('Select backpack, route, and collector, then claim.','');
+  if(bg)bg.classList.add('open');
+}
+async function claimCalendarSlot(){
+  const payload={
+    backpack:document.getElementById('slot-backpack').value,
+    route:document.getElementById('slot-route').value,
+    date:slotSchedState.date||document.getElementById('slot-date').value,
+    tod:slotSchedState.tod||document.getElementById('slot-tod').value,
+    collector:document.getElementById('slot-collector').value,
+  };
+  if(!payload.backpack||!payload.route||!payload.date||!payload.tod||!payload.collector){
+    _setSlotSchedMsg('Please complete all fields.','err');
+    return;
+  }
+  _setSlotSchedMsg('Claiming slot...','');
+  try{
+    const resp=await fetch('/api/schedule/claim',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload),
+    });
+    const data=await resp.json().catch(()=>({}));
+    if(!resp.ok)throw new Error(data.error||('HTTP '+resp.status));
+    await refreshRuntimeData();
+    if(RUNTIME_SCHEDULE&&RUNTIME_SCHEDULE.assignments){
+      loadScheduleJSON(JSON.stringify(RUNTIME_SCHEDULE));
+    }else{
+      renderCalendar();
+    }
+    renderSlotSchedulerClaims();
+    _setSlotSchedMsg('Slot claimed successfully.','ok');
+  }catch(err){
+    _setSlotSchedMsg('Claim failed: '+err.message,'err');
+  }
+}
+async function unclaimCalendarSlot(btn){
+  const payload={
+    backpack:btn.dataset.backpack||'',
+    route:btn.dataset.route||'',
+    date:btn.dataset.date||'',
+    tod:btn.dataset.tod||'',
+    collector:btn.dataset.collector||'',
+  };
+  _setSlotSchedMsg('Removing claim...','');
+  try{
+    const resp=await fetch('/api/schedule/unclaim',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload),
+    });
+    const data=await resp.json().catch(()=>({}));
+    if(!resp.ok)throw new Error(data.error||('HTTP '+resp.status));
+    await refreshRuntimeData();
+    if(RUNTIME_SCHEDULE&&RUNTIME_SCHEDULE.assignments){
+      loadScheduleJSON(JSON.stringify(RUNTIME_SCHEDULE));
+    }else{
+      renderCalendar();
+    }
+    renderSlotSchedulerClaims();
+    _setSlotSchedMsg('Claim removed.','ok');
+  }catch(err){
+    _setSlotSchedMsg('Unclaim failed: '+err.message,'err');
+  }
+}
+
 // --- CALENDAR ---
 let calWeekIdx=0;
 
@@ -2162,7 +2347,7 @@ function renderCalendar(){
         isWeekend?'cal-weekend':'',
         isBadWeather?'bad-weather':''
       ].filter(Boolean).join(' ');
-      html+=`<div class="${cls}">${cellContent}</div>`;
+      html+=`<div class="${cls} cal-slot-click" data-date="${dateStr}" data-tod="${ctod}">${cellContent}</div>`;
     }
   }
 
@@ -2275,6 +2460,35 @@ function bindEvents(){
       renderAvailHeatmap();
     } else renderCV();
   }));
+  const calGrid=document.getElementById('cal-grid');
+  if(calGrid){
+    calGrid.addEventListener('click',e=>{
+      const cell=e.target.closest('.cal-slot-click');
+      if(!cell)return;
+      const dateStr=cell.dataset.date;
+      const tod=cell.dataset.tod;
+      if(!dateStr||!tod)return;
+      openSlotScheduler(dateStr,tod);
+    });
+  }
+  const slotBg=document.getElementById('slot-sched-bg');
+  if(slotBg){
+    slotBg.addEventListener('click',e=>{
+      if(e.target===slotBg)closeSlotScheduler();
+    });
+  }
+  const slotCloseBtn=document.getElementById('slot-sched-close');
+  if(slotCloseBtn)slotCloseBtn.addEventListener('click',closeSlotScheduler);
+  const slotClaimBtn=document.getElementById('slot-claim-btn');
+  if(slotClaimBtn)slotClaimBtn.addEventListener('click',claimCalendarSlot);
+  const slotBody=document.getElementById('ss-body');
+  if(slotBody){
+    slotBody.addEventListener('click',e=>{
+      const btn=e.target.closest('.ss-unclaim-btn');
+      if(!btn)return;
+      unclaimCalendarSlot(btn);
+    });
+  }
   document.getElementById('fseason').addEventListener('change',e=>{filters.season=e.target.value;applyFilters();});
   document.getElementById('ftod').addEventListener('change',e=>{filters.tod=e.target.value;applyFilters();});
   document.getElementById('fbp').addEventListener('change',e=>{filters.backpack=e.target.value;applyFilters();});
@@ -3001,6 +3215,65 @@ document.addEventListener('DOMContentLoaded',function(){
     </div>
   </div>
 </div>
+<!--- Calendar slot scheduler modal --->
+<div id="slot-sched-bg">
+  <div id="slot-sched-modal">
+    <div id="slot-sched-head">
+      <div>
+        <div id="slot-sched-title">Schedule Slot</div>
+        <div id="slot-sched-sub">Click a calendar slot to schedule it.</div>
+      </div>
+      <button class="ss-btn" id="slot-sched-close">Close</button>
+    </div>
+    <div class="ss-card">
+      <div id="slot-sched-grid">
+        <div class="ss-field">
+          <label for="slot-date">Date</label>
+          <input id="slot-date" type="date" readonly>
+        </div>
+        <div class="ss-field">
+          <label for="slot-tod">TOD</label>
+          <input id="slot-tod" type="text" readonly>
+        </div>
+        <div class="ss-field">
+          <label for="slot-backpack">Backpack</label>
+          <select id="slot-backpack">
+            <option value="A">A (CCNY)</option>
+            <option value="B">B (LaGCC)</option>
+          </select>
+        </div>
+        <div class="ss-field">
+          <label for="slot-route">Route</label>
+          <select id="slot-route"></select>
+        </div>
+        <div class="ss-field">
+          <label for="slot-collector">Collector</label>
+          <select id="slot-collector"></select>
+        </div>
+        <div class="ss-field" style="align-self:end">
+          <button class="ss-btn primary" id="slot-claim-btn" type="button">Claim Slot</button>
+        </div>
+      </div>
+      <div id="slot-sched-msg" class="ss-muted" style="margin-top:8px">Weather is advisory only.</div>
+    </div>
+    <div class="ss-card" id="ss-table-wrap">
+      <table id="ss-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>TOD</th>
+            <th>Backpack</th>
+            <th>Route</th>
+            <th>Collector</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="ss-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
 <div id="filters">
   <div class="filter-section-head">Walk Filters</div>
   <div class="fg"><span class="fl">Season</span>
@@ -3113,4 +3386,3 @@ def build():
 
 if __name__ == "__main__":
     build()
-
