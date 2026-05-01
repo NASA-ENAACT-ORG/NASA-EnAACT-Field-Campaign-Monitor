@@ -65,7 +65,7 @@ _KML_NAME_TO_CID = {
 _COLLECTOR_FULL = {
     "SOT":"Soteri","AYA":"Aya Nasri","ALX":"Alex","TAH":"Taha",
     "JAM":"James","JEN":"Jennifer","SCT":"Scott","TER":"Terra",
-    "PRA":"Prof. Prathap","NAT":"Nathan","NRS":"Prof. Naresh",
+    "PRA":"Prof. Prathap","NAT":"Prof. Nathan","NRS":"Prof. Naresh",
     "ANG":"Angy",
 }
 _NON_COLLECTORS = {"ANG"}

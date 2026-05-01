@@ -92,6 +92,8 @@ _DRIVE_LOCK           = threading.Lock()
 _drive_last_poll      = None
 _drive_new_today      = 0
 _scheduler_running    = threading.Lock()  # prevents concurrent scheduler runs
+_bootstrap_build_lock = threading.Lock()  # prevents concurrent startup/missing-file builds
+_bootstrap_errors     = []
 
 
 # "" GCS helpers """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -437,6 +439,65 @@ def _write_chunk(wfile, data: bytes):
     wfile.flush()
 
 
+def _run_script_once(script: Path, label: str, timeout: int = 180) -> tuple[bool, str | None]:
+    """Run a pipeline script and return (success, error_message)."""
+    print(f"[startup] Running {label} ...")
+    try:
+        r = subprocess.run(
+            [sys.executable, str(script)],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+        )
+    except subprocess.TimeoutExpired:
+        msg = f"{label} timed out after {timeout}s"
+        print(f"[startup] {msg}")
+        return False, msg
+    except Exception as e:
+        msg = f"{label} crashed before launch: {e}"
+        print(f"[startup] {msg}")
+        return False, msg
+
+    out = (r.stdout or "") + (r.stderr or "")
+    if out:
+        print(out[-3000:])
+    print(f"[startup] {label} exit={r.returncode}")
+    if r.returncode == 0:
+        return True, None
+
+    tail = [line.strip() for line in out.splitlines() if line.strip()]
+    detail = tail[-1] if tail else f"exit code {r.returncode}"
+    return False, f"{label} failed: {detail}"
+
+
+def _ensure_site_artifacts():
+    """Build site artifacts when key HTML outputs are missing."""
+    global _bootstrap_errors
+    with _bootstrap_build_lock:
+        _bootstrap_errors = []
+        required = [DASHBOARD_HTML, COLLECTOR_MAP_HTML, AVAILABILITY_HEATMAP_HTML]
+        missing = [p for p in required if not p.exists()]
+        if not missing:
+            return
+
+        print("[startup] Missing generated site files:")
+        for p in missing:
+            print(f"[startup]   - {p}")
+
+        # build_dashboard.py writes dashboard.html and availability_heatmap.html.
+        ok_dash, err_dash = _run_script_once(BUILD_DASHBOARD, "build_dashboard.py", timeout=240)
+        if not ok_dash and err_dash:
+            _bootstrap_errors.append(err_dash)
+        # collector_map is generated separately.
+        ok_map, err_map = _run_script_once(BUILD_MAP, "build_collector_map.py", timeout=180)
+        if not ok_map and err_map:
+            _bootstrap_errors.append(err_map)
+
+
 # "" Drive polling """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 _WALK_LOG_RE = re.compile(
@@ -736,7 +797,18 @@ class Handler(BaseHTTPRequestHandler):
             file_path = PERSISTED_DIR / path
         else:
             file_path = SITE_DIR / path
+            if path in ("dashboard.html", "collector_map.html", "availability_heatmap.html") and not file_path.exists():
+                _ensure_site_artifacts()
         if not file_path.exists() or not file_path.is_file():
+            if path in ("dashboard.html", "collector_map.html", "availability_heatmap.html") and _bootstrap_errors:
+                msg = (
+                    "Dashboard files are missing because auto-build failed.\n\n"
+                    + "\n".join(f"- {e}" for e in _bootstrap_errors)
+                    + "\n\nInstall dependencies and retry:\n"
+                    "  pip install -r requirements.txt\n"
+                )
+                self._send(503, "text/plain; charset=utf-8", msg.encode("utf-8"))
+                return
             self._send(404, "text/plain", b"Not found")
             return
 
@@ -1123,6 +1195,9 @@ def main():
         print("[startup] Walks_Log.txt not available -- starting with empty log")
         WALKS_LOG.write_text("", encoding="utf-8")
 
+    # Ensure generated site files exist so the dashboard link works on fresh runs.
+    _ensure_site_artifacts()
+
     # "" Start Drive walk-log polling thread """"""""""""""""""""""""""""""""""""
     if DRIVE_POLL_INTERVAL > 0:
         t = threading.Thread(target=_drive_poll_thread, daemon=True)
@@ -1165,5 +1240,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
