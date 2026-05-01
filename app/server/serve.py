@@ -61,6 +61,7 @@ from shared import gcs
 from shared.schedule_store import (
     ScheduleValidationError,
     load_schedule,
+    save_schedule,
 )
 
 import upload_buffer
@@ -92,6 +93,7 @@ _DRIVE_LOCK           = threading.Lock()
 _drive_last_poll      = None
 _drive_new_today      = 0
 _scheduler_running    = threading.Lock()  # prevents concurrent scheduler runs
+_schedule_write_lock  = threading.Lock()  # prevents concurrent schedule writes
 _bootstrap_build_lock = threading.Lock()  # prevents concurrent startup/missing-file builds
 _bootstrap_errors     = []
 
@@ -865,6 +867,174 @@ class Handler(BaseHTTPRequestHandler):
                            json.dumps({"error": "wrong pin"}).encode())
                 return
             self._send(200, "application/json", json.dumps({"ok": True}).encode())
+
+        elif endpoint == "/api/schedule/claim":
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body_bytes = self.rfile.read(length) if length else b"{}"
+                payload = json.loads(body_bytes)
+            except Exception:
+                self._send(400, "application/json",
+                           json.dumps({"error": "bad request"}).encode())
+                return
+
+            required = ["backpack", "route", "date", "tod", "collector"]
+            missing = [k for k in required if not payload.get(k)]
+            if missing:
+                self._send(400, "application/json",
+                           json.dumps({"error": f"missing fields: {', '.join(missing)}"}).encode())
+                return
+
+            backpack = str(payload.get("backpack", "")).upper().strip()
+            route = str(payload.get("route", "")).upper().strip()
+            date_str = str(payload.get("date", "")).strip()
+            tod = str(payload.get("tod", "")).upper().strip()
+            collector = str(payload.get("collector", "")).upper().strip()
+
+            if backpack not in ("A", "B"):
+                self._send(400, "application/json",
+                           json.dumps({"error": "backpack must be 'A' or 'B'"}).encode())
+                return
+            if tod not in ("AM", "MD", "PM"):
+                self._send(400, "application/json",
+                           json.dumps({"error": "tod must be one of AM, MD, PM"}).encode())
+                return
+            if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_str):
+                self._send(400, "application/json",
+                           json.dumps({"error": "date must be YYYY-MM-DD"}).encode())
+                return
+
+            parts = route.split("_", 1)
+            boro = parts[0] if parts else ""
+            neigh = parts[1] if len(parts) > 1 else route
+            label = str(payload.get("label") or route)
+
+            with _schedule_write_lock:
+                _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
+                try:
+                    schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
+                except ScheduleValidationError as exc:
+                    self._send(500, "application/json",
+                               json.dumps({"error": f"invalid schedule data: {exc}"}).encode())
+                    return
+
+                for assignment in schedule_data.get("assignments", []):
+                    if (
+                        str(assignment.get("backpack", "")).upper() == backpack
+                        and str(assignment.get("route", "")).upper() == route
+                        and str(assignment.get("date", "")) == date_str
+                        and str(assignment.get("tod", "")).upper() == tod
+                    ):
+                        self._send(409, "application/json",
+                                   json.dumps({"error": "slot already claimed for this backpack"}).encode())
+                        return
+
+                    if (
+                        str(assignment.get("collector", "")).upper() == collector
+                        and str(assignment.get("date", "")) == date_str
+                        and str(assignment.get("tod", "")).upper() == tod
+                    ):
+                        self._send(409, "application/json",
+                                   json.dumps({"error": "collector already assigned in this date/tod slot"}).encode())
+                        return
+
+                weather_key = f"{date_str}_{tod}"
+                weather_advisory = schedule_data.get("weather", {}).get(weather_key) is False
+                now_iso = datetime.now().isoformat()
+                assignment = {
+                    "id": f"{backpack}_{route}_{date_str}_{tod}",
+                    "route": route,
+                    "label": label,
+                    "boro": boro,
+                    "neigh": neigh,
+                    "tod": tod,
+                    "backpack": backpack,
+                    "collector": collector,
+                    "date": date_str,
+                    "status": "claimed",
+                    "claimed_at": now_iso,
+                    "claimed_by": collector,
+                    "updated_at": now_iso,
+                    "weather_advisory": weather_advisory,
+                }
+                schedule_data.setdefault("assignments", []).append(assignment)
+
+                try:
+                    save_schedule(schedule_data, SCHEDULE_OUTPUT, make_backup=True)
+                except ScheduleValidationError as exc:
+                    self._send(400, "application/json",
+                               json.dumps({"error": f"validation failed: {exc}"}).encode())
+                    return
+
+                if _gcs_bucket:
+                    _upload_to_gcs(SCHEDULE_OUTPUT, "schedule_output.json")
+
+            self._send(200, "application/json",
+                       json.dumps({"ok": True, "assignment": assignment}).encode())
+
+        elif endpoint == "/api/schedule/unclaim":
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body_bytes = self.rfile.read(length) if length else b"{}"
+                payload = json.loads(body_bytes)
+            except Exception:
+                self._send(400, "application/json",
+                           json.dumps({"error": "bad request"}).encode())
+                return
+
+            required = ["backpack", "route", "date", "tod"]
+            missing = [k for k in required if not payload.get(k)]
+            if missing:
+                self._send(400, "application/json",
+                           json.dumps({"error": f"missing fields: {', '.join(missing)}"}).encode())
+                return
+
+            backpack = str(payload.get("backpack", "")).upper().strip()
+            route = str(payload.get("route", "")).upper().strip()
+            date_str = str(payload.get("date", "")).strip()
+            tod = str(payload.get("tod", "")).upper().strip()
+            collector = str(payload.get("collector", "")).upper().strip()
+
+            with _schedule_write_lock:
+                _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
+                try:
+                    schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
+                except ScheduleValidationError as exc:
+                    self._send(500, "application/json",
+                               json.dumps({"error": f"invalid schedule data: {exc}"}).encode())
+                    return
+
+                match_idx = None
+                for idx, assignment in enumerate(schedule_data.get("assignments", [])):
+                    if (
+                        str(assignment.get("backpack", "")).upper() == backpack
+                        and str(assignment.get("route", "")).upper() == route
+                        and str(assignment.get("date", "")) == date_str
+                        and str(assignment.get("tod", "")).upper() == tod
+                    ):
+                        if collector and str(assignment.get("collector", "")).upper() != collector:
+                            continue
+                        match_idx = idx
+                        break
+
+                if match_idx is None:
+                    self._send(404, "application/json",
+                               json.dumps({"error": "assignment not found"}).encode())
+                    return
+
+                removed = schedule_data["assignments"].pop(match_idx)
+                try:
+                    save_schedule(schedule_data, SCHEDULE_OUTPUT, make_backup=True)
+                except ScheduleValidationError as exc:
+                    self._send(400, "application/json",
+                               json.dumps({"error": f"validation failed: {exc}"}).encode())
+                    return
+
+                if _gcs_bucket:
+                    _upload_to_gcs(SCHEDULE_OUTPUT, "schedule_output.json")
+
+            self._send(200, "application/json",
+                       json.dumps({"ok": True, "removed": removed}).encode())
 
         elif endpoint == "/api/drive/poll":
             count, err = _run_drive_poll(source="gas")
