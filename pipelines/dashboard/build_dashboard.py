@@ -454,15 +454,9 @@ select option{background:var(--bg3)}
 #collector-homes-btn{position:absolute;bottom:100px;left:10px;z-index:1001;background:rgba(13,17,23,.88);border:1px solid var(--border);border-radius:7px;padding:5px 10px;font-size:11px;font-weight:600;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:6px;backdrop-filter:blur(4px);transition:background .15s,color .15s,border-color .15s;user-select:none;white-space:nowrap}
 #collector-homes-btn:hover{background:rgba(40,44,65,.95);color:var(--text)}
 #collector-homes-btn.chb-on{border-color:#4f8ef7;color:#4f8ef7;background:rgba(15,31,63,.88)}
-#route-groups-panel{position:absolute;bottom:140px;left:10px;z-index:1001;background:rgba(13,17,23,.92);border:1px solid var(--border);border-radius:7px;font-size:11px;font-weight:600;backdrop-filter:blur(4px);user-select:none;min-width:148px;overflow:hidden}
-.rgb-header{display:flex;align-items:center;justify-content:space-between;padding:5px 10px;color:var(--text);gap:10px;white-space:nowrap;border-bottom:1px solid var(--border)}
-#rgb-all-btn{font-size:9px;font-weight:700;padding:1px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;color:var(--text2);cursor:pointer;font-family:inherit;letter-spacing:.3px;transition:all .15s;flex-shrink:0}
-#rgb-all-btn:hover{color:var(--text);border-color:var(--text3)}
-.rgb-item{display:flex;align-items:center;gap:6px;padding:3px 10px;cursor:pointer;width:100%;box-sizing:border-box}
-.rgb-item:hover{background:rgba(255,255,255,.05)}
-.rgb-item input[type=checkbox]{cursor:pointer;flex-shrink:0;accent-color:currentColor}
-.rgb-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
-.rgb-lbl{color:var(--text2);font-size:11px;white-space:nowrap}
+#route-groups-btn{position:absolute;bottom:140px;left:10px;z-index:1001;background:rgba(13,17,23,.88);border:1px solid var(--border);border-radius:7px;padding:5px 10px;font-size:11px;font-weight:600;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:6px;backdrop-filter:blur(4px);transition:background .15s,color .15s,border-color .15s;user-select:none;white-space:nowrap}
+#route-groups-btn:hover{background:rgba(40,44,65,.95);color:var(--text)}
+#route-groups-btn.rgb-on{border-color:#f0a500;color:#f0a500;background:rgba(40,32,10,.88)}
 #mstats{position:absolute;top:10px;left:10px;z-index:1000;display:flex;flex-direction:column;gap:5px;pointer-events:none}
 .msc{background:rgba(13,17,23,.88);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:10px;color:var(--text2)}
 .msc strong{display:block;font-size:17px;font-weight:700;color:var(--text);line-height:1.1}
@@ -857,7 +851,7 @@ setTimeout(function(){
       <div id="map-wrap">
         <div id="map"></div>
         <div id="mstats"></div>
-        <div id="route-groups-panel"><div class="rgb-header"><span>&#9632; Route Groups</span><button id="rgb-all-btn">All</button></div><div id="rgb-list"></div></div>
+        <button id="route-groups-btn" title="Toggle route groups">&#9632; Route Groups</button>
         <button id="collector-homes-btn" title="Toggle collector areas">&#x1F3E0; Collector Areas</button>
         <div id="mlegend">
           <h4>Completion Progress</h4>
@@ -1094,7 +1088,7 @@ let filters={season:'',tod:'',backpack:'',from:null,to:null};
 let visibleBackpacks={A:true,B:true,X:true};
 let map=null, routeLayers={}, routeCentroids={}, charts={};
 let collectorHomeLayer=null, collectorHomesVisible=false, collectorHomeMarkers={};
-let routeGroupLayers=[], routeGroupLabels=[], routeGroupVisible=[];
+let routeGroupLayers=[], routeGroupLabels=[], routeGroupsVisible=false;
 
 // --- UTIL ---
 function getSeason(d){const m=d.getMonth()+1;return m>=3&&m<=5?'Spring':m>=6&&m<=8?'Summer':m>=9&&m<=11?'Fall':'Winter';}
@@ -1246,13 +1240,11 @@ function initMap(){
     document.getElementById('collector-homes-btn').classList.toggle('chb-on',collectorHomesVisible);
   });
   ROUTE_GROUPS.forEach((g,i)=>{
-    const poly=L.polygon(_smoothLoop(g.hull),{
+    routeGroupLayers.push(L.polygon(_smoothLoop(g.hull),{
       color:g.color,fillColor:g.color,
       fillOpacity:0.07,opacity:0.55,
       weight:2,dashArray:'7,5',interactive:false
-    });
-    routeGroupLayers.push(poly);
-    routeGroupVisible.push(false);
+    }));
     const cx=g.hull.reduce((s,p)=>s+p[0],0)/g.hull.length;
     const cy=g.hull.reduce((s,p)=>s+p[1],0)/g.hull.length;
     routeGroupLabels.push(L.marker([cx,cy],{
@@ -1261,27 +1253,14 @@ function initMap(){
         iconSize:[44,44],iconAnchor:[22,22],className:''
       }),interactive:false,zIndexOffset:500
     }));
-    const row=document.createElement('label');
-    row.className='rgb-item';
-    row.innerHTML=`<input type="checkbox" data-gi="${i}"><span class="rgb-dot" style="background:${g.color}"></span><span class="rgb-lbl">${g.name}</span>`;
-    row.querySelector('input').addEventListener('change',e=>{
-      routeGroupVisible[i]=e.target.checked;
-      if(e.target.checked){routeGroupLayers[i].addTo(map);routeGroupLabels[i].addTo(map);}
-      else{routeGroupLayers[i].remove();routeGroupLabels[i].remove();}
-      const allOn=routeGroupVisible.every(Boolean),allOff=routeGroupVisible.every(v=>!v);
-      document.getElementById('rgb-all-btn').textContent=allOn?'None':'All';
-    });
-    document.getElementById('rgb-list').appendChild(row);
   });
-  document.getElementById('rgb-all-btn').addEventListener('click',()=>{
-    const newState=!routeGroupVisible.every(Boolean);
-    routeGroupVisible.fill(newState);
-    document.querySelectorAll('#rgb-list input').forEach((cb,i)=>{
-      cb.checked=newState;
-      if(newState){routeGroupLayers[i].addTo(map);routeGroupLabels[i].addTo(map);}
-      else{routeGroupLayers[i].remove();routeGroupLabels[i].remove();}
+  document.getElementById('route-groups-btn').addEventListener('click',()=>{
+    routeGroupsVisible=!routeGroupsVisible;
+    routeGroupLayers.forEach((l,i)=>{
+      if(routeGroupsVisible){l.addTo(map);routeGroupLabels[i].addTo(map);}
+      else{l.remove();routeGroupLabels[i].remove();}
     });
-    document.getElementById('rgb-all-btn').textContent=newState?'None':'All';
+    document.getElementById('route-groups-btn').classList.toggle('rgb-on',routeGroupsVisible);
   });
 }
 function gradientColor(n){
