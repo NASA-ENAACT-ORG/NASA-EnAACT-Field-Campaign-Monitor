@@ -2973,7 +2973,7 @@ _failures_path = PERSISTED_DIR / "upload_failures.json"
 if _failures_path.exists():
     try:
         _records = json.loads(_failures_path.read_text(encoding="utf-8"))
-        _cutoff = _dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(days=7)
+        _cutoff = _dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(minutes=30)
         _recent = []
         for _r in _records if isinstance(_records, list) else []:
             try:
@@ -2995,7 +2995,7 @@ if _failures_path.exists():
                 "background:#5a1d1d;color:#ffd6d6;border-bottom:2px solid #f85149;"
                 "padding:10px 16px;font-family:system-ui,sans-serif;font-size:13px;"
                 "z-index:9999;position:relative\">"
-                f"<strong>⚠ {len(_recent)} upload(s) failed to sync to Drive in the last 7 days.</strong> "
+                f"<strong>⚠ {len(_recent)} upload(s) failed to sync to Drive in the last 30 minutes.</strong> "
                 "Files remain in <code>upload_holding_bucket/failed/</code>. "
                 f"<details style=\"display:inline-block;margin-left:8px\"><summary>show recent</summary>"
                 f"<ul style=\"margin:6px 0 0 18px\">{_items}</ul></details>"
