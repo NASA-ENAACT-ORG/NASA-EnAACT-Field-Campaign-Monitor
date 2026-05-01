@@ -170,7 +170,10 @@ def _drive_find_folder(service, parent_id: str, name: str) -> str | None:
     try:
         q = (f"name='{name}' and mimeType='application/vnd.google-apps.folder'"
              f" and '{parent_id}' in parents and trashed=false")
-        r = service.files().list(q=q, fields="files(id)", pageSize=1).execute()
+        r = service.files().list(
+            q=q, fields="files(id)", pageSize=1,
+            supportsAllDrives=True, includeItemsFromAllDrives=True,
+        ).execute()
         files = r.get("files", [])
         return files[0]["id"] if files else None
     except Exception as e:
@@ -184,7 +187,10 @@ def _drive_find_folder_by_prefix(service, parent_id: str, prefix: str) -> str | 
     try:
         q = (f"mimeType='application/vnd.google-apps.folder'"
              f" and '{parent_id}' in parents and trashed=false")
-        r = service.files().list(q=q, fields="files(id, name)", pageSize=200).execute()
+        r = service.files().list(
+            q=q, fields="files(id, name)", pageSize=200,
+            supportsAllDrives=True, includeItemsFromAllDrives=True,
+        ).execute()
         prefix_up = prefix.strip().upper()
         for f in r.get("files", []):
             if f["name"].strip().upper().startswith(prefix_up):
@@ -225,7 +231,9 @@ def _drive_create_or_get_folder(service, parent_id: str, name: str) -> str | Non
             "mimeType": "application/vnd.google-apps.folder",
             "parents": [parent_id],
         }
-        f = service.files().create(body=meta, fields="id").execute()
+        f = service.files().create(
+            body=meta, fields="id", supportsAllDrives=True,
+        ).execute()
         return f.get("id")
     except Exception as e:
         print(f"[drive] Create folder '{name}' error: {e}")
@@ -243,7 +251,9 @@ def _drive_upload_file(service, folder_id: str, filename: str, data) -> bool:
     meta = {"name": filename, "parents": [folder_id]}
     media = MediaIoBaseUpload(fp, mimetype=mime, resumable=True,
                               chunksize=5 * 1024 * 1024)
-    req = service.files().create(body=meta, media_body=media, fields="id")
+    req = service.files().create(
+        body=meta, media_body=media, fields="id", supportsAllDrives=True,
+    )
     resp = None
     while resp is None:
         _, resp = req.next_chunk(num_retries=5)
@@ -536,6 +546,8 @@ def _run_drive_poll(source: str = "background"):
                 fields="nextPageToken, files(id, name, mimeType)",
                 pageToken=page_token,
                 pageSize=100,
+                supportsAllDrives=True,
+                includeItemsFromAllDrives=True,
             ).execute()
             files = response.get("files", [])
 
@@ -550,6 +562,8 @@ def _run_drive_poll(source: str = "background"):
                         q=f"'{fid}' in parents and trashed=false",
                         fields="files(id, name, mimeType)",
                         pageSize=200,
+                        supportsAllDrives=True,
+                        includeItemsFromAllDrives=True,
                     ).execute()
                     files.extend(sub_resp.get("files", []))
 
