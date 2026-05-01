@@ -30,7 +30,7 @@ import sys
 import threading
 import time
 import urllib.parse
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -58,6 +58,10 @@ from shared.paths import (
     WEATHER_JSON,
 )
 from shared import gcs
+from shared.schedule_store import (
+    ScheduleValidationError,
+    load_schedule,
+)
 
 import upload_buffer
 import drive_mover
@@ -636,6 +640,94 @@ class Handler(BaseHTTPRequestHandler):
                 payload["gcs_walks_log_exists"] = None
             body = json.dumps(payload, indent=2).encode()
             self._send(200, "application/json", body)
+            return
+
+        # /api/schedule
+        if path == "api/schedule":
+            try:
+                # Keep local disk synced with bucket-authoritative schedule when available.
+                _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
+                schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
+                self._send(
+                    200,
+                    "application/json",
+                    json.dumps(schedule_data, indent=2).encode("utf-8"),
+                )
+            except ScheduleValidationError as exc:
+                self._send(
+                    500,
+                    "application/json",
+                    json.dumps({"error": f"invalid schedule data: {exc}"}).encode("utf-8"),
+                )
+            return
+
+        # /api/schedule/slots?week_start=YYYY-MM-DD
+        if path == "api/schedule/slots":
+            try:
+                _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
+                schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
+            except ScheduleValidationError as exc:
+                self._send(
+                    500,
+                    "application/json",
+                    json.dumps({"error": f"invalid schedule data: {exc}"}).encode("utf-8"),
+                )
+                return
+
+            week_start = params.get("week_start", [None])[0]
+            week_start_date = None
+            week_end_date = None
+            if week_start:
+                try:
+                    week_start_date = date.fromisoformat(week_start)
+                    week_end_date = week_start_date + timedelta(days=6)
+                except ValueError:
+                    self._send(
+                        400,
+                        "application/json",
+                        json.dumps({"error": "week_start must be YYYY-MM-DD"}).encode("utf-8"),
+                    )
+                    return
+
+            slots = []
+            for assignment in schedule_data.get("assignments", []):
+                try:
+                    assignment_date = date.fromisoformat(str(assignment.get("date", "")))
+                except Exception:
+                    continue
+                if week_start_date and week_end_date:
+                    if not (week_start_date <= assignment_date <= week_end_date):
+                        continue
+
+                tod = str(assignment.get("tod", "")).upper()
+                date_str = str(assignment.get("date", ""))
+                weather_key = f"{date_str}_{tod}"
+                is_advisory = schedule_data.get("weather", {}).get(weather_key) is False
+                slot_id = assignment.get("id") or (
+                    f"{assignment.get('backpack','')}_{assignment.get('route','')}_{date_str}_{tod}"
+                )
+
+                slots.append({
+                    "id": slot_id,
+                    "backpack": assignment.get("backpack"),
+                    "route": assignment.get("route"),
+                    "date": date_str,
+                    "tod": tod,
+                    "collector": assignment.get("collector"),
+                    "status": assignment.get("status", "claimed"),
+                    "weather_advisory": is_advisory,
+                })
+
+            payload = {
+                "week_start": week_start or schedule_data.get("week_start"),
+                "week_end": (str(week_end_date) if week_end_date else schedule_data.get("week_end")),
+                "slots": slots,
+            }
+            self._send(
+                200,
+                "application/json",
+                json.dumps(payload, indent=2).encode("utf-8"),
+            )
             return
 
         # Static files -- served from the generated site output directory.
