@@ -10,7 +10,7 @@ Constraints:
   - Teams collect only during the availability they submitted on the Google Form
 
 Output:
-  - student_schedule_output.json  (merged by walk_scheduler.py as preserved/weather-exempt)
+  - student_schedule_output.json  (legacy scheduler input; retained for historical workflow support)
   - student_schedule.html         (visual timeline dashboard)
 """
 
@@ -29,6 +29,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from shared.paths import EFD_FORM_CSV, STUDENT_SCHEDULE_JSON, STUDENT_SCHEDULE_HTML
+from shared.registry import ROUTE_LABELS
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -40,29 +41,6 @@ def _fmt_date(d: date) -> str:
     """'Apr 4' without zero-padding (cross-platform)."""
     return d.strftime("%b") + " " + str(d.day)
 
-
-ROUTE_LABELS: dict[str, str] = {
-    "MN_HT": "Manhattan – Harlem",
-    "MN_WH": "Manhattan – Washington Hts",
-    "MN_UE": "Manhattan – Upper East Side",
-    "MN_MT": "Manhattan – Midtown",
-    "MN_LE": "Manhattan – Union Sq/LES",
-    "BX_HP": "Bronx – Hunts Point",
-    "BX_NW": "Bronx – Norwood",
-    "BK_DT": "Brooklyn – Downtown BK",
-    "BK_WB": "Brooklyn – Williamsburg",
-    "BK_BS": "Brooklyn – Bed Stuy",
-    "BK_CH": "Brooklyn – Crown Heights",
-    "BK_SP": "Brooklyn – Sunset Park",
-    "BK_CI": "Brooklyn – Coney Island",
-    "QN_FU": "Queens – Flushing",
-    "QN_LI": "Queens – Astoria/LIC",
-    "QN_JH": "Queens – Jackson Heights",
-    "QN_JA": "Queens – Jamaica",
-    "QN_FH": "Queens – Forest Hills",
-    "QN_LA": "Queens – LaGuardia CC",
-    "QN_EE": "Queens – East Elmhurst",
-}
 
 # Colours for up to 8 teams
 TEAM_COLORS = [

@@ -33,32 +33,9 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from shared.paths import GTFS_DIR, ROUTES_KML_DIR as KML_DIR, TRANSIT_MATRIX_JSON as MATRIX_OUT
+from shared.registry import KML_NAME_TO_ROUTE
 
 BASE_DIR = _REPO_ROOT
-
-# KML Placemark name -> route code (same mapping as walk_scheduler.py)
-KML_NAME_TO_ROUTE = {
-    "Harlem":                      "MN_HT",
-    "Washington Heights":          "MN_WH",
-    "Upper East Side":             "MN_UE",
-    "Midtown":                     "MN_MT",
-    "Union Square/LES":            "MN_LE",
-    "Norwood":                     "BX_NW",
-    "Hunts Point":                 "BX_HP",
-    "Downtown Brooklyn":           "BK_DT",
-    "Williamsburg":                "BK_WB",
-    "Bed Sty":                     "BK_BS",
-    "Crown Heights":               "BK_CH",
-    "Sunset Park":                 "BK_SP",
-    "Coney Island":                "BK_CI",
-    "Flushing":                    "QN_FU",
-    "Astoria/LIC":                 "QN_LI",
-    "Jackson Heights":             "QN_JH",
-    "Jamaica":                     "QN_JA",
-    "Forest Hills":                "QN_FH",
-    "LaGuardia Community College": "QN_LA",
-    "East Elmhurst":               "QN_EE",
-}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

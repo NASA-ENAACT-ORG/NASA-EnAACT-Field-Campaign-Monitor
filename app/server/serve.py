@@ -1,5 +1,5 @@
 """
-serve.py " Server for the NYC Walk Scheduler dashboard.
+serve.py " Server for the NYC field campaign dashboard.
 
 Usage:
     python serve.py              # serves on 0.0.0.0:8765 (or $PORT)
@@ -11,10 +11,7 @@ Endpoints:
   GET  /api/status              ' JSON with file mod times, Drive status
   GET  /api/schedule            ' JSON schedule document
   GET  /api/schedule/slots      ' slot-oriented schedule view
-  POST /api/rerun               ' run scheduler (both backpacks) + rebuild dashboards, stream output
-  POST /api/rerun/a             ' run scheduler for Backpack A (CCNY) only + rebuild dashboards
-  POST /api/rerun/b             ' run scheduler for Backpack B (LaGCC) only + rebuild dashboards
-  POST /api/rebuild             ' rebuild dashboards only, stream output
+  POST /api/rebuild             ' rebuild dashboard, stream output
   POST /api/schedule/rebuild-site ' weather + site rebuild (no scheduler)
   POST /api/notifications/preview ' preview next-day confirmation/advisory payload
   POST /api/notifications/send  ' record/send next-day notifications
@@ -48,18 +45,13 @@ from shared.paths import (
     REPO_ROOT,
     SITE_DIR,
     PERSISTED_DIR,
-    WALK_SCHEDULER,
     BUILD_WEATHER,
     BUILD_DASHBOARD,
-    BUILD_COLLECTOR_MAP,
     WALKS_LOG,
     RECAL_LOG,
     DRIVE_SEEN_FILES,
     SCHEDULE_OUTPUT_JSON,
     DASHBOARD_HTML,
-    COLLECTOR_MAP_HTML,
-    AVAILABILITY_HEATMAP_HTML,
-    SCHEDULE_MAP_HTML,
     WEATHER_JSON,
 )
 from shared import gcs
@@ -68,17 +60,26 @@ from shared.schedule_store import (
     load_schedule,
     save_schedule,
 )
+from shared.registry import (
+    BACKPACK_TO_STUDENT_COLLECTORS,
+    ROUTE_CODES,
+    ROUTE_LABELS,
+    SLOT_TODS,
+    STUDENT_COLLECTOR_IDS,
+    VALID_BACKPACKS,
+)
 
 import upload_buffer
 import drive_mover
 
 BASE_DIR           = REPO_ROOT
-SCHEDULER          = WALK_SCHEDULER
-BUILD_MAP          = BUILD_COLLECTOR_MAP
 FORECAST_STABILITY = REPO_ROOT / "scripts" / "ops" / "forecast_stability_analysis.py"
 SEEN_FILES_PATH    = DRIVE_SEEN_FILES
 SCHEDULE_OUTPUT    = SCHEDULE_OUTPUT_JSON
 NOTIFICATION_LOG   = PERSISTED_DIR / "notification_dispatch_log.jsonl"
+ALLOWED_ROUTES = ROUTE_CODES
+ALLOWED_COLLECTORS = STUDENT_COLLECTOR_IDS
+BACKPACK_TO_COLLECTORS = BACKPACK_TO_STUDENT_COLLECTORS
 
 # "" Drive config """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
@@ -88,7 +89,6 @@ STATUS_FILES = {
     "schedule_output": SCHEDULE_OUTPUT,
     "walk_log":        WALKS_LOG,
     "dashboard":       DASHBOARD_HTML,
-    "collector_map":   COLLECTOR_MAP_HTML,
 }
 
 # "" Drive polling state """"""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -303,7 +303,7 @@ def _parse_multipart(headers, body: bytes) -> tuple[dict, dict]:
 
 
 def _rebuild_dashboard_and_upload():
-    """Run build_dashboard.py and upload all HTML + weather artefacts to GCS."""
+    """Run build_dashboard.py and upload dashboard artefacts to GCS."""
     r = subprocess.run(
         [sys.executable, str(BUILD_DASHBOARD)],
         cwd=str(REPO_ROOT),
@@ -317,87 +317,11 @@ def _rebuild_dashboard_and_upload():
         print(r.stdout[-500:])
     if _gcs_bucket:
         for html_path, blob_name in (
-            (DASHBOARD_HTML,            "dashboard.html"),
-            (AVAILABILITY_HEATMAP_HTML, "availability_heatmap.html"),
-            (SCHEDULE_MAP_HTML,         "schedule_map.html"),
-            (COLLECTOR_MAP_HTML,        "collector_map.html"),
+            (DASHBOARD_HTML, "dashboard.html"),
         ):
             if html_path.exists():
                 _upload_to_gcs(html_path, blob_name)
-        print("[forecast] Uploaded rebuilt HTML files -> GCS")
-
-
-def _run_scheduler_and_rebuild():
-    """Run build_weather.py -> walk_scheduler.py -> build_dashboard.py, upload to GCS.
-
-    The dashboard is rebuilt immediately after build_weather.py so that the site
-    always reflects the latest weather data, even when the scheduler fails.
-    Protected by _scheduler_running lock to prevent concurrent runs.
-    """
-    if not _scheduler_running.acquire(blocking=False):
-        print("[forecast] Scheduler already running -- skipping this trigger")
-        return
-
-    try:
-        print("[forecast] Running build_weather.py ...")
-        r_weather = subprocess.run(
-            [sys.executable, str(BUILD_WEATHER)],
-            cwd=str(REPO_ROOT),
-            capture_output=True, text=True,
-            encoding="utf-8", errors="replace",
-            timeout=120,
-            env={**os.environ, "PYTHONUNBUFFERED": "1"},
-        )
-        out_w = (r_weather.stdout or "") + (r_weather.stderr or "")
-        if out_w:
-            print(out_w[-2000:])
-        print(f"[forecast] build_weather.py exit={r_weather.returncode}")
-
-        if r_weather.returncode != 0:
-            print("[forecast] build_weather.py failed -- aborting pipeline")
-            return
-
-        # Upload fresh weather.json to GCS right away.
-        if WEATHER_JSON.exists() and _gcs_bucket:
-            _upload_to_gcs(WEATHER_JSON, "weather.json")
-        print("[forecast] Uploaded weather.json -> GCS")
-
-        # Rebuild the dashboard immediately so the site shows up-to-date weather
-        # regardless of whether the scheduler succeeds below.
-        print("[forecast] Rebuilding dashboard (post-weather) ...")
-        _rebuild_dashboard_and_upload()
-
-        print("[forecast] Running walk_scheduler.py ...")
-        r = subprocess.run(
-            [sys.executable, str(SCHEDULER)],
-            cwd=str(REPO_ROOT),
-            capture_output=True, text=True,
-            encoding="utf-8", errors="replace",
-            timeout=360,
-            env={**os.environ, "PYTHONUNBUFFERED": "1"},
-        )
-        # Print last 3000 chars so Cloud Run logs show what happened
-        out = (r.stdout or "") + (r.stderr or "")
-        if out:
-            print(out[-3000:])
-        print(f"[forecast] Scheduler exit={r.returncode}")
-
-        if r.returncode == 0:
-            if SCHEDULE_OUTPUT.exists() and _gcs_bucket:
-                _upload_to_gcs(SCHEDULE_OUTPUT, "schedule_output.json")
-                print("[forecast] Uploaded schedule_output.json -> GCS")
-            # Rebuild once more to bake in the freshly generated schedule.
-            print("[forecast] Rebuilding dashboard (post-scheduler) ...")
-            _rebuild_dashboard_and_upload()
-        else:
-            print("[forecast] walk_scheduler.py failed -- dashboard reflects latest weather only")
-
-    except subprocess.TimeoutExpired:
-        print("[forecast] Scheduler timed out (6 min limit)")
-    except Exception as e:
-        print(f"[forecast] Pipeline error: {e}")
-    finally:
-        _scheduler_running.release()
+        print("[forecast] Uploaded rebuilt dashboard -> GCS")
 
 
 def _run_weather_and_rebuild_site():
@@ -431,24 +355,6 @@ def _run_weather_and_rebuild_site():
 
         print("[forecast] Rebuilding dashboard (scheduler-free) ...")
         _rebuild_dashboard_and_upload()
-
-        print("[forecast] Rebuilding collector map (scheduler-free) ...")
-        r_map = subprocess.run(
-            [sys.executable, str(BUILD_MAP)],
-            cwd=str(REPO_ROOT),
-            capture_output=True, text=True,
-            encoding="utf-8", errors="replace",
-            timeout=180,
-            env={**os.environ, "PYTHONUNBUFFERED": "1"},
-        )
-        out_m = (r_map.stdout or "") + (r_map.stderr or "")
-        if out_m:
-            print(out_m[-2000:])
-        print(f"[forecast] build_collector_map.py exit={r_map.returncode}")
-
-        if r_map.returncode == 0 and COLLECTOR_MAP_HTML.exists() and _gcs_bucket:
-            _upload_to_gcs(COLLECTOR_MAP_HTML, "collector_map.html")
-            print("[forecast] Uploaded collector_map.html -> GCS")
     except subprocess.TimeoutExpired:
         print("[forecast] Weather/site rebuild timed out")
     except Exception as e:
@@ -462,6 +368,25 @@ def _resolve_notification_date(date_value: str | None) -> str:
     if date_value:
         return date_value
     return str(datetime.now().date() + timedelta(days=1))
+
+
+def _refresh_schedule_week_bounds(schedule_data: dict) -> None:
+    """Keep week_start/week_end aligned to the current assignment date span."""
+    assignments = schedule_data.get("assignments", []) or []
+    parsed_dates: list[date] = []
+    for assignment in assignments:
+        try:
+            parsed_dates.append(date.fromisoformat(str(assignment.get("date", ""))))
+        except Exception:
+            continue
+
+    if not parsed_dates:
+        return
+
+    start = min(parsed_dates)
+    end = max(parsed_dates)
+    schedule_data["week_start"] = str(start)
+    schedule_data["week_end"] = str(end)
 
 
 def _build_notifications_preview(target_date: str) -> dict:
@@ -607,7 +532,7 @@ def _ensure_site_artifacts():
     global _bootstrap_errors
     with _bootstrap_build_lock:
         _bootstrap_errors = []
-        required = [DASHBOARD_HTML, COLLECTOR_MAP_HTML, AVAILABILITY_HEATMAP_HTML]
+        required = [DASHBOARD_HTML]
         missing = [p for p in required if not p.exists()]
         if not missing:
             return
@@ -616,14 +541,10 @@ def _ensure_site_artifacts():
         for p in missing:
             print(f"[startup]   - {p}")
 
-        # build_dashboard.py writes dashboard.html and availability_heatmap.html.
+        # build_dashboard.py writes dashboard.html.
         ok_dash, err_dash = _run_script_once(BUILD_DASHBOARD, "build_dashboard.py", timeout=240)
         if not ok_dash and err_dash:
             _bootstrap_errors.append(err_dash)
-        # collector_map is generated separately.
-        ok_map, err_map = _run_script_once(BUILD_MAP, "build_collector_map.py", timeout=180)
-        if not ok_map and err_map:
-            _bootstrap_errors.append(err_map)
 
 
 # "" Drive polling """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -932,6 +853,7 @@ class Handler(BaseHTTPRequestHandler):
                     "id": slot_id,
                     "backpack": assignment.get("backpack"),
                     "route": assignment.get("route"),
+                    "label": assignment.get("label") or ROUTE_LABELS.get(str(assignment.get("route", "")), assignment.get("route")),
                     "date": date_str,
                     "tod": tod,
                     "collector": assignment.get("collector"),
@@ -957,10 +879,10 @@ class Handler(BaseHTTPRequestHandler):
             file_path = PERSISTED_DIR / path
         else:
             file_path = SITE_DIR / path
-            if path in ("dashboard.html", "collector_map.html", "availability_heatmap.html") and not file_path.exists():
+            if path == "dashboard.html" and not file_path.exists():
                 _ensure_site_artifacts()
         if not file_path.exists() or not file_path.is_file():
-            if path in ("dashboard.html", "collector_map.html", "availability_heatmap.html") and _bootstrap_errors:
+            if path == "dashboard.html" and _bootstrap_errors:
                 msg = (
                     "Dashboard files are missing because auto-build failed.\n\n"
                     + "\n".join(f"- {e}" for e in _bootstrap_errors)
@@ -990,11 +912,11 @@ class Handler(BaseHTTPRequestHandler):
         endpoint = parsed.path
         query_params = urllib.parse.parse_qs(parsed.query)
 
-        # Authenticate /api/drive/poll and /api/rerun with GAS_SECRET bearer token.
+        # Authenticate /api/drive/poll with GAS_SECRET bearer token.
         # If GAS_SECRET is not set, these endpoints remain open (local dev compatible).
         # /api/rebuild is not gated " it is only triggered by the browser UI.
         _gas_secret = os.environ.get("GAS_SECRET", "")
-        if _gas_secret and endpoint in ("/api/drive/poll", "/api/rerun"):
+        if _gas_secret and endpoint == "/api/drive/poll":
             auth_header = self.headers.get("Authorization", "")
             if auth_header != f"Bearer {_gas_secret}":
                 self._send(401, "application/json",
@@ -1002,13 +924,34 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
         if endpoint == "/api/rerun":
-            self._stream_response(run_scheduler=True)
+            self._send(
+                410,
+                "application/json",
+                json.dumps({
+                    "error": "endpoint retired",
+                    "message": "Use /api/rebuild or /api/schedule/rebuild-site",
+                }).encode(),
+            )
         elif endpoint == "/api/rerun/a":
-            self._stream_response(run_scheduler=True, backpack="A")
+            self._send(
+                410,
+                "application/json",
+                json.dumps({
+                    "error": "endpoint retired",
+                    "message": "Backpack-scoped scheduler runs are deprecated.",
+                }).encode(),
+            )
         elif endpoint == "/api/rerun/b":
-            self._stream_response(run_scheduler=True, backpack="B")
+            self._send(
+                410,
+                "application/json",
+                json.dumps({
+                    "error": "endpoint retired",
+                    "message": "Backpack-scoped scheduler runs are deprecated.",
+                }).encode(),
+            )
         elif endpoint == "/api/rebuild":
-            self._stream_response(run_scheduler=False)
+            self._stream_response()
         elif endpoint == "/api/forecast-stability":
             self._stream_forecast_stability()
         elif endpoint == "/api/confirm":
@@ -1051,11 +994,11 @@ class Handler(BaseHTTPRequestHandler):
             tod = str(payload.get("tod", "")).upper().strip()
             collector = str(payload.get("collector", "")).upper().strip()
 
-            if backpack not in ("A", "B"):
+            if backpack not in VALID_BACKPACKS:
                 self._send(400, "application/json",
                            json.dumps({"error": "backpack must be 'A' or 'B'"}).encode())
                 return
-            if tod not in ("AM", "MD", "PM"):
+            if tod not in SLOT_TODS:
                 self._send(400, "application/json",
                            json.dumps({"error": "tod must be one of AM, MD, PM"}).encode())
                 return
@@ -1063,11 +1006,24 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(400, "application/json",
                            json.dumps({"error": "date must be YYYY-MM-DD"}).encode())
                 return
+            if route not in ALLOWED_ROUTES:
+                self._send(400, "application/json",
+                           json.dumps({"error": f"route must be one of: {', '.join(sorted(ALLOWED_ROUTES))}"}).encode())
+                return
+            if collector not in ALLOWED_COLLECTORS:
+                self._send(400, "application/json",
+                           json.dumps({"error": f"collector must be one of: {', '.join(sorted(ALLOWED_COLLECTORS))}"}).encode())
+                return
+            allowed_for_backpack = BACKPACK_TO_COLLECTORS.get(backpack, set())
+            if collector not in allowed_for_backpack:
+                self._send(400, "application/json",
+                           json.dumps({"error": f"collector {collector} is not eligible for Backpack {backpack}"}).encode())
+                return
 
             parts = route.split("_", 1)
             boro = parts[0] if parts else ""
             neigh = parts[1] if len(parts) > 1 else route
-            label = str(payload.get("label") or route)
+            label = str(payload.get("label") or ROUTE_LABELS.get(route, route))
 
             with _schedule_write_lock:
                 _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
@@ -1118,6 +1074,7 @@ class Handler(BaseHTTPRequestHandler):
                     "weather_advisory": weather_advisory,
                 }
                 schedule_data.setdefault("assignments", []).append(assignment)
+                _refresh_schedule_week_bounds(schedule_data)
 
                 try:
                     save_schedule(schedule_data, SCHEDULE_OUTPUT, make_backup=True)
@@ -1183,6 +1140,7 @@ class Handler(BaseHTTPRequestHandler):
                     return
 
                 removed = schedule_data["assignments"].pop(match_idx)
+                _refresh_schedule_week_bounds(schedule_data)
                 try:
                     save_schedule(schedule_data, SCHEDULE_OUTPUT, make_backup=True)
                 except ScheduleValidationError as exc:
@@ -1617,7 +1575,7 @@ class Handler(BaseHTTPRequestHandler):
         self._send(200, "application/json",
                    json.dumps({"ok": True, "removed": removed}).encode())
 
-    def _stream_response(self, run_scheduler: bool, backpack: str = None):
+    def _stream_response(self):
         self.send_response(200)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.send_header("Transfer-Encoding", "chunked")
@@ -1626,14 +1584,9 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
         try:
-            if run_scheduler:
-                extra = ["--backpack", backpack] if backpack else []
-                _stream_script(self.wfile, SCHEDULER, "walk_scheduler.py", extra)
-
             _stream_script(self.wfile, BUILD_DASHBOARD, "build_dashboard.py")
-            _stream_script(self.wfile, BUILD_MAP,       "build_collector_map.py")
 
-            done = "\n[All done -- reload the page to see updated dashboards]\n"
+            done = "\n[All done -- reload the page to see updated dashboard]\n"
             _write_chunk(self.wfile, done.encode("utf-8"))
         except Exception as e:
             err = f"\n[Server error: {e}]\n".encode("utf-8")
@@ -1706,12 +1659,9 @@ def _restore_gcs_state():
     # Recal_Log.txt -- calibration entries survive across redeploys only via GCS
     _download_from_gcs("Recal_Log.txt", RECAL_LOG)
 
-    # Pre-built HTML -- restore so server can serve immediately even if rebuild fails
+    # Pre-built dashboard HTML -- restore so server can serve immediately even if rebuild fails
     for _blob, _local in (
         ("dashboard.html",            DASHBOARD_HTML),
-        ("collector_map.html",        COLLECTOR_MAP_HTML),
-        ("availability_heatmap.html", AVAILABILITY_HEATMAP_HTML),
-        ("schedule_map.html",         SCHEDULE_MAP_HTML),
     ):
         _download_from_gcs(_blob, _local)
 
@@ -1719,7 +1669,7 @@ def _restore_gcs_state():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Walk Scheduler server")
+    parser = argparse.ArgumentParser(description="Field campaign dashboard server")
     parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8765")))
     parser.add_argument("--restore-only", action="store_true",
                         help="Download GCS state then exit (run before build_dashboard.py)")
@@ -1775,9 +1725,8 @@ def main():
     server = ThreadingHTTPServer(("0.0.0.0", args.port), Handler)
     url = f"http://localhost:{args.port}"
     print(f"")
-    print(f"  NYC Walk Scheduler -- server")
+    print(f"  NYC Field Campaign Dashboard -- server")
     print(f"  Dashboard  : {url}")
-    print(f"  Rerun API  : POST {url}/api/rerun")
     print(f"  Rebuild API: POST {url}/api/rebuild")
     print(f"  Status API : GET  {url}/api/status")
     print(f"  Drive Poll : POST {url}/api/drive/poll")

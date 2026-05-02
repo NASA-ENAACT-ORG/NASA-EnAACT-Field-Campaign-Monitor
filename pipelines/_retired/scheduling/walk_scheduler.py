@@ -111,6 +111,19 @@ from shared.paths import (
     ROUTE_GROUPS,
 )
 from shared.gcs import pull_if_available as gcs_pull, push as gcs_push
+from shared.registry import (
+    ALL_ROUTES,
+    BACKPACK_COLLECTORS,
+    CAMPUS_PROXY_ROUTE,
+    COLLECTOR_KML_NAMES as COLLECTOR_ID_TO_NAME,
+    FILENAME_TO_COLLECTOR,
+    KML_NAME_TO_ROUTE,
+    LAST_RESORT_BACKPACK,
+    LAST_RESORT_COLLECTORS,
+    ROUTES_BY_BOROUGH as ROUTES,
+    ROUTE_LABELS,
+    ACTIVE_COLLECTORS as COLLECTORS,
+)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CONFIGURATION
@@ -142,113 +155,6 @@ CAMPUS_COORDS = {
     "A": (CCNY_LAT, CCNY_LON, "CCNY"),
     "B": (LAGCC_LAT, LAGCC_LON, "LAGCC"),
 }
-# Proxy routes for campus transit-time lookups
-# (CCNY ≈ 135 St / MN_HT stop; LAGCC ≈ Court Sq / QN_LA stop)
-CAMPUS_PROXY_ROUTE = {"A": "MN_HT", "B": "QN_LA"}
-
-# Student collectors per backpack (drive scheduling)
-BACKPACK_COLLECTORS: Dict[str, set] = {
-    "A": {"JEN", "AYA", "SOT", "TAH"},   # CCNY team
-    "B": {"TER", "ALX", "SCT", "JAM", "JEN"},   # LaGCC team
-}
-# ANG is CCNY-affiliated staff; only used as a last resort for Backpack A
-LAST_RESORT_COLLECTORS = ["ANG"]
-LAST_RESORT_BACKPACK   = "A"
-
-# Professors / support staff — excluded from regular scheduling
-STAFF_COLLECTORS = ["NRS", "PRA", "NAT"]
-
-# Full collector list (students + ANG; excludes staff)
-COLLECTORS = ["SOT", "AYA", "ALX", "TAH", "JAM", "JEN", "SCT", "TER", "ANG"]
-
-# Map collector IDs to the first-name used in Collector_Locs.kml
-COLLECTOR_KML_NAMES = {
-    "SOT": "Soteri",
-    "AYA": "Aya",
-    "ALX": "Alex",
-    "JAM": "James",
-    "JEN": "Jennifer",
-    "SCT": "Scott",
-    "TER": "Terra",
-    "ANG": "Angy",
-    "TAH": "Taha",
-    "NRS": "Prof. Naresh Devineni",
-    "PRA": "Prof. Prathap Ramamurthy",
-}
-COLLECTOR_ID_TO_NAME = COLLECTOR_KML_NAMES
-
-# Route definitions: boro code → neighbourhood codes
-ROUTES: Dict[str, List[str]] = {
-    "MN": ["HT", "WH", "UE", "MT", "LE"],
-    "BX": ["HP", "NW"],
-    "BK": ["DT", "WB", "BS", "CH", "SP", "CI"],
-    "QN": ["FU", "LI", "JH", "JA", "FH", "LA", "EE"],
-}
-ALL_ROUTES = [f"{b}_{n}" for b, ns in ROUTES.items() for n in ns]
-
-# Human-readable route labels
-ROUTE_LABELS = {
-    "MN_HT": "Manhattan – Harlem",
-    "MN_WH": "Manhattan – Washington Hts",
-    "MN_UE": "Manhattan – Upper East Side",
-    "MN_MT": "Manhattan – Midtown",
-    "MN_LE": "Manhattan – Union Sq/LES",
-    "BX_HP": "Bronx – Hunts Point",
-    "BX_NW": "Bronx – Norwood",
-    "BK_DT": "Brooklyn – Downtown BK",
-    "BK_WB": "Brooklyn – Williamsburg",
-    "BK_BS": "Brooklyn – Bed Stuy",
-    "BK_CH": "Brooklyn – Crown Heights",
-    "BK_SP": "Brooklyn – Sunset Park",
-    "BK_CI": "Brooklyn – Coney Island",
-    "QN_FU": "Queens – Flushing",
-    "QN_LI": "Queens – Astoria/LIC",
-    "QN_JH": "Queens – Jackson Heights",
-    "QN_JA": "Queens – Jamaica",
-    "QN_FH": "Queens – Forest Hills",
-    "QN_LA": "Queens – LaGuardia CC",
-    "QN_EE": "Queens – East Elmhurst",
-}
-
-# KML name used in each boro file → route code
-KML_NAME_TO_ROUTE = {
-    "Harlem":                      "MN_HT",
-    "Washington Heights":          "MN_WH",
-    "Upper East Side":             "MN_UE",
-    "Midtown":                     "MN_MT",
-    "Union Square/LES":            "MN_LE",
-    "Norwood":                     "BX_NW",
-    "Hunts Point":                 "BX_HP",
-    "Downtown Brooklyn":           "BK_DT",
-    "Williamsburg":                "BK_WB",
-    "Bed Sty":                     "BK_BS",
-    "Crown Heights":               "BK_CH",
-    "Sunset Park":                 "BK_SP",
-    "Coney Island":                "BK_CI",
-    "Flushing":                    "QN_FU",
-    "Astoria/LIC":                 "QN_LI",
-    "Jackson Heights":             "QN_JH",
-    "Jamaica":                     "QN_JA",
-    "Forest Hills":                "QN_FH",
-    "LaGuardia Community College": "QN_LA",
-    "East Elmhurst":               "QN_EE",
-}
-
-# Substring → collector ID for schedule filename matching
-FILENAME_TO_COLLECTOR = {
-    "terra": "TER", "emmerich": "TER",
-    "aya":   "AYA", "nasri":    "AYA",
-    "scott": "SCT", "atlixqueno": "SCT",
-    "alex":  "ALX", "leon":     "ALX",
-    "james": "JAM", "lu":       "JAM",
-    "jennifer": "JEN", "ramirez": "JEN",
-    "soteri": "SOT",
-    "pra":   "PRA", "prathap": "PRA",
-    "nat":   "NAT", "natalie": "NAT",
-    "nrs":   "NRS",
-    "tah":   "TAH", "tahani":  "TAH",
-}
-
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────────────────────

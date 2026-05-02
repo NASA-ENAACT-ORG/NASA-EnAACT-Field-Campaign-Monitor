@@ -14,9 +14,21 @@ if str(_REPO_ROOT) not in sys.path:
 from shared.paths import (
     ROUTES_DATA_JSON, WALKS_LOG, ROUTES_KML_DIR, PERSISTED_DIR,
     SCHEDULE_OUTPUT_JSON, WEATHER_JSON, ROUTE_GROUPS,
-    DASHBOARD_HTML, AVAILABILITY_HEATMAP_HTML,
+    DASHBOARD_HTML,
 )
 from shared.gcs import pull_if_available as gcs_pull
+from shared.registry import (
+    BACKPACK_TO_STUDENT_COLLECTORS,
+    COLLECTOR_DISPLAY_NAMES,
+    COLLECTOR_GROUPS,
+    COLLECTOR_KML_NAME_TO_ID,
+    COLLECTOR_PIN_COLORS,
+    COLLECTOR_ROUTE_AFFINITY,
+    DASHBOARD_COLLECTORS,
+    NON_COLLECTOR_IDS,
+    ROUTE_LABELS,
+    STUDENT_COLLECTORS,
+)
 
 # Pull the latest bucket copies before reading — the bucket is authoritative.
 gcs_pull("Walks_Log.txt",        WALKS_LOG)
@@ -34,41 +46,28 @@ with open(WALKS_LOG, encoding="utf-8") as f:
 # Escape sample log for JS template literal
 sample_log_js = sample_log_raw.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
 
-affinity_json = json.dumps({
-    "SOT": [],
-    "AYA": ["MT","LE","DT","WB","BS","CH","SP","CI"],
-    "ALX": ["LE","WB","BS","JA","FH","LA"],
-    "TAH": ["HT","MT","LE","FU","LI","JH","JA","FH","LA","EE"],
-    "JAM": ["JH","FH"],
-    "JEN": ["HP","HT","WH","UE","MT","LE","DT","WB","BS","FU","LI","JH","FH","LA","EE"],
-    "SCT": ["HT","WH","FU","LI","JH","FH","LA","EE"],
-    "TER": ["HT","MT","LE","DT","WB","BS","CH","LI","LA"],
-    "PRA": [],
-    "NAT": [],
-    "NRS": [],
+affinity_json = json.dumps(COLLECTOR_ROUTE_AFFINITY)
+route_labels_json = json.dumps(ROUTE_LABELS)
+collector_pin_colors_json = json.dumps(COLLECTOR_PIN_COLORS)
+dashboard_collectors_json = json.dumps(list(DASHBOARD_COLLECTORS))
+student_collectors_json = json.dumps(list(STUDENT_COLLECTORS))
+collector_groups_json = json.dumps(COLLECTOR_GROUPS)
+dashboard_collector_names_json = json.dumps({
+    cid: COLLECTOR_DISPLAY_NAMES.get(cid, cid)
+    for cid in DASHBOARD_COLLECTORS
 })
+slot_backpack_collectors_json = json.dumps({
+    bp: sorted(collectors)
+    for bp, collectors in BACKPACK_TO_STUDENT_COLLECTORS.items()
+})
+upload_collector_options_html = "".join(
+    f'<option value="{cid}">{COLLECTOR_DISPLAY_NAMES.get(cid, cid)} ({cid})</option>'
+    for cid in DASHBOARD_COLLECTORS + NON_COLLECTOR_IDS
+    if cid in COLLECTOR_DISPLAY_NAMES
+)
 
 # -- Collector home locations from KML ---
-_KML_NAME_TO_CID = {
-    "Terra":                    "TER",
-    "Aya":                      "AYA",
-    "Scott":                    "SCT",
-    "Alex":                     "ALX",
-    "Jennifer":                 "JEN",
-    "James":                    "JAM",
-    "Taha":                     "TAH",
-    "Soteri":                   "SOT",
-    "Prof. Naresh Devineni":    "NRS",
-    "Prof. Prathap Ramamurthy": "PRA",
-    "Angy":                     "ANG",
-}
-_COLLECTOR_FULL = {
-    "SOT":"Soteri","AYA":"Aya Nasri","ALX":"Alex","TAH":"Taha",
-    "JAM":"James","JEN":"Jennifer","SCT":"Scott","TER":"Terra",
-    "PRA":"Prof. Prathap","NAT":"Prof. Nathan","NRS":"Prof. Naresh",
-    "ANG":"Angy",
-}
-_NON_COLLECTORS = {"ANG"}
+_NON_COLLECTORS = set(NON_COLLECTOR_IDS)
 _collector_homes = {}
 _kml_path = ROUTES_KML_DIR / "Collector_Locs.kml"
 if _kml_path.exists():
@@ -76,12 +75,12 @@ if _kml_path.exists():
     for _pm in ET.parse(_kml_path).findall(".//k:Placemark", _ns):
         _nm  = (_pm.findtext("k:name", "", _ns) or "").strip()
         _crd = (_pm.findtext(".//k:coordinates", "", _ns) or "").strip()
-        _cid = _KML_NAME_TO_CID.get(_nm)
+        _cid = COLLECTOR_KML_NAME_TO_ID.get(_nm)
         if _cid and _crd:
             _lng, _lat = float(_crd.split(",")[0]), float(_crd.split(",")[1])
             _collector_homes[_cid] = {
                 "lat": round(_lat, 6), "lng": round(_lng, 6),
-                "name": _COLLECTOR_FULL.get(_cid, _cid),
+                "name": COLLECTOR_DISPLAY_NAMES.get(_cid, _cid),
                 "non_collector": _cid in _NON_COLLECTORS,
             }
 collector_homes_json = json.dumps(_collector_homes)
@@ -114,7 +113,7 @@ baked_weather_json = json.dumps(_baked_weather) if _baked_weather["weather"] els
 # -- Bake availability heatmap data ---
 import sys as _sys
 _sys.path.insert(0, str(BASE))
-from build_availability_heatmap import load_availability, build_heatmap, GROUP_A, GROUP_B, DAYS as _AVAIL_DAYS, TODS as _AVAIL_TODS, FULL_NAMES as _AVAIL_NAMES
+from build_availability_heatmap import load_availability, GROUP_A, GROUP_B, DAYS as _AVAIL_DAYS, TODS as _AVAIL_TODS, FULL_NAMES as _AVAIL_NAMES
 _avail = load_availability()
 _cells_a, _cells_b = {}, {}
 for _tod in _AVAIL_TODS:
@@ -1095,31 +1094,14 @@ async function refreshRuntimeData(){
   }catch(_e){}
 }
 // Campus affiliation -> pin color  (purple = CCNY, red = LaGCC, amber = staff)
-const COLLECTOR_PIN_COLOR = {
-  'SOT':'#7c3aed','AYA':'#7c3aed','JEN':'#7c3aed','TAH':'#7c3aed','ANG':'#7c3aed',
-  'TER':'#dc2626','ALX':'#dc2626','SCT':'#dc2626','JAM':'#dc2626',
-};
-const ROUTE_LABELS = {
-  "MN_HT":"Manhattan - Harlem","MN_WH":"Manhattan - Washington Hts",
-  "MN_UE":"Manhattan - Upper East Side","MN_MT":"Manhattan - Midtown",
-  "MN_LE":"Manhattan - Union Sq / LES","BX_HP":"Bronx - Hunts Point",
-  "BX_NW":"Bronx - Norwood","BK_DT":"Brooklyn - Downtown BK",
-  "BK_WB":"Brooklyn - Williamsburg","BK_BS":"Brooklyn - Bed Stuy",
-  "BK_CH":"Brooklyn - Crown Heights","BK_SP":"Brooklyn - Sunset Park",
-  "BK_CI":"Brooklyn - Coney Island","QN_FU":"Queens - Flushing",
-  "QN_LI":"Queens - Astoria / LIC","QN_JH":"Queens - Jackson Heights",
-  "QN_JA":"Queens - Jamaica","QN_FH":"Queens - Forest Hills",
-  "QN_LA":"Queens - LaGuardia CC","QN_EE":"Queens - East Elmhurst",
-};
+const COLLECTOR_PIN_COLOR = __COLLECTOR_PIN_COLORS_JSON__;
+const ROUTE_LABELS = __ROUTE_LABELS_JSON__;
 const ALL_ROUTES = new Set(Object.keys(ROUTE_LABELS));
-const COLLECTORS = ["SOT","AYA","ALX","TAH","JAM","JEN","SCT","TER","PRA","NAT","NRS"];
-const STUDENT_COLLECTORS = COLLECTORS.filter(c => !["NRS","PRA","NAT"].includes(c));
+const COLLECTORS = __DASHBOARD_COLLECTORS_JSON__;
+const STUDENT_COLLECTORS = __STUDENT_COLLECTORS_JSON__;
 const SLOT_SCHEDULE_COLLECTORS = STUDENT_COLLECTORS.slice();
-const CNAMES = {
-  SOT:"Soteri",AYA:"Aya Nasri",ALX:"Alex",TAH:"Taha",JAM:"James",
-  JEN:"Jennifer",SCT:"Scott",TER:"Terra",
-  PRA:"Prathap",NAT:"Nathan",NRS:"Naresh"
-};
+const SLOT_BACKPACK_COLLECTORS = __SLOT_BACKPACK_COLLECTORS_JSON__;
+const CNAMES = __DASHBOARD_COLLECTOR_NAMES_JSON__;
 const AFFINITY = __AFFINITY_JSON__;
 const SAMPLE_LOG = `__SAMPLE_LOG__`;
 const TARGET=6, MINC=6;
@@ -1417,11 +1399,7 @@ function getWinsFor(cid,win){
   if(filters.backpack)base=base.filter(w=>w.bp===filters.backpack);
   return base.filter(w=>inWin(w,win));
 }
-const COLLECTOR_GROUPS=[
-  {id:'ccny', cls:'ccny', title:'CCNY', sub:'Backpack A', members:['SOT','AYA','JEN','TAH']},
-  {id:'lagcc',cls:'lagcc',title:'LaGCC',sub:'Backpack B', members:['TER','ALX','SCT','JAM']},
-  {id:'staff',cls:'staff',title:'Professors',sub:'Non-scheduled',members:['NRS','PRA','NAT']},
-];
+const COLLECTOR_GROUPS=__COLLECTOR_GROUPS_JSON__;
 function _buildGroupHTML(g){
   const tiles=g.members.map(cid=>{
     const tot=filteredWalks.filter(w=>w.collector===cid).length;
@@ -1859,8 +1837,8 @@ function renderSchedulePanel(){
   const meta=document.getElementById('sched-meta');
   if(!body||!meta)return; // Schedule view removed
   if(!schedData){
-    body.innerHTML='<div id="sched-no-data">No schedule loaded.<br>Run walk_scheduler.py then click Load above.</div>';
-    meta.textContent='Run the scheduler to load assignments';
+    body.innerHTML='<div id="sched-no-data">No schedule loaded.<br>Use slot claim controls or load schedule_output.json.</div>';
+    meta.textContent='No schedule loaded';
     return;
   }
   meta.textContent=`Week: ${schedData.week_start} -> ${schedData.week_end}   |   Generated: ${schedData.generated}`;
@@ -1933,6 +1911,7 @@ function _setSlotSchedMsg(msg,kind=''){
   el.className=kind?kind:'ss-muted';
 }
 function _ensureSlotSchedulerInputs(){
+  const backpackSel=document.getElementById('slot-backpack');
   const routeSel=document.getElementById('slot-route');
   const collectorSel=document.getElementById('slot-collector');
   if(routeSel&&!routeSel.dataset.ready){
@@ -1941,12 +1920,22 @@ function _ensureSlotSchedulerInputs(){
       .join('');
     routeSel.dataset.ready='1';
   }
-  if(collectorSel&&!collectorSel.dataset.ready){
-    collectorSel.innerHTML=SLOT_SCHEDULE_COLLECTORS
+  const renderCollectors=()=>{
+    if(!collectorSel)return;
+    const bp=(backpackSel&&backpackSel.value)||'A';
+    const scoped=(SLOT_BACKPACK_COLLECTORS[bp]||SLOT_SCHEDULE_COLLECTORS)
+      .filter(cid=>SLOT_SCHEDULE_COLLECTORS.includes(cid));
+    collectorSel.innerHTML=scoped
       .map(cid=>`<option value="${cid}">${CNAMES[cid]||cid} (${cid})</option>`)
       .join('');
-    collectorSel.dataset.ready='1';
+    if(!collectorSel.value&&scoped.length)collectorSel.value=scoped[0];
+  };
+  if(backpackSel&&!backpackSel.dataset.slotCollectorBound){
+    backpackSel.addEventListener('change',renderCollectors);
+    backpackSel.dataset.slotCollectorBound='1';
   }
+  renderCollectors();
+  if(collectorSel)collectorSel.dataset.ready='1';
 }
 function _slotClaims(dateStr,tod){
   if(!schedData||!Array.isArray(schedData.assignments))return [];
@@ -2244,7 +2233,7 @@ function renderCalendar(){
 
   const weeks=buildTlWeeks();
   if(!weeks.length){
-    grid.innerHTML='<div class="cal-empty-week">No walk data or schedule loaded yet - run the scheduler or load a log file.</div>';
+    grid.innerHTML='<div class="cal-empty-week">No walk data or schedule loaded yet - claim a slot or load a log file.</div>';
     if(title)title.textContent='-';
     return;
   }
@@ -3052,14 +3041,7 @@ document.addEventListener('DOMContentLoaded',function(){
         <div class="um-field"><label for="um-tod">Time of Day</label>
           <select id="um-tod"><option value="">Select...</option><option value="AM">AM</option><option value="MD">MD</option><option value="PM">PM</option></select></div>
         <div class="um-field"><label for="um-collector">Collector</label>
-          <select id="um-collector"><option value="">Select...</option>
-            <option value="SOT">Soteri (SOT)</option><option value="AYA">Aya Nasri (AYA)</option>
-            <option value="ALX">Alex (ALX)</option><option value="TAH">Taha (TAH)</option>
-            <option value="JAM">James (JAM)</option><option value="JEN">Jennifer (JEN)</option>
-            <option value="SCT">Scott (SCT)</option><option value="TER">Terra (TER)</option>
-            <option value="ANG">Angy (ANG)</option><option value="NRS">Prof. Naresh (NRS)</option>
-            <option value="PRA">Prof. Prathap (PRA)</option><option value="NAT">Nathan (NAT)</option>
-          </select></div>
+          <select id="um-collector"><option value="">Select...</option>__UPLOAD_COLLECTOR_OPTIONS__</select></div>
         <div class="um-field"><label for="um-borough">Borough</label>
           <select id="um-borough" onchange="umUpdateRoutes()"><option value="">Select...</option>
             <option value="MN">Manhattan (MN)</option><option value="BX">Bronx (BX)</option>
@@ -3311,6 +3293,14 @@ HTML_TEMPLATE = HTML_TEMPLATE.replace('__AVAIL_CELLS_A__', avail_cells_a_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__AVAIL_CELLS_B__', avail_cells_b_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__MAX_A__', str(avail_max_a))
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__MAX_B__', str(avail_max_b))
+HTML_TEMPLATE = HTML_TEMPLATE.replace('__ROUTE_LABELS_JSON__', route_labels_json)
+HTML_TEMPLATE = HTML_TEMPLATE.replace('__COLLECTOR_PIN_COLORS_JSON__', collector_pin_colors_json)
+HTML_TEMPLATE = HTML_TEMPLATE.replace('__DASHBOARD_COLLECTORS_JSON__', dashboard_collectors_json)
+HTML_TEMPLATE = HTML_TEMPLATE.replace('__STUDENT_COLLECTORS_JSON__', student_collectors_json)
+HTML_TEMPLATE = HTML_TEMPLATE.replace('__DASHBOARD_COLLECTOR_NAMES_JSON__', dashboard_collector_names_json)
+HTML_TEMPLATE = HTML_TEMPLATE.replace('__SLOT_BACKPACK_COLLECTORS_JSON__', slot_backpack_collectors_json)
+HTML_TEMPLATE = HTML_TEMPLATE.replace('__COLLECTOR_GROUPS_JSON__', collector_groups_json)
+HTML_TEMPLATE = HTML_TEMPLATE.replace('__UPLOAD_COLLECTOR_OPTIONS__', upload_collector_options_html)
 
 # -- Upload-failure banner (rendered if upload_failures.json has recent entries) --
 import datetime as _dt
@@ -3379,10 +3369,6 @@ def build():
         f.write(HTML_TEMPLATE)
     size = DASHBOARD_HTML.stat().st_size
     print(f"dashboard.html written: {size:,} bytes ({size//1024} KB)")
-
-    # Also rebuild the availability heatmap
-    import subprocess, sys
-    subprocess.run([sys.executable, str(BASE / "build_availability_heatmap.py")], check=True)
 
 if __name__ == "__main__":
     build()

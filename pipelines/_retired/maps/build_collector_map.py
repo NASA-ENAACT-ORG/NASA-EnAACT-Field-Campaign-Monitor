@@ -28,6 +28,12 @@ from shared.paths import (
     AVAILABILITY_XLSX,
 )
 from shared.gcs import pull_if_available as gcs_pull
+from shared.registry import (
+    ACTIVE_COLLECTORS,
+    COLLECTOR_DISPLAY_NAMES,
+    COLLECTOR_KML_NAME_TO_ID,
+    COLLECTOR_PIN_COLORS as C_COLOR,
+)
 
 # Pull the latest bucket copies so the map reflects live schedule + walk state.
 gcs_pull("Walks_Log.txt",        WALKS_LOG)
@@ -35,25 +41,8 @@ gcs_pull("schedule_output.json", SCHEDULE_OUTPUT_JSON)
 
 # ── Collector registry ─────────────────────────────────────────────────────────
 # Backpack A = CCNY (purple pins), Backpack B = LaGCC (red pins)
-# ANG is CCNY last-resort staff (purple).  PRA/NAT/NRS are professors — not scheduled.
-COLLECTORS = {
-    "SOT": "Soteri",
-    "AYA": "Aya Nasri",
-    "TAH": "Taha",
-    "JEN": "Jennifer",
-    "ANG": "Angy",
-    "TER": "Terra",
-    "ALX": "Alex",
-    "SCT": "Scott",
-    "JAM": "James",
-}
-
-# Pin colors: purple = CCNY team, red = LaGCC team
-C_COLOR = {
-    "SOT": "#7c3aed", "AYA": "#7c3aed", "TAH": "#7c3aed",
-    "JEN": "#7c3aed", "ANG": "#7c3aed",
-    "TER": "#dc2626", "ALX": "#dc2626", "SCT": "#dc2626", "JAM": "#dc2626",
-}
+# ANG is CCNY last-resort staff (purple). PRA/NAT/NRS are professors and are not scheduled.
+COLLECTORS = {cid: COLLECTOR_DISPLAY_NAMES.get(cid, cid) for cid in ACTIVE_COLLECTORS}
 
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 TODS = ["AM", "MD", "PM"]
@@ -78,11 +67,6 @@ routes_meta    = {k: {"boro": v["boro"], "name": v["name"]} for k, v in routes_r
 neigh_to_route = {k.split("_")[1]: k for k in routes_raw}
 
 # ── Load real collector home locations from KML ────────────────────────────────
-_KML_NAME_TO_CID = {
-    "Terra": "TER", "Aya": "AYA", "Scott": "SCT", "Alex": "ALX",
-    "Jennifer": "JEN", "James": "JAM", "Unknown": "TAH", "Soteri": "SOT",
-    "Angy": "ANG",
-}
 kml_homes: dict[str, tuple[float, float]] = {}   # cid → (lat, lng)
 _kml_path = ROUTES_KML_DIR / "Collector_Locs.kml"
 if _kml_path.exists():
@@ -90,7 +74,7 @@ if _kml_path.exists():
     for _pm in ET.parse(_kml_path).findall(".//k:Placemark", _ns):
         _nm  = (_pm.findtext("k:name", "", _ns) or "").strip()
         _crd = (_pm.findtext(".//k:coordinates", "", _ns) or "").strip()
-        _cid = _KML_NAME_TO_CID.get(_nm)
+        _cid = COLLECTOR_KML_NAME_TO_ID.get(_nm)
         if _cid and _crd:
             _lng, _lat = float(_crd.split(",")[0]), float(_crd.split(",")[1])
             kml_homes[_cid] = (round(_lat, 6), round(_lng, 6))
