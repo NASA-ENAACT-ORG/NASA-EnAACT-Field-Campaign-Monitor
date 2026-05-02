@@ -37,8 +37,8 @@ During this phase, the biggest complexity hotspots were identified as:
 
 Two architecture docs captured the first serious cleanup pass:
 
-- `docs/architecture/CLEANUP_AUDIT.md`
-- `docs/architecture/REDUNDANCY_VERDICTS.md`
+- `docs/retired/history/architecture/CLEANUP_AUDIT.md`
+- `docs/retired/history/architecture/REDUNDANCY_VERDICTS.md`
 
 Key findings from that pass:
 
@@ -105,7 +105,7 @@ The following files are still worth keeping as detailed reference material, but
 they should be read as historical analysis rather than the shortest source of
 current truth:
 
-- `docs/architecture/CLEANUP_AUDIT.md`
-- `docs/architecture/REDUNDANCY_VERDICTS.md`
-- `docs/architecture/SELF_SCHEDULING_PLAN.md`
-- `docs/architecture/Repo_Reorg_plan_codex.md`
+- `docs/retired/history/architecture/CLEANUP_AUDIT.md`
+- `docs/retired/history/architecture/REDUNDANCY_VERDICTS.md`
+- `docs/architecture/plans/SELF_SCHEDULING_PLAN.md`
+- `docs/retired/history/architecture/Repo_Reorg_plan_codex.md`

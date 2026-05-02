@@ -30,8 +30,7 @@ Several docs still describe the old scheduler-centered architecture.
 Highest-value follow-up targets:
 
 - `README.md`
-- `docs/operations/HANDOFF.md`
-- `docs/operations/LOCAL_TESTING.md`
+- replacement docs for the retired handoff/testing guides
 - deployment/startup references such as `Dockerfile`
 
 Goal:
@@ -94,7 +93,7 @@ already handled:
 
 These documents still contain useful deeper analysis:
 
-- `docs/architecture/CLEANUP_AUDIT.md`
-- `docs/architecture/REDUNDANCY_VERDICTS.md`
-- `docs/architecture/SELF_SCHEDULING_PLAN.md`
-- `docs/architecture/Repo_Reorg_plan_codex.md`
+- `docs/architecture/plans/SELF_SCHEDULING_PLAN.md`
+- `docs/retired/history/architecture/CLEANUP_AUDIT.md`
+- `docs/retired/history/architecture/REDUNDANCY_VERDICTS.md`
+- `docs/retired/history/architecture/Repo_Reorg_plan_codex.md`

@@ -89,6 +89,6 @@ Use these for deeper background after reading this file:
 
 - `docs/operations/context/CLEANUP_PRIORITIES.md`
 - `docs/operations/context/CONTEXT_HISTORY.md`
-- `docs/architecture/CLEANUP_AUDIT.md`
-- `docs/architecture/REDUNDANCY_VERDICTS.md`
-- `docs/architecture/SELF_SCHEDULING_PLAN.md`
+- `docs/architecture/plans/SELF_SCHEDULING_PLAN.md`
+- `docs/retired/history/architecture/CLEANUP_AUDIT.md`
+- `docs/retired/history/architecture/REDUNDANCY_VERDICTS.md`
