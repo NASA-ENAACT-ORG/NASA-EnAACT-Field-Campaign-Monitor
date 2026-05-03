@@ -23,6 +23,7 @@ ROUTES_DATA_JSON    = INPUTS_DIR / "routes" / "routes_data.json"
 
 # Collector_Schedule/ contains personal availability PDFs — git-ignored, kept locally
 COLLECTOR_SCHEDULE_DIR = REPO_ROOT / "data" / "inputs" / "collectors"
+COLLECTOR_NOTIFICATION_PREFS = COLLECTOR_SCHEDULE_DIR / "notification_preferences.json"
 
 # ── Outputs — site artifacts (generated HTML/JSON served by the app) ──────────
 SITE_DIR                  = REPO_ROOT / "data" / "outputs" / "site"

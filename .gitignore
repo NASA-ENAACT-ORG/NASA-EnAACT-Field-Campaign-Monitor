@@ -17,9 +17,13 @@ data/outputs/
 # Runtime ephemeral state — never committed
 data/runtime/local/
 data/runtime/persisted/drive_seen_files.json
+data/runtime/persisted/notification_dispatch_log.jsonl
 
 # Collector schedule PDFs (privacy — named individuals)
 data/inputs/collectors/
+!data/inputs/collectors/
+data/inputs/collectors/*
+!data/inputs/collectors/notification_preferences.example.json
 # Legacy location also excluded
 Collector_Schedule/
 

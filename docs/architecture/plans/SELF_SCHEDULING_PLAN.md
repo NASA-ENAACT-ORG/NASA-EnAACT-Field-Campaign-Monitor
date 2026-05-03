@@ -39,9 +39,10 @@ Replace algorithmic assignment generation with collector self-scheduling in the 
 
 ## Notification Roadmap
 
-- Phase 1: Notification preview endpoint for next-day assignments.
-- Phase 2: Manual notification send endpoint.
+- Phase 1: Notification preview endpoint for next-day assignments. Done.
+- Phase 2: Manual email notification send endpoint with collector opt-ins. Active direction.
 - Phase 3: Automated day-before send (fixed local time) with idempotency protection.
+- Backburner: Slack transport for opted-in collectors. Keep the preference shape, but do not treat Slack as required because not everyone checks it regularly.
 
 ## Risks and Mitigations
 

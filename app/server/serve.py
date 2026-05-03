@@ -29,16 +29,17 @@ import json
 import mimetypes
 import os
 import re
+import smtplib
 import subprocess
 import sys
 import threading
 import time
 import urllib.parse
 from datetime import date, datetime, timedelta, timezone
+from email.message import EmailMessage, Message
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, cast
-from email.message import Message
 
 # Add repo root to sys.path so shared package is importable
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -63,6 +64,10 @@ from shared.schedule_store import (
     ScheduleValidationError,
     load_schedule,
     save_schedule,
+)
+from shared.notification_preferences import (
+    destinations_for_collector,
+    load_notification_preferences,
 )
 from shared.registry import (
     BACKPACK_TO_STUDENT_COLLECTORS,
@@ -389,6 +394,79 @@ def _resolve_notification_date(date_value: str | None) -> str:
     return str(datetime.now().date() + timedelta(days=1))
 
 
+def _normalize_notification_channels(raw: Any) -> list[str]:
+    if raw is None:
+        return ["email"]
+    if isinstance(raw, str):
+        raw = [raw]
+    if not isinstance(raw, list):
+        return ["email"]
+    channels: list[str] = []
+    for item in raw:
+        channel = str(item).strip().lower()
+        if channel in {"email", "slack"} and channel not in channels:
+            channels.append(channel)
+    return channels or ["email"]
+
+
+def _email_transport_configured() -> bool:
+    return bool(os.environ.get("SMTP_HOST") and os.environ.get("NOTIFICATION_FROM_EMAIL"))
+
+
+def _redact_notification_target(target: str) -> str:
+    if "@" not in target:
+        return "***"
+    name, domain = target.split("@", 1)
+    visible = name[:2] if len(name) > 2 else name[:1]
+    return f"{visible}***@{domain}"
+
+
+def _redact_notification_preview(preview: dict) -> dict:
+    redacted = json.loads(json.dumps(preview))
+    for msg in redacted.get("messages", []):
+        for destination in msg.get("destinations", []):
+            if destination.get("target"):
+                destination["target"] = _redact_notification_target(str(destination["target"]))
+    for messages in redacted.get("collectors", {}).values():
+        for msg in messages:
+            for destination in msg.get("destinations", []):
+                if destination.get("target"):
+                    destination["target"] = _redact_notification_target(str(destination["target"]))
+    return redacted
+
+
+def _send_email_notification(*, to_email: str, subject: str, body: str) -> dict:
+    host = os.environ.get("SMTP_HOST", "").strip()
+    from_email = os.environ.get("NOTIFICATION_FROM_EMAIL", "").strip()
+    if not host or not from_email:
+        return {"ok": False, "status": "skipped", "error": "SMTP_HOST and NOTIFICATION_FROM_EMAIL are required"}
+
+    try:
+        port = int(os.environ.get("SMTP_PORT", "587"))
+    except ValueError:
+        return {"ok": False, "status": "failed", "error": "SMTP_PORT must be an integer"}
+    username = os.environ.get("SMTP_USERNAME", "").strip()
+    password = os.environ.get("SMTP_PASSWORD", "")
+    use_tls = os.environ.get("SMTP_USE_TLS", "1").strip().lower() not in {"0", "false", "no"}
+
+    msg = EmailMessage()
+    msg["From"] = from_email
+    msg["To"] = to_email
+    msg["Subject"] = subject
+    msg.set_content(body)
+
+    try:
+        with smtplib.SMTP(host, port, timeout=20) as smtp:
+            if use_tls:
+                smtp.starttls()
+            if username:
+                smtp.login(username, password)
+            smtp.send_message(msg)
+        return {"ok": True, "status": "sent"}
+    except Exception as exc:
+        return {"ok": False, "status": "failed", "error": str(exc)}
+
+
 def _refresh_schedule_week_bounds(schedule_data: dict) -> None:
     """Keep week_start/week_end aligned to the current assignment date span."""
     assignments = schedule_data.get("assignments", []) or []
@@ -408,11 +486,12 @@ def _refresh_schedule_week_bounds(schedule_data: dict) -> None:
     schedule_data["week_end"] = str(end)
 
 
-def _build_notifications_preview(target_date: str) -> dict:
+def _build_notifications_preview(target_date: str, requested_channels: list[str] | None = None) -> dict:
     """Build a preview payload for assignments on one date."""
     _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
     schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
     weather = schedule_data.get("weather", {})
+    preferences = load_notification_preferences()
     assignments = [
         a for a in schedule_data.get("assignments", [])
         if str(a.get("date", "")) == target_date
@@ -438,6 +517,7 @@ def _build_notifications_preview(target_date: str) -> dict:
         collector = str(assignment.get("collector", "")).upper()
         route_label = assignment.get("label") or assignment.get("route")
         backpack = str(assignment.get("backpack", "")).upper()
+        destinations = destinations_for_collector(collector, requested_channels, preferences)
         msg = {
             "collector": collector,
             "date": date_str,
@@ -447,6 +527,8 @@ def _build_notifications_preview(target_date: str) -> dict:
             "route_label": route_label,
             "weather_advisory": advisory,
             "advisory_text": advisory_text,
+            "destinations": destinations,
+            "sendable": any(d.get("channel") == "email" for d in destinations),
             "message_text": (
                 f"Reminder for {collector}: {date_str} {tod}, Backpack {backpack}, "
                 f"{route_label}. {advisory_text}"
@@ -459,6 +541,7 @@ def _build_notifications_preview(target_date: str) -> dict:
         "date": target_date,
         "assignment_count": len(assignments),
         "collector_count": len(collectors),
+        "email_transport_configured": _email_transport_configured(),
         "messages": messages,
         "collectors": collectors,
     }
@@ -1252,18 +1335,19 @@ class Handler(BaseHTTPRequestHandler):
                 return
             query_date = query_params.get("date", [None])[0]
             target_date = _resolve_notification_date(payload.get("date") or query_date)
+            requested_channels = _normalize_notification_channels(payload.get("channels"))
             if not re.match(r"^\d{4}-\d{2}-\d{2}$", target_date):
                 self._send(400, "application/json",
                            json.dumps({"error": "date must be YYYY-MM-DD"}).encode())
                 return
             try:
-                preview = _build_notifications_preview(target_date)
-            except ScheduleValidationError as exc:
+                preview = _build_notifications_preview(target_date, requested_channels)
+            except (ScheduleValidationError, ValueError) as exc:
                 self._send(500, "application/json",
-                           json.dumps({"error": f"invalid schedule data: {exc}"}).encode())
+                           json.dumps({"error": f"invalid notification preview data: {exc}"}).encode())
                 return
             self._send(200, "application/json",
-                       json.dumps({"ok": True, "preview": preview}).encode())
+                       json.dumps({"ok": True, "preview": _redact_notification_preview(preview)}).encode())
         elif endpoint == "/api/notifications/send":
             payload, err = self._read_json_body()
             if err:
@@ -1276,25 +1360,76 @@ class Handler(BaseHTTPRequestHandler):
                 return
             query_date = query_params.get("date", [None])[0]
             target_date = _resolve_notification_date(payload.get("date") or query_date)
+            requested_channels = _normalize_notification_channels(payload.get("channels"))
             if not re.match(r"^\d{4}-\d{2}-\d{2}$", target_date):
                 self._send(400, "application/json",
                            json.dumps({"error": "date must be YYYY-MM-DD"}).encode())
                 return
             try:
-                preview = _build_notifications_preview(target_date)
-            except ScheduleValidationError as exc:
+                preview = _build_notifications_preview(target_date, requested_channels)
+            except (ScheduleValidationError, ValueError) as exc:
                 self._send(500, "application/json",
-                           json.dumps({"error": f"invalid schedule data: {exc}"}).encode())
+                           json.dumps({"error": f"invalid notification send data: {exc}"}).encode())
                 return
 
             sender = str(payload.get("sender", "")).strip() or "manual"
+            send_results = []
+            dry_run = bool(payload.get("dry_run", False))
+            for msg in preview.get("messages", []):
+                subject = f"EnAACT walk reminder: {msg.get('date')} {msg.get('tod')}"
+                body = str(msg.get("message_text", ""))
+                destinations = msg.get("destinations", [])
+                if not destinations:
+                    send_results.append({
+                        "collector": msg.get("collector"),
+                        "channel": None,
+                        "target": None,
+                        "status": "skipped",
+                        "error": "no opted-in destination configured",
+                    })
+                    continue
+                for destination in destinations:
+                    channel = destination.get("channel")
+                    target = destination.get("target")
+                    if channel == "email":
+                        if dry_run:
+                            result = {"ok": True, "status": "dry_run"}
+                        else:
+                            result = _send_email_notification(to_email=str(target), subject=subject, body=body)
+                        send_results.append({
+                            "collector": msg.get("collector"),
+                            "channel": "email",
+                            "target": target,
+                            **result,
+                        })
+                    elif channel == "slack":
+                        send_results.append({
+                            "collector": msg.get("collector"),
+                            "channel": "slack",
+                            "target": target,
+                            "ok": False,
+                            "status": "skipped",
+                            "error": "Slack transport integration pending",
+                        })
+                    else:
+                        send_results.append({
+                            "collector": msg.get("collector"),
+                            "channel": channel,
+                            "target": target,
+                            "ok": False,
+                            "status": "skipped",
+                            "error": "unsupported notification channel",
+                        })
             dispatch_record = {
                 "dispatched_at": datetime.now().isoformat(),
                 "dispatched_by": sender,
                 "date": target_date,
                 "assignment_count": preview.get("assignment_count", 0),
                 "collector_count": preview.get("collector_count", 0),
-                "channels": payload.get("channels", ["email", "slack"]),
+                "channels": requested_channels,
+                "dry_run": dry_run,
+                "email_transport_configured": _email_transport_configured(),
+                "send_results": send_results,
                 "messages": preview.get("messages", []),
             }
             try:
@@ -1310,8 +1445,8 @@ class Handler(BaseHTTPRequestHandler):
 
             self._send(200, "application/json", json.dumps({
                 "ok": True,
-                "mode": "recorded",
-                "message": "Notification dispatch recorded. Email/Slack transport integration pending.",
+                "mode": "dry_run" if dry_run else "sent_or_recorded",
+                "message": "Notification dispatch processed. Slack transport integration pending.",
                 "dispatch": dispatch_record,
             }).encode())
         elif endpoint == "/api/record-calibration":

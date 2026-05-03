@@ -47,10 +47,14 @@ Related runtime artifacts:
 Self-scheduling is implemented in the dashboard and server:
 
 - calendar slot -> modal -> claim/unclaim workflow exists
+- calendar navigation includes current week plus one upcoming claimable empty week
 - weather is advisory only
 - uniqueness is enforced per `backpack + date + tod`
 - collector double-booking is blocked within the same `date + tod`
 - claim/unclaim writes go through `shared/schedule_store.py`
+- email-first reminder notifications are implemented for next-day assignments
+  with SMTP transport, collector opt-ins, dispatch logging, and a dashboard
+  Reminders modal; Slack remains a future transport
 
 Important active APIs:
 
@@ -63,6 +67,8 @@ Important active APIs:
 - `POST /api/rebuild`
 - `POST /api/force-rebuild`
 - `POST /api/schedule/rebuild-site`
+- `POST /api/notifications/preview`
+- `POST /api/notifications/send`
 
 Retired scheduler endpoints:
 
@@ -108,6 +114,8 @@ Manual checks still worth doing before merge:
   path regression
 - browser UI sanity: claim, conflict rejection, unclaim/delete, and refresh
   persistence
+- production notification setup: Secret Manager SMTP values and
+  `NOTIFICATION_PREFERENCES_JSON`
 - automation sanity: confirm no coworker-owned/external caller still depends on
   `/api/rerun*`
 

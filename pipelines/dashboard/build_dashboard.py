@@ -296,6 +296,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .force-rebuild-btn{padding:4px 11px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:11px;font-weight:600;transition:all .15s;font-family:'Space Grotesk',sans-serif;margin-right:4px;display:flex;align-items:center;gap:3px;white-space:nowrap}
 .force-rebuild-btn:hover{background:#4f3a0f;border-color:#d29922;color:#d29922}
 .force-rebuild-btn.rebuilding{opacity:.5;cursor:wait;pointer-events:none}
+.notify-btn{padding:4px 11px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:11px;font-weight:600;transition:all .15s;font-family:'Space Grotesk',sans-serif;margin-right:4px;display:flex;align-items:center;gap:3px;white-space:nowrap}
+.notify-btn:hover{background:rgba(56,139,253,.12);border-color:#388bfd;color:#60a5fa}
+.notify-btn.sending{opacity:.5;cursor:wait;pointer-events:none}
 /* -- Admin login button (header) -- */
 .sched-unlock-btn{padding:4px 11px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:11px;font-weight:600;transition:all .15s;font-family:'Space Grotesk',sans-serif;margin-right:2px;display:flex;align-items:center;gap:3px;white-space:nowrap;flex-shrink:0}
 .sched-unlock-btn:hover{background:rgba(56,139,253,.1);border-color:var(--accent);color:var(--accent)}
@@ -316,6 +319,31 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 #auth-modal-submit:hover{background:var(--accent)}
 #auth-modal-cancel{padding:6px 14px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:5px;cursor:pointer;font-size:12px;font-weight:500;transition:all .15s}
 #auth-modal-cancel:hover{background:var(--bg3);color:var(--text)}
+#notify-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:9050;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+#notify-modal-bg.open{display:flex}
+#notify-modal{width:min(680px,94vw);max-height:82vh;overflow:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px;display:flex;flex-direction:column;gap:12px;box-shadow:0 16px 48px rgba(0,0,0,.8)}
+#notify-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#notify-modal h3{font-size:14px;font-weight:700;font-family:'Space Grotesk',sans-serif;color:var(--text);margin:0 0 3px}
+#notify-modal-sub{font-size:11px;color:var(--text2)}
+#notify-modal-actions{display:flex;gap:8px;justify-content:flex-end;align-items:center}
+#notify-modal-status{font-size:11px;color:var(--text2);margin-right:auto}
+#notify-modal-status.ok{color:var(--green)}
+#notify-modal-status.err{color:var(--red)}
+.notify-action{height:32px;padding:0 13px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:12px;font-weight:600;font-family:'Space Grotesk',sans-serif;cursor:pointer}
+.notify-action:hover{color:var(--text);border-color:var(--accent)}
+.notify-action.primary{background:rgba(56,139,253,.15);border-color:rgba(56,139,253,.45);color:#60a5fa}
+#notify-preview{border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--bg)}
+.notify-empty{padding:18px;color:var(--text3);font-size:12px;text-align:center}
+.notify-summary{display:flex;gap:10px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text2)}
+.notify-summary b{color:var(--text)}
+.notify-list{display:flex;flex-direction:column}
+.notify-row{display:grid;grid-template-columns:70px 78px 1fr 80px;gap:8px;align-items:start;padding:9px 12px;border-bottom:1px solid rgba(48,54,61,.55);font-size:11px}
+.notify-row:last-child{border-bottom:none}
+.notify-col-main{color:var(--text)}
+.notify-col-muted{color:var(--text2)}
+.notify-pill{display:inline-flex;align-items:center;justify-content:center;width:max-content;border-radius:999px;padding:2px 7px;font-size:10px;font-weight:700;border:1px solid var(--border);color:var(--text2)}
+.notify-pill.ready{border-color:rgba(63,185,80,.45);color:var(--green);background:rgba(63,185,80,.08)}
+.notify-pill.missing{border-color:rgba(210,153,34,.45);color:var(--yellow);background:rgba(210,153,34,.08)}
 /* -- Calibration entry button & modal -- */
 .cb-log-btn{padding:3px 9px;background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text2);border-radius:5px;cursor:pointer;font-size:10px;font-weight:600;font-family:'Space Grotesk',sans-serif;letter-spacing:.4px;transition:all .15s;white-space:nowrap;align-self:center;flex-shrink:0}
 .cb-log-btn:hover{background:rgba(255,255,255,.12);color:var(--text);border-color:rgba(255,255,255,.2)}
@@ -724,7 +752,7 @@ select option{background:var(--bg3)}
   #header-divider{display:none}
   #wx-cutoff-pill{display:none}
   #cal-bars{display:none}
-  .sched-unlock-btn,.force-rebuild-btn{order:1;flex-shrink:0;margin:0}
+  .sched-unlock-btn,.force-rebuild-btn,.notify-btn{order:1;flex-shrink:0;margin:0}
   /* Row 2: title full width */
   #header-title{order:2;flex-basis:100%;flex-shrink:1;min-width:0;text-align:left;margin-top:6px}
   #header h1{font-size:13px;font-family:'Space Grotesk',sans-serif;white-space:normal;line-height:1.2}
@@ -867,6 +895,7 @@ setTimeout(function(){
     </div>
     <button id="sched-unlock-btn" class="sched-unlock-btn" title="Log in to Admin Mode">&#x1F511; Admin Login</button>
     <button id="force-rebuild-btn" class="force-rebuild-btn" title="Force rebuild: build weather, rebuild site artifacts">&#x27F3; Rebuild</button>
+    <button id="notify-btn" class="notify-btn" title="Preview and send tomorrow reminder emails">&#x2709; Reminders</button>
     <button class="upload-data-btn" onclick="openUploadModal()">&#x2B06; Upload Data</button>
     <div id="tabs">
       <div class="tab-group" id="campaign-tab-group">
@@ -1603,10 +1632,15 @@ function buildTlWeeks(){
       if(!byWeek[key])byWeek[key]={weekStart:key,walks:[],source:'weather'};
     }
   }
-  // Always include the current week so the calendar anchors to today even when the schedule is stale
-  const _todayMon=toWeekSunday(new Date());
-  const _todayKey=_todayMon.toISOString().slice(0,10);
-  if(!byWeek[_todayKey])byWeek[_todayKey]={weekStart:_todayKey,walks:[],source:'log'};
+  // Always include the current week plus the next claimable week so the
+  // calendar can move one empty week ahead before anyone has claimed slots.
+  const _todaySun=toWeekSunday(new Date());
+  for(let i=0;i<=1;i++){
+    const weekDate=new Date(_todaySun);
+    weekDate.setDate(_todaySun.getDate()+(i*7));
+    const weekKey=weekDate.toISOString().slice(0,10);
+    if(!byWeek[weekKey])byWeek[weekKey]={weekStart:weekKey,walks:[],source:i===0?'log':'empty'};
+  }
   // Sort descending (index 0 = most recent / furthest future)
   return Object.values(byWeek).sort((a,b)=>b.weekStart.localeCompare(a.weekStart));
 }
@@ -2468,6 +2502,95 @@ function requireAuth(feature='this feature'){
   return false;
 }
 
+function openNotifyModal(){
+  const bg=document.getElementById('notify-modal-bg');
+  if(bg)bg.classList.add('open');
+  previewNotifications();
+}
+function closeNotifyModal(){
+  const bg=document.getElementById('notify-modal-bg');
+  if(bg)bg.classList.remove('open');
+}
+function setNotifyStatus(msg,kind=''){
+  const el=document.getElementById('notify-modal-status');
+  if(!el)return;
+  el.textContent=msg||'';
+  el.className=kind;
+}
+function renderNotificationPreview(preview){
+  const wrap=document.getElementById('notify-preview');
+  if(!wrap)return;
+  const messages=(preview&&preview.messages)||[];
+  if(!messages.length){
+    wrap.innerHTML='<div class="notify-empty">No claimed walks found for tomorrow.</div>';
+    return;
+  }
+  const sendable=messages.filter(m=>m.sendable).length;
+  let html=`<div class="notify-summary">
+    <span><b>${messages.length}</b> reminder${messages.length===1?'':'s'}</span>
+    <span><b>${sendable}</b> email-ready</span>
+    <span><b>${preview.email_transport_configured?'SMTP ready':'SMTP missing'}</b></span>
+  </div><div class="notify-list">`;
+  for(const m of messages){
+    const dests=(m.destinations||[]).map(d=>`${d.channel}: ${d.target}`).join(', ');
+    html+=`<div class="notify-row">
+      <div class="notify-col-muted">${_escHtml(m.tod||'')}</div>
+      <div class="notify-col-muted">${_escHtml(m.collector||'')}</div>
+      <div class="notify-col-main">${_escHtml(m.route_label||m.route||'')}</div>
+      <div><span class="notify-pill ${m.sendable?'ready':'missing'}">${m.sendable?'Ready':'No email'}</span></div>
+      <div class="notify-col-muted" style="grid-column:1/-1">${_escHtml(dests||'No opted-in email destination configured.')}</div>
+    </div>`;
+  }
+  html+='</div>';
+  wrap.innerHTML=html;
+}
+async function previewNotifications(){
+  setNotifyStatus('Loading preview...','');
+  try{
+    const resp=await fetch('/api/notifications/preview',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({channels:['email']})
+    });
+    const data=await resp.json().catch(()=>({}));
+    if(!resp.ok)throw new Error(data.error||('HTTP '+resp.status));
+    renderNotificationPreview(data.preview||{});
+    setNotifyStatus('Preview loaded.','ok');
+  }catch(err){
+    setNotifyStatus('Preview failed: '+err.message,'err');
+  }
+}
+async function sendNotifications(){
+  const btn=document.getElementById('notify-send-btn');
+  if(btn&&btn.classList.contains('sending'))return;
+  if(!confirm('Send tomorrow reminder emails to opted-in collectors?'))return;
+  if(btn)btn.classList.add('sending');
+  setNotifyStatus('Sending emails...','');
+  try{
+    const resp=await fetch('/api/notifications/send',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({channels:['email'],sender:schedAuth.scheduler||'dashboard',pin:schedAuth.pin||''})
+    });
+    const data=await resp.json().catch(()=>({}));
+    if(resp.status===403){
+      openAuthModal('Admin login required to send reminder emails.');
+      throw new Error('Admin login required.');
+    }
+    if(!resp.ok)throw new Error(data.error||('HTTP '+resp.status));
+    const results=(data.dispatch&&data.dispatch.send_results)||[];
+    const sent=results.filter(r=>r.status==='sent').length;
+    const failed=results.filter(r=>r.status==='failed').length;
+    const skipped=results.filter(r=>r.status==='skipped').length;
+    setNotifyStatus(`Processed: ${sent} sent, ${failed} failed, ${skipped} skipped.`,failed?'err':'ok');
+    await previewNotifications();
+  }catch(err){
+    if(err.message!=='Admin login required.')setNotifyStatus('Send failed: '+err.message,'err');
+  }finally{
+    if(btn)btn.classList.remove('sending');
+  }
+}
+
 // --- EVENTS ---
 function bindEvents(){
   document.querySelectorAll('.tab-btn[data-view]').forEach(b=>b.addEventListener('click',async()=>{
@@ -2509,6 +2632,16 @@ function bindEvents(){
   if(slotCloseBtn)slotCloseBtn.addEventListener('click',closeSlotScheduler);
   const slotClaimBtn=document.getElementById('slot-claim-btn');
   if(slotClaimBtn)slotClaimBtn.addEventListener('click',claimCalendarSlot);
+  const notifyBtn=document.getElementById('notify-btn');
+  if(notifyBtn)notifyBtn.addEventListener('click',openNotifyModal);
+  const notifyBg=document.getElementById('notify-modal-bg');
+  if(notifyBg)notifyBg.addEventListener('click',e=>{if(e.target===notifyBg)closeNotifyModal();});
+  const notifyClose=document.getElementById('notify-modal-close');
+  if(notifyClose)notifyClose.addEventListener('click',closeNotifyModal);
+  const notifyPreviewBtn=document.getElementById('notify-preview-btn');
+  if(notifyPreviewBtn)notifyPreviewBtn.addEventListener('click',previewNotifications);
+  const notifySendBtn=document.getElementById('notify-send-btn');
+  if(notifySendBtn)notifySendBtn.addEventListener('click',sendNotifications);
   const slotBody=document.getElementById('ss-body');
   if(slotBody){
     slotBody.addEventListener('click',e=>{
@@ -3237,6 +3370,26 @@ document.addEventListener('DOMContentLoaded',function(){
     <div id="recal-modal-actions">
       <button id="recal-modal-cancel">Cancel</button>
       <button id="recal-modal-submit">Record</button>
+    </div>
+  </div>
+</div>
+<!--- Notification reminder modal --->
+<div id="notify-modal-bg">
+  <div id="notify-modal">
+    <div id="notify-modal-head">
+      <div>
+        <h3>&#x2709; Tomorrow Reminders</h3>
+        <div id="notify-modal-sub">Preview and send opted-in email reminders for tomorrow's claimed walks.</div>
+      </div>
+      <button class="notify-action" id="notify-modal-close">Close</button>
+    </div>
+    <div id="notify-preview">
+      <div class="notify-empty">Preview tomorrow's reminders before sending.</div>
+    </div>
+    <div id="notify-modal-actions">
+      <div id="notify-modal-status"></div>
+      <button class="notify-action" id="notify-preview-btn">Preview</button>
+      <button class="notify-action primary" id="notify-send-btn">Send Emails</button>
     </div>
   </div>
 </div>

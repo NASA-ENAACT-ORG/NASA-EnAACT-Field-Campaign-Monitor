@@ -384,6 +384,13 @@ bash scripts/deploy/deploy.sh
 | `GAS_SECRET` | Secret Manager | Bearer token for GAS → server webhooks |
 | `SCHEDULER_PIN` | Secret Manager | PIN for browser-triggered rebuilds |
 | `DRIVE_POLL_INTERVAL` | Cloud Run env var | Background Drive poll interval in seconds (0 = disabled, use GAS push) |
+| `SMTP_HOST` | Secret Manager/env var | SMTP server for email notifications |
+| `SMTP_PORT` | Secret Manager/env var | SMTP port, default `587` |
+| `SMTP_USERNAME` | Secret Manager/env var | Optional SMTP username |
+| `SMTP_PASSWORD` | Secret Manager | Optional SMTP password/app password |
+| `SMTP_USE_TLS` | Secret Manager/env var | Use STARTTLS for SMTP, default `1` |
+| `NOTIFICATION_FROM_EMAIL` | Secret Manager/env var | Sender address for email notifications |
+| `NOTIFICATION_PREFERENCES_JSON` | Secret Manager | Collector email opt-ins as JSON; overrides local `notification_preferences.json` |
 
 In production, `DRIVE_POLL_INTERVAL=0` — Drive sync is push-triggered by the GAS `drive_watcher.js` script rather than polled.
 
@@ -417,6 +424,24 @@ GCS blob names intentionally match the original filenames (e.g. `Walks_Log.txt`,
 
 **New collector**: add their metadata in `shared/registry.py` (display name, groups, and any role-specific sets).
 
+**Notification opt-ins**: copy `data/inputs/collectors/notification_preferences.example.json` to
+`data/inputs/collectors/notification_preferences.json`, then add opted-in collector emails.
+The real preferences file is git-ignored because it contains contact info.
+Email is the active transport; Slack preferences can be recorded for later but are not sent yet.
+
+For Cloud Run, store SMTP settings and opt-ins in Secret Manager instead of committing them:
+
+```bash
+printf '%s' 'smtp.gmail.com' | gcloud secrets versions add SMTP_HOST --data-file=-
+printf '%s' '587' | gcloud secrets versions add SMTP_PORT --data-file=-
+printf '%s' '<sender-email>' | gcloud secrets versions add SMTP_USERNAME --data-file=-
+printf '%s' '<gmail-app-password>' | gcloud secrets versions add SMTP_PASSWORD --data-file=-
+printf '%s' '<sender-email>' | gcloud secrets versions add NOTIFICATION_FROM_EMAIL --data-file=-
+gcloud secrets versions add NOTIFICATION_PREFERENCES_JSON --data-file=data/inputs/collectors/notification_preferences.json
+```
+
+If a secret does not exist yet, create it first with `gcloud secrets create <NAME> --replication-policy=automatic`.
+
 **MTA GTFS update**: replace files in `data/inputs/transit/gtfs/`, run `python pipelines/_retired/scheduling/transit_matrix.py`, commit the updated `data/outputs/site/transit_matrix.json`.
 
 **Forecast update**: update the Google Sheets tab → GAS triggers `/api/force-rebuild` automatically.
@@ -445,7 +470,7 @@ GCS blob names intentionally match the original filenames (e.g. `Walks_Log.txt`,
 | `POST` | `/api/drive/poll` | GAS_SECRET | Manually trigger one Drive poll cycle |
 | `POST` | `/api/upload-walk` | — | Upload walk assets and append walk log entry |
 | `POST` | `/api/notifications/preview` | — | Preview scheduled collector notifications |
-| `POST` | `/api/notifications/send` | PIN | Send scheduled collector notifications |
+| `POST` | `/api/notifications/send` | PIN | Send scheduled collector email notifications and record per-channel results |
 | `POST` | `/api/confirm` | PIN | Verify SCHEDULER_PIN (used by browser auth modal) |
 | `POST` | `/api/record-calibration` | PIN | Append a calibration date to `Recal_Log.txt` |
 
