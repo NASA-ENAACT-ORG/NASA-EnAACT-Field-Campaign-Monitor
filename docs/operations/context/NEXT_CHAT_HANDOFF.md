@@ -5,7 +5,7 @@
 - status: ready_for_release_validation
 - date: 2026-05-02
 - branch: feature/self-scheduling-v1
-- last_commit: ec4a87d
+- last_commit: 8e950a5
 - runtime_mode: self_scheduling_active
 - scheduler_runtime: retired_default_path
 - retired_endpoints: /api/rerun, /api/rerun/a, /api/rerun/b (410)
@@ -38,6 +38,9 @@ Branch: `feature/self-scheduling-v1`
 
 ## What Just Landed
 
+- Slot scheduler modal now includes assignment-level remove action wired to
+  `DELETE /api/schedule/assignments/{id}` (with assignment-id fallback derivation
+  for older records missing explicit `id`).
 - Self-scheduling migration is now the active runtime path.
 - Scheduler rerun endpoints were retired (`/api/rerun*` return `410`).
 - Active schedule lifecycle APIs are in place:
@@ -62,14 +65,14 @@ Branch: `feature/self-scheduling-v1`
 
 ## Current Repo State
 
-Branch is in a strong checkpoint state and PR/checklist content has been drafted
-and posted to GitHub.
+Branch is in a strong checkpoint state. Prior release-readiness updates are
+already on branch, and a new local self-scheduling UI commit has been added
+for assignment-level removal in the slot modal.
 
-Working tree note: docs history reorg file moves/path updates are present locally
-and not yet committed in this snapshot.
+Recent commits from this chat:
 
-Recent commit from this chat:
-
+- `8e950a5` — "Add assignment remove action to self-scheduling slot modal"
+- `f5d5342` — "Finalize docs history reorg and add next-chat handoff snapshot"
 - `ec4a87d` — "Polish self-scheduling runtime docs and legacy startup paths"
 
 Most important current context docs:
