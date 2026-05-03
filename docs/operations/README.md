@@ -11,7 +11,7 @@ This folder is organized by current use:
 
 Obsolete or heavily outdated operations docs have been moved to:
 
-- `docs/retired/history/operations/`
+- `docs/operations/history/operations/`
 
 Those files are preserved for reference, but they should not be followed as the
 current operating model.

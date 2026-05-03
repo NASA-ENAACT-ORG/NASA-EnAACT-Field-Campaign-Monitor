@@ -14,7 +14,7 @@ understanding the current system shape or active transition work.
 
 Older scheduler-era audits and reorganization plans have been moved to:
 
-- `docs/retired/history/architecture/`
+- `docs/operations/history/architecture/`
 
 Those files are still useful as historical analysis, but they should not be
 treated as the shortest source of current truth.
