@@ -215,15 +215,16 @@ if _xlsx_path.exists():
     _wb=_opxl.load_workbook(_xlsx_path,read_only=True,data_only=True)
     _ws=_wb.active
     _group_rows,_cur={},None
-    for row in _ws.iter_rows(values_only=True):
-        vals=[c for c in row if c]
-        if not vals: continue
-        first=str(vals[0]).strip()
-        if first.startswith("Group_"):
-            _cur=first.replace("_"," ")
-            _group_rows[_cur]=[str(v).strip() for v in vals[1:] if v]
-        elif _cur:
-            _group_rows[_cur].extend([str(v).strip() for v in vals])
+    if _ws is not None:
+        for row in _ws.iter_rows(values_only=True):
+            vals=[c for c in row if c]
+            if not vals: continue
+            first=str(vals[0]).strip()
+            if first.startswith("Group_"):
+                _cur=first.replace("_"," ")
+                _group_rows[_cur]=[str(v).strip() for v in vals[1:] if v]
+            elif _cur:
+                _group_rows[_cur].extend([str(v).strip() for v in vals])
     _wb.close()
     for g in _GROUP_DEFS:
         if g["name"] in _group_rows:
