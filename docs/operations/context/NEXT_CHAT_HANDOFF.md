@@ -2,10 +2,10 @@
 
 ## Agent Snapshot
 
-- status: stabilization_validated_pending_manual_release_checks
+- status: followup_backpack_status_validated_pending_manual_release_checks
 - date: 2026-05-03
-- branch: feature/self-scheduling-v1
-- last_commit: 47c7574
+- branch: followup/backpack-status
+- last_commit: fec2124
 - runtime_mode: self_scheduling_active
 - scheduler_runtime: retired_default_path
 - retired_endpoints: /api/rerun, /api/rerun/a, /api/rerun/b (410)
@@ -14,6 +14,7 @@
   - GET /api/schedule/slots
   - POST /api/schedule/claim
   - POST /api/schedule/unclaim
+  - POST /api/backpack-status
   - PATCH /api/schedule/assignments/{id}
   - DELETE /api/schedule/assignments/{id}
 - active_rebuild_endpoints:
@@ -24,7 +25,7 @@
   - codex_verifiable_checks: passed in user-local venv
   - manual_checks_remaining:
     - cloud_run_deploy_sanity
-    - browser_ui_claim_conflict_unclaim_refresh
+    - browser_ui_claim_conflict_unclaim_refresh_backpack_status
     - confirm_no_external_callers_of_/api/rerun*
     - production_notification_secrets_setup
     - decide_whether_to_remove_reminders_modal
@@ -36,10 +37,29 @@
 - note: docs history reorg uses docs/operations/history/* (not docs/retired/history/*)
 
 Date: 2026-05-03
-Branch: `feature/self-scheduling-v1`
+Branch: `followup/backpack-status`
 
 ## What Just Landed
 
+- PR #8 was merged into `main` at merge commit `fca6e1f`.
+- A new follow-up branch, `followup/backpack-status`, was created from merged
+  `origin/main`.
+- Backpack status controls were added to the calendar nav:
+  - each backpack has one dropdown showing current holder/location state
+  - default holder is inferred from the most recent completed walk for that backpack
+  - manual selections persist in `schedule_output.json` under `backpack_status`
+  - `POST /api/backpack-status` saves either one holder or one location
+  - BP A location option: `CCNY`
+  - BP B location options: `LaGuardia`, `CCNY`
+  - signup/status holder lists now include professor accounts; BP A also includes
+    Angy (`ANG`)
+  - professor accounts are ordered at the bottom of relevant dropdown lists
+- `pipelines/dashboard/build_dashboard.py` now guards `Workbook.active` before
+  calling `iter_rows`, resolving the reported Pylance
+  `reportOptionalMemberAccess` diagnostic.
+- `integrations/gas/forecast_monitor.js` wording now describes
+  `/api/force-rebuild` as weather + dashboard/site rebuild without the
+  scheduler.
 - Calendar navigation now includes the current week plus one upcoming empty
   claimable week, so collectors can claim next-week slots before any assignments
   exist for that week.
@@ -79,19 +99,21 @@ Branch: `feature/self-scheduling-v1`
 
 ## Current Repo State
 
-Latest feature changes were committed in `47c7574` and the branch is ahead of
-`origin/feature/self-scheduling-v1`.
+Latest follow-up changes were committed in `fec2124` and the branch is ahead of
+`origin/main`.
 
-Agent shell still has isolated Python/path limits, but user-local execution
-completed successfully in venv after schedule dedupe.
+Agent shell still has sandbox Python/path limits, but the required workspace
+interpreter at `C:\Users\terra\AppData\Local\Programs\Python\Python39\python.exe`
+worked outside the sandbox after installing `requirements.txt`.
 
 Recent commits from this chat:
 
+- `fec2124` - "Clarify forecast monitor rebuild path"
+- `148f602` - "Fix dashboard worksheet typing guard"
+- `810a7c7` - "Add backpack status controls"
+- `fca6e1f` - "Migrating runtime from algo to self scheduling"
 - `47c7574` - "Add email reminders for self-scheduling"
-- `21dfb61` - "Stabilize self-scheduling assignment handling"
-- `8e950a5` - "Add assignment remove action to self-scheduling slot modal"
-- `f5d5342` - "Finalize docs history reorg and add next-chat handoff snapshot"
-- `ec4a87d` - "Polish self-scheduling runtime docs and legacy startup paths"
+- `f7d6ef4` - "Finalize self-scheduling cleanup docs"
 
 Most important current context docs:
 
@@ -102,7 +124,8 @@ Most important current context docs:
 
 ## Best Next Likely Task
 
-Finish release validation and production notification setup for merge readiness.
+Push/open the backpack-status follow-up PR, then finish release validation and
+production notification setup.
 
 User note for next session: the dashboard `Reminders` modal may be unnecessary
 and should probably be removed. Do not remove it automatically; reassess UX and
@@ -112,7 +135,8 @@ workflow is wanted.
 Use this minimal go/no-go set:
 
 - Cloud Run sanity: deploy + one rebuild + no scheduler path regressions
-- UI sanity: claim, conflict rejection, unclaim/delete, refresh persistence
+- UI sanity: claim, conflict rejection, unclaim/delete, refresh persistence, and
+  backpack status dropdown persistence after refresh/reopen
 - Automation sanity: confirm no active callers still depend on `/api/rerun*`
 - Notification sanity:
   - revoke the Gmail app password pasted in chat and create a fresh app password
@@ -124,20 +148,27 @@ Use this minimal go/no-go set:
 ## Validation Already Done
 
 - current worktree consistency checks completed before commit
+- backpack status follow-up checks completed on `followup/backpack-status`:
+  - `C:\Users\terra\AppData\Local\Programs\Python\Python39\python.exe -m py_compile app/server/serve.py pipelines/dashboard/build_dashboard.py shared/schedule_store.py` -> PASS
+  - `C:\Users\terra\AppData\Local\Programs\Python\Python39\python.exe pipelines/dashboard/build_dashboard.py` -> PASS
+  - `C:\Users\terra\AppData\Local\Programs\Python\Python39\python.exe scripts/ops/self_schedule_regression.py` -> PASS
+  - `C:\Users\terra\AppData\Local\Programs\Python\Python39\python.exe scripts/ops/self_schedule_smoke.py --schedule ".tmp/schedule_output.test.json" --in-place` -> PASS
+  - `git diff --check` -> PASS
 - docs and integrations updated to remove active scheduler-rerun wording
 - schedule duplicate-slot data issue was confirmed and manually corrected
 - local user-run checks now pass:
   - `python scripts/ops/self_schedule_regression.py` -> PASS
   - `python scripts/ops/self_schedule_smoke.py --schedule ".tmp/schedule_output.test.json" --in-place` -> PASS
-- Pylance-reported `serve.py` diagnostics were addressed (multipart typing +
-  override/type-narrowing fixes)
+- Pylance-reported diagnostics were addressed:
+  - `serve.py` multipart typing + override/type-narrowing fixes
+  - `build_dashboard.py` optional worksheet guard for `Workbook.active`
 - Local email notification send was manually confirmed by the user after setting
   SMTP env vars in PowerShell.
-- Agent shell still could not run Python: `python`, `py -3`, and repo `.venv`
-  are unavailable/broken from this sandbox.
+- Plain `python` and `py -3` are unavailable in the sandbox. Use the exact
+  workspace interpreter path above for checks.
 
 ## Suggested Resume Strategy
 
-1. Run quick release manual checks (Cloud Run + UI + rerun dependency check).
-2. Re-open VS Code diagnostics once to confirm no new Pylance regressions.
-3. If manual checks pass, push branch and proceed to merge readiness.
+1. Review/push `followup/backpack-status` and open a small follow-up PR.
+2. Run quick release manual checks (Cloud Run + UI + rerun dependency check).
+3. Re-open VS Code diagnostics once to confirm no new Pylance regressions.

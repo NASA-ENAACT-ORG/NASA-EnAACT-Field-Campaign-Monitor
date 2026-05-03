@@ -3,7 +3,7 @@
  *
  * Runs whenever the forecast spreadsheet is edited (debounced 2 min), plus a
  * daily 4 AM safety-net check. Each rerun POSTs /api/force-rebuild on Cloud
- * Run, which triggers weather → scheduler → dashboard rebuild.
+ * Run, which triggers weather + dashboard/site rebuild without the scheduler.
  *
  * SETUP (one-time):
  *   1. Open script.google.com -> New project -> name it "EnAACT Forecast Monitor"

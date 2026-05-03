@@ -25,8 +25,11 @@ from shared.registry import (
     COLLECTOR_PIN_COLORS,
     COLLECTOR_ROUTE_AFFINITY,
     DASHBOARD_COLLECTORS,
+    LAST_RESORT_BACKPACK,
+    LAST_RESORT_COLLECTORS,
     NON_COLLECTOR_IDS,
     ROUTE_LABELS,
+    STAFF_COLLECTORS,
     STUDENT_COLLECTORS,
 )
 
@@ -51,13 +54,21 @@ route_labels_json = json.dumps(ROUTE_LABELS)
 collector_pin_colors_json = json.dumps(COLLECTOR_PIN_COLORS)
 dashboard_collectors_json = json.dumps(list(DASHBOARD_COLLECTORS))
 student_collectors_json = json.dumps(list(STUDENT_COLLECTORS))
+staff_collectors_json = json.dumps(list(STAFF_COLLECTORS))
 collector_groups_json = json.dumps(COLLECTOR_GROUPS)
 dashboard_collector_names_json = json.dumps({
     cid: COLLECTOR_DISPLAY_NAMES.get(cid, cid)
-    for cid in DASHBOARD_COLLECTORS
+    for cid in DASHBOARD_COLLECTORS + NON_COLLECTOR_IDS
 })
 slot_backpack_collectors_json = json.dumps({
-    bp: sorted(collectors)
+    bp: (
+        sorted(collectors)
+        + (
+            [cid for cid in LAST_RESORT_COLLECTORS if cid not in collectors]
+            if bp == LAST_RESORT_BACKPACK else []
+        )
+        + list(STAFF_COLLECTORS)
+    )
     for bp, collectors in BACKPACK_TO_STUDENT_COLLECTORS.items()
 })
 upload_collector_options_html = "".join(
@@ -204,15 +215,16 @@ if _xlsx_path.exists():
     _wb=_opxl.load_workbook(_xlsx_path,read_only=True,data_only=True)
     _ws=_wb.active
     _group_rows,_cur={},None
-    for row in _ws.iter_rows(values_only=True):
-        vals=[c for c in row if c]
-        if not vals: continue
-        first=str(vals[0]).strip()
-        if first.startswith("Group_"):
-            _cur=first.replace("_"," ")
-            _group_rows[_cur]=[str(v).strip() for v in vals[1:] if v]
-        elif _cur:
-            _group_rows[_cur].extend([str(v).strip() for v in vals])
+    if _ws is not None:
+        for row in _ws.iter_rows(values_only=True):
+            vals=[c for c in row if c]
+            if not vals: continue
+            first=str(vals[0]).strip()
+            if first.startswith("Group_"):
+                _cur=first.replace("_"," ")
+                _group_rows[_cur]=[str(v).strip() for v in vals[1:] if v]
+            elif _cur:
+                _group_rows[_cur].extend([str(v).strip() for v in vals])
     _wb.close()
     for g in _GROUP_DEFS:
         if g["name"] in _group_rows:
@@ -488,7 +500,7 @@ select option{background:var(--bg3)}
 .msc strong{display:block;font-size:17px;font-weight:700;color:var(--text);line-height:1.1}
 /* CALENDAR VIEW */
 #calendar-view{flex-direction:column;overflow:hidden}
-#cal-nav{display:flex;align-items:center;gap:6px;padding:0 16px;height:54px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+#cal-nav{display:flex;align-items:center;gap:6px;padding:0 16px;height:54px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto}
 #cal-nav h2{font-size:15px;font-weight:700;margin:0 8px;min-width:230px;text-align:center;white-space:nowrap}
 .cal-nav-btn{width:40px;height:40px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1;flex-shrink:0}
 .cal-nav-btn:hover{background:var(--bg3);border-color:var(--accent)}
@@ -505,6 +517,14 @@ select option{background:var(--bg3)}
 .bp-boro-tooltip .week-item{display:flex;align-items:center;gap:4px;padding:2px 0;color:#e6edf3}
 .bp-boro-tooltip .week-num{font-weight:700;color:var(--accent);min-width:20px}
 #cal-body{flex:1;overflow-y:auto;overflow-x:hidden;min-height:0}
+#backpack-status-panel{display:flex;align-items:center;gap:8px;padding:5px 9px;border:1px solid var(--border);border-radius:7px;background:rgba(255,255,255,.035);flex-shrink:0}
+.bp-status-card{display:grid;grid-template-columns:auto 132px;align-items:center;gap:5px}
+.bp-status-label{font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap}
+.bp-status-card[data-bp="A"] .bp-status-label{color:#f87171}
+.bp-status-card[data-bp="B"] .bp-status-label{color:#60a5fa}
+.bp-status-card select{height:28px;min-width:0;border-radius:5px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:11px;font-family:inherit;padding:0 6px}
+.bp-status-card select:disabled{opacity:.6}
+.bp-status-source{font-size:9px;color:var(--text3);white-space:nowrap;grid-column:2;margin-top:-2px}
 #cal-grid{display:grid;grid-template-columns:54px repeat(7,1fr);grid-template-rows:56px repeat(3,minmax(110px,1fr));min-height:100%;width:100%}
 .cal-corner{background:var(--bg2);border-right:1px solid var(--border);border-bottom:2px solid var(--border);position:sticky;top:0;left:0;z-index:20}
 .cal-day-head{background:var(--bg2);border-right:1px solid var(--border);border-bottom:2px solid var(--border);padding:8px 6px 6px;text-align:center;position:sticky;top:0;z-index:10}
@@ -983,6 +1003,18 @@ setTimeout(function(){
           <button class="bp-toggle active" data-backpack="A" title="Toggle Backpack A">BP A<span class="bp-boro-badge" data-bp="A"></span><div class="bp-boro-tooltip" data-bp="A"></div></button>
           <button class="bp-toggle active" data-backpack="B" title="Toggle Backpack B">BP B<span class="bp-boro-badge" data-bp="B"></span><div class="bp-boro-tooltip" data-bp="B"></div></button>
         </div>
+        <div id="backpack-status-panel" title="Current backpack holder and location">
+          <div class="bp-status-card" data-bp="A">
+            <span class="bp-status-label">BP A</span>
+            <select class="bp-status-select" data-bp="A" aria-label="Backpack A current location or holder"></select>
+            <span class="bp-status-source" data-bp="A"></span>
+          </div>
+          <div class="bp-status-card" data-bp="B">
+            <span class="bp-status-label">BP B</span>
+            <select class="bp-status-select" data-bp="B" aria-label="Backpack B current location or holder"></select>
+            <span class="bp-status-source" data-bp="B"></span>
+          </div>
+        </div>
         <div id="wx-cutoff-pill" title="Cloud cover threshold &mdash; slots at or below 50% are marked GO" style="margin-left:auto">
           &#x2601; <span class="wx-good">&#x2264;50%&nbsp;GO</span>&nbsp;<span style="color:var(--border)">|</span>&nbsp;<span class="wx-bad">&gt;50%&nbsp;NO&nbsp;GO</span>
         </div>
@@ -1115,6 +1147,7 @@ const ROUTE_LABELS = __ROUTE_LABELS_JSON__;
 const ALL_ROUTES = new Set(Object.keys(ROUTE_LABELS));
 const COLLECTORS = __DASHBOARD_COLLECTORS_JSON__;
 const STUDENT_COLLECTORS = __STUDENT_COLLECTORS_JSON__;
+const STAFF_COLLECTORS = __STAFF_COLLECTORS_JSON__;
 const SLOT_SCHEDULE_COLLECTORS = STUDENT_COLLECTORS.slice();
 const SLOT_BACKPACK_COLLECTORS = __SLOT_BACKPACK_COLLECTORS_JSON__;
 const CNAMES = __DASHBOARD_COLLECTOR_NAMES_JSON__;
@@ -1929,8 +1962,7 @@ function _ensureSlotSchedulerInputs(){
   const renderCollectors=()=>{
     if(!collectorSel)return;
     const bp=(backpackSel&&backpackSel.value)||'A';
-    const scoped=(SLOT_BACKPACK_COLLECTORS[bp]||SLOT_SCHEDULE_COLLECTORS)
-      .filter(cid=>SLOT_SCHEDULE_COLLECTORS.includes(cid));
+    const scoped=(SLOT_BACKPACK_COLLECTORS[bp]||SLOT_SCHEDULE_COLLECTORS);
     collectorSel.innerHTML=scoped
       .map(cid=>`<option value="${cid}">${CNAMES[cid]||cid} (${cid})</option>`)
       .join('');
@@ -2269,12 +2301,106 @@ function updateCalibrationBar(bp){
 
 function updateCalibrationBars(){updateCalibrationBar('A');updateCalibrationBar('B');}
 
+function _latestCompletedHolder(bp){
+  const walks=allWalks
+    .filter(w=>w.bp===bp&&w.collector)
+    .sort((a,b)=>{
+      const ad=a.date instanceof Date?a.date.getTime():0;
+      const bd=b.date instanceof Date?b.date.getTime():0;
+      if(ad!==bd)return bd-ad;
+      return (TOD_ORDER[b.tod]||0)-(TOD_ORDER[a.tod]||0);
+    });
+  return walks.length?walks[0]:null;
+}
+function _backpackLocationOptions(bp){return bp==='A'?['CCNY']:['LaGuardia','CCNY'];}
+function _backpackStatusFor(bp){
+  const saved=RUNTIME_SCHEDULE&&RUNTIME_SCHEDULE.backpack_status&&RUNTIME_SCHEDULE.backpack_status[bp];
+  if(saved&&saved.holder){
+    return {
+      value:'person:'+String(saved.holder).toUpperCase(),
+      holder:String(saved.holder).toUpperCase(),
+      source:'manual'
+    };
+  }
+  if(saved&&saved.location){
+    return {
+      value:'location:'+saved.location,
+      location:saved.location,
+      source:'manual'
+    };
+  }
+  const latest=_latestCompletedHolder(bp);
+  return {
+    value:latest?'person:'+latest.collector:'',
+    holder:latest?latest.collector:'',
+    source:latest?'latest completed walk':'no completed walk'
+  };
+}
+function renderBackpackStatusPanel(){
+  for(const bp of ['A','B']){
+    const statusSel=document.querySelector(`.bp-status-select[data-bp="${bp}"]`);
+    const sourceEl=document.querySelector(`.bp-status-source[data-bp="${bp}"]`);
+    if(!statusSel)continue;
+    if(!statusSel.dataset.ready){
+      const holderOptions=(SLOT_BACKPACK_COLLECTORS[bp]||[]).slice();
+      const staffOptions=holderOptions.filter(cid=>STAFF_COLLECTORS.includes(cid));
+      const teamOptions=holderOptions.filter(cid=>!STAFF_COLLECTORS.includes(cid));
+      const teamHtml=teamOptions.map(cid=>
+        `<option value="person:${_escHtml(cid)}">${_escHtml(CNAMES[cid]||cid)} (${_escHtml(cid)})</option>`
+      ).join('');
+      const locationHtml=_backpackLocationOptions(bp).map(location=>
+        `<option value="location:${_escHtml(location)}">${_escHtml(location)}</option>`
+      ).join('');
+      const staffHtml=staffOptions.map(cid=>
+        `<option value="person:${_escHtml(cid)}">${_escHtml(CNAMES[cid]||cid)} (${_escHtml(cid)})</option>`
+      ).join('');
+      statusSel.innerHTML=teamHtml+locationHtml+staffHtml;
+      statusSel.dataset.ready='1';
+    }
+    const status=_backpackStatusFor(bp);
+    statusSel.value=status.value;
+    if(sourceEl)sourceEl.textContent=status.source;
+  }
+}
+async function saveBackpackStatus(bp){
+  const statusSel=document.querySelector(`.bp-status-select[data-bp="${bp}"]`);
+  if(!statusSel||!statusSel.value)return;
+  const [kind,...rest]=statusSel.value.split(':');
+  const selectedValue=rest.join(':');
+  const payload={
+    backpack:bp,
+    holder:kind==='person'?selectedValue:'',
+    location:kind==='location'?selectedValue:'',
+    updated_by:schedAuth.scheduler||(kind==='person'?selectedValue:'')
+  };
+  statusSel.disabled=true;
+  try{
+    const resp=await fetch('/api/backpack-status',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    const data=await resp.json().catch(()=>({}));
+    if(!resp.ok)throw new Error(data.error||('HTTP '+resp.status));
+    if(data.schedule)RUNTIME_SCHEDULE=data.schedule;
+    if(RUNTIME_SCHEDULE&&RUNTIME_SCHEDULE.assignments)loadScheduleJSON(JSON.stringify(RUNTIME_SCHEDULE));
+    renderBackpackStatusPanel();
+    toast(`Backpack ${bp} status updated`,'success');
+  }catch(err){
+    toast(`Backpack ${bp} update failed: ${err.message}`,'');
+    renderBackpackStatusPanel();
+  }finally{
+    statusSel.disabled=false;
+  }
+}
+
 function renderCalendar(){
   const grid=document.getElementById('cal-grid');
   const title=document.getElementById('cal-title');
   if(!grid)return;
 
   updateCalibrationBars();
+  renderBackpackStatusPanel();
 
   const weeks=buildTlWeeks();
   if(!weeks.length){
@@ -2655,6 +2781,9 @@ function bindEvents(){
   });
   document.getElementById('cal-next').addEventListener('click',()=>{
     if(calWeekIdx>0){calWeekIdx--;renderCalendar();}
+  });
+  document.querySelectorAll('.bp-status-select').forEach(sel=>{
+    sel.addEventListener('change',e=>saveBackpackStatus(e.currentTarget.dataset.bp));
   });
   document.getElementById('close-panel').addEventListener('click',closePanel);
   document.querySelectorAll('.wtab').forEach(b=>b.addEventListener('click',()=>{
@@ -3397,6 +3526,7 @@ HTML_TEMPLATE = HTML_TEMPLATE.replace('__ROUTE_LABELS_JSON__', route_labels_json
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__COLLECTOR_PIN_COLORS_JSON__', collector_pin_colors_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__DASHBOARD_COLLECTORS_JSON__', dashboard_collectors_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__STUDENT_COLLECTORS_JSON__', student_collectors_json)
+HTML_TEMPLATE = HTML_TEMPLATE.replace('__STAFF_COLLECTORS_JSON__', staff_collectors_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__DASHBOARD_COLLECTOR_NAMES_JSON__', dashboard_collector_names_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__SLOT_BACKPACK_COLLECTORS_JSON__', slot_backpack_collectors_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__COLLECTOR_GROUPS_JSON__', collector_groups_json)
