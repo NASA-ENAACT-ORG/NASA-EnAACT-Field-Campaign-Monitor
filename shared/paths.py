@@ -23,6 +23,7 @@ ROUTES_DATA_JSON    = INPUTS_DIR / "routes" / "routes_data.json"
 
 # Collector_Schedule/ contains personal availability PDFs — git-ignored, kept locally
 COLLECTOR_SCHEDULE_DIR = REPO_ROOT / "data" / "inputs" / "collectors"
+COLLECTOR_NOTIFICATION_PREFS = COLLECTOR_SCHEDULE_DIR / "notification_preferences.json"
 
 # ── Outputs — site artifacts (generated HTML/JSON served by the app) ──────────
 SITE_DIR                  = REPO_ROOT / "data" / "outputs" / "site"
@@ -55,10 +56,11 @@ FORECAST_STATE = LOCAL_DIR / ".forecast_state.json"
 BUILD_WEATHER         = REPO_ROOT / "pipelines" / "weather"    / "build_weather.py"
 BUILD_DASHBOARD       = REPO_ROOT / "pipelines" / "dashboard"  / "build_dashboard.py"
 BUILD_AVAILABILITY    = REPO_ROOT / "pipelines" / "dashboard"  / "build_availability_heatmap.py"
-BUILD_COLLECTOR_MAP   = REPO_ROOT / "pipelines" / "maps"       / "build_collector_map.py"
-WALK_SCHEDULER        = REPO_ROOT / "pipelines" / "scheduling" / "walk_scheduler.py"
+# Retired scripts kept for historical reference:
+BUILD_COLLECTOR_MAP   = REPO_ROOT / "pipelines" / "_retired" / "maps"       / "build_collector_map.py"
+WALK_SCHEDULER        = REPO_ROOT / "pipelines" / "_retired" / "scheduling" / "walk_scheduler.py"
 STUDENT_SCHEDULER     = REPO_ROOT / "pipelines" / "students"   / "student_scheduler.py"
-TRANSIT_MATRIX_SCRIPT = REPO_ROOT / "pipelines" / "scheduling" / "transit_matrix.py"
+TRANSIT_MATRIX_SCRIPT = REPO_ROOT / "pipelines" / "_retired" / "scheduling" / "transit_matrix.py"
 FORECAST_MONITOR      = REPO_ROOT / "pipelines" / "weather"    / "forecast_monitor.py"
 
 # ── Credentials ───────────────────────────────────────────────────────────────

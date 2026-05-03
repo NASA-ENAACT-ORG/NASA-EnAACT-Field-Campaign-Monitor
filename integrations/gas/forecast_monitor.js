@@ -1,12 +1,12 @@
 /**
- * EnAACT Forecast Monitor — Google Apps Script
+ * EnAACT Forecast Monitor - Google Apps Script
  *
  * Runs whenever the forecast spreadsheet is edited (debounced 2 min), plus a
  * daily 4 AM safety-net check. Each rerun POSTs /api/force-rebuild on Cloud
  * Run, which triggers weather → scheduler → dashboard rebuild.
  *
  * SETUP (one-time):
- *   1. Open script.google.com → New project → name it "EnAACT Forecast Monitor"
+ *   1. Open script.google.com -> New project -> name it "EnAACT Forecast Monitor"
  *   2. Paste this file's contents
  *   3. Add Script Properties (gear icon → Project Settings → Script Properties):
  *        SERVICE_URL  →  https://enact-walk-dashboard-uiy2p6yyja-ue.a.run.app
@@ -77,7 +77,7 @@ function dailySafetyCheck() {
   try {
     file = DriveApp.getFileById(SPREADSHEET_ID);
   } catch (err) {
-    Logger.log("ERROR: Could not access spreadsheet — " + err.toString());
+    Logger.log("ERROR: Could not access spreadsheet - " + err.toString());
     return;
   }
 
@@ -107,6 +107,7 @@ function triggerRerun_(reason) {
   var secret     = props.getProperty("GAS_SECRET")  || "";
   var serviceUrl = props.getProperty("SERVICE_URL") || "";
 
+
   var options = {
     method:             "post",
     headers: {
@@ -135,7 +136,7 @@ function triggerRerun_(reason) {
   }
 }
 
-// ── Trigger registration ──────────────────────────────────────────────────────
+// Trigger registration
 
 /**
  * Run this function ONCE from the GAS editor to register both triggers:

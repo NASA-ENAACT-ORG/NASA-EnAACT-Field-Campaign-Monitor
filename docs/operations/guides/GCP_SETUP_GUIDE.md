@@ -200,7 +200,7 @@ Create secrets in Google Cloud Secret Manager for sensitive configuration:
 PROJECT_ID="enact-walk-dashboard-prod"
 gcloud config set project $PROJECT_ID
 
-# Create each secret (use values from your Fly.io configuration or .env file)
+# Create each secret (use values from the existing deployment or local .env file)
 
 # 1. Anthropic API Key
 echo -n "YOUR_ANTHROPIC_API_KEY_HERE" | gcloud secrets create ANTHROPIC_API_KEY \

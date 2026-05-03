@@ -1,6 +1,6 @@
 # NASA EnAACT Walk Dashboard
 
-Scheduling and monitoring system for the NYC EnAACT air quality field campaign. Manages collector walk assignments, weather-constrained scheduling, real-time Drive sync, and student team coordination via an interactive web dashboard deployed on Google Cloud Run.
+Monitoring and self-scheduling system for the NYC EnAACT air quality field campaign. Manages collector slot claims, weather refreshes, Drive sync, and team coordination via an interactive web dashboard deployed on Google Cloud Run.
 
 ---
 
@@ -11,10 +11,9 @@ Scheduling and monitoring system for the NYC EnAACT air quality field campaign. 
 - [Data Flow](#data-flow)
 - [Subsystems](#subsystems)
   - [Web Server](#web-server--appserver)
-  - [Scheduling Pipeline](#scheduling-pipeline--pipelinesscheduling)
+  - [Retired Pipelines](#retired-pipelines--pipelines_retired)
   - [Weather Pipeline](#weather-pipeline--pipelinesweather)
   - [Dashboard Pipeline](#dashboard-pipeline--pipelinesdashboard)
-  - [Maps Pipeline](#maps-pipeline--pipelinesmaps)
   - [Student Scheduler](#student-scheduler--pipelinesstudents)
 - [Shared Path Registry](#shared-path-registry)
 - [Data Layout](#data-layout)
@@ -37,15 +36,15 @@ The dashboard is a single-container Python HTTP server (no framework) deployed o
 2. A Google Apps Script (in `integrations/gas/`) detects new files and POSTs to `/api/drive/poll`
 3. The server pulls the walk log from Drive, rewrites `data/runtime/persisted/Walks_Log.txt`, uploads it to GCS, and triggers a dashboard rebuild
 4. Separately, a team member updates the Google Sheets forecast → GAS POSTs to `/api/force-rebuild`
-5. The server runs: `build_weather.py` → `walk_scheduler.py` → `build_dashboard.py`, uploading results to GCS after each step
+5. The server runs: `build_weather.py` → `build_dashboard.py` (no scheduler in the active runtime path)
 6. Browsers hitting `/dashboard.html` get the freshly generated file served from `data/outputs/site/`
 
 **Container lifecycle (Dockerfile CMD):**
 
 ```
-python app/server/serve.py --restore-only   # pull Walks_Log.txt + weather.json from GCS
+python app/server/serve.py --restore-only   # pull runtime state from GCS
 python pipelines/dashboard/build_dashboard.py  # bake schedule + weather into dashboard.html
-python pipelines/maps/build_collector_map.py   # build collector location map
+python pipelines/_retired/maps/build_collector_map.py   # best-effort legacy map build; failures are tolerated
 python app/server/serve.py                     # start HTTP server on $PORT (8080)
 ```
 
@@ -60,17 +59,18 @@ python app/server/serve.py                     # start HTTP server on $PORT (808
 │       └── serve.py              # HTTP server — all routes, GCS helpers, Drive polling
 │
 ├── pipelines/
-│   ├── scheduling/
-│   │   ├── walk_scheduler.py     # Core scheduling algorithm (Claude API + weather + transit)
-│   │   └── transit_matrix.py    # Builds route-to-route subway travel-time matrix
+│   ├── _retired/
+│   │   ├── scheduling/
+│   │   │   ├── walk_scheduler.py  # Retired scheduler algorithm
+│   │   │   └── transit_matrix.py  # Retired transit helper
+│   │   └── maps/
+│   │       └── build_collector_map.py  # Retired collector map builder
 │   ├── weather/
 │   │   ├── build_weather.py     # Reads Google Sheets forecast → weather.json
 │   │   └── forecast_monitor.py  # Standalone poller: watches Sheets, triggers pipeline
 │   ├── dashboard/
 │   │   ├── build_dashboard.py   # Generates dashboard.html (schedule + weather + walk log)
 │   │   └── build_availability_heatmap.py  # Generates availability_heatmap.html
-│   ├── maps/
-│   │   └── build_collector_map.py   # Generates collector_map.html (Leaflet split-screen)
 │   └── students/
 │       └── student_scheduler.py     # Generates EFD student bag-passing schedule
 │
@@ -155,27 +155,17 @@ Google Sheets (forecast)
     ▼ build_weather.py
 data/outputs/site/weather.json
     │
-    ▼ walk_scheduler.py  ◄── data/inputs/routes/kml/
-                         ◄── data/inputs/routes/Preferred_Routes.xlsx
-                         ◄── data/inputs/availability/Availability.xlsx
-                         ◄── data/runtime/persisted/Walks_Log.txt
-                         ◄── data/outputs/site/transit_matrix.json
-    │
-    ▼
-data/outputs/site/schedule_output.json
-    │
     ▼ build_dashboard.py  ◄── data/inputs/routes/routes_data.json
                           ◄── data/inputs/routes/Route_Groups.xlsx
                           ◄── data/runtime/persisted/Walks_Log.txt
                           ◄── data/outputs/site/weather.json
                           ◄── data/outputs/site/schedule_output.json
-                          ◄── build_availability_heatmap.py
+                          ◄── Availability.xlsx (via load_availability import)
     │
     ▼
 data/outputs/site/dashboard.html   (served at /)
-data/outputs/site/availability_heatmap.html
     │
-    ▼ GCS upload (all site artifacts)
+    ▼ GCS upload (dashboard.html)
 ```
 
 ```
@@ -201,19 +191,21 @@ POST /api/drive/poll
 - Runs pipeline scripts as subprocesses (never imports them directly)
 - Manages GCS download/upload for persisted state
 - Polls Google Drive for new walk files (or listens for GAS push triggers)
-- Streams subprocess output to the browser for `/api/rerun` and `/api/rebuild`
+- Streams subprocess output to the browser for `/api/rebuild` and `/api/forecast-stability`
 
 Key design: all subprocess calls pass `cwd=REPO_ROOT` so scripts can find `shared/paths.py`.
 
-### Scheduling Pipeline — `pipelines/scheduling/`
+### Retired Pipelines — `pipelines/_retired/`
 
-**`walk_scheduler.py`** — the core algorithm:
+These scripts are preserved for history/fallback but are not part of the active default runtime loop.
+
+**`walk_scheduler.py`** (retired):
 - Reads `weather.json`, `Walks_Log.txt`, `Availability.xlsx`, `V2_Preferred_Routes.xlsx`, collector schedule PDFs (via Claude vision API), and `transit_matrix.json`
 - Generates a ranked top-8 walk recommendation list and weekly calendar assignment
 - Enforces constraints: weather thresholds, collector availability, backpack continuity, transit time
 - Writes `data/outputs/site/schedule_output.json`
 
-**`transit_matrix.py`** — run once when subway data changes:
+**`transit_matrix.py`** (retired):
 - Parses MTA GTFS (`data/inputs/transit/gtfs/`) and route KML endpoints
 - Computes Dijkstra shortest-path subway travel times between all route pairs
 - Writes `data/outputs/site/transit_matrix.json`
@@ -228,7 +220,7 @@ Key design: all subprocess calls pass `cwd=REPO_ROOT` so scripts can find `share
 
 **`forecast_monitor.py`** — optional standalone poller:
 - Polls the forecast spreadsheet's Drive modification time every 5 minutes
-- When the sheet changes, runs: `build_weather.py` → `walk_scheduler.py` → `build_dashboard.py`
+- When the sheet changes, runs: `build_weather.py` → `build_dashboard.py`
 - Used for local development; in production this is replaced by GAS push triggers to `/api/force-rebuild`
 
 ### Dashboard Pipeline — `pipelines/dashboard/`
@@ -236,21 +228,14 @@ Key design: all subprocess calls pass `cwd=REPO_ROOT` so scripts can find `share
 **`build_dashboard.py`**:
 - Module-level code (not a function) — runs top-to-bottom when invoked
 - Bakes `schedule_output.json`, `weather.json`, `Walks_Log.txt`, route KML data, and collector info into a single self-contained HTML file
-- Calls `build_availability_heatmap.py` as a subprocess at the end
+- Imports `load_availability()` from `build_availability_heatmap.py` and bakes availability data directly into the dashboard
 - Output: `data/outputs/site/dashboard.html`
 
 **`build_availability_heatmap.py`**:
 - Reads `data/inputs/availability/Availability.xlsx`
 - Generates a color-coded grid showing which collectors are available for each Day × TOD slot
 - Output: `data/outputs/site/availability_heatmap.html`
-- Also importable as a library by `build_dashboard.py` (same directory, `sys.path` trick)
-
-### Maps Pipeline — `pipelines/maps/`
-
-**`build_collector_map.py`**:
-- Reads `routes_data.json`, `Preferred_Routes.xlsx`, `Walks_Log.txt`, `schedule_output.json`, and `Collector_Locs.kml`
-- Generates a split-screen Leaflet map: collector pins (colored by backpack) with walk counts, detail sidebar, and route overlays
-- Output: `data/outputs/site/collector_map.html`
+- Not called by `build_dashboard.py`; run manually when you specifically want to refresh the standalone page
 
 ### Student Scheduler — `pipelines/students/`
 
@@ -314,8 +299,8 @@ To add a new canonical path, edit only `shared/paths.py`. All consumers pick it 
 | `schedule_output.json` | `data/outputs/site/schedule_output.json` | Latest schedule |
 | `drive_seen_files.json` | `data/runtime/persisted/drive_seen_files.json` | Drive poll dedup state |
 | `dashboard.html` | `data/outputs/site/dashboard.html` | Rebuilt HTML |
-| `collector_map.html` | `data/outputs/site/collector_map.html` | Rebuilt HTML |
-| `availability_heatmap.html` | `data/outputs/site/availability_heatmap.html` | Rebuilt HTML |
+| `Recal_Log.txt` | `data/runtime/persisted/Recal_Log.txt` | Calibration history |
+| `notification_dispatch_log.jsonl` | `data/runtime/persisted/notification_dispatch_log.jsonl` | Notification send audit log |
 
 ---
 
@@ -337,19 +322,27 @@ python app/server/serve.py
 # → http://localhost:8765
 ```
 
-To run the full pipeline locally (requires Google Sheets access):
+To run the active rebuild path locally (requires Google Sheets access):
 
 ```bash
 python pipelines/weather/build_weather.py          # refresh weather.json
-python pipelines/scheduling/walk_scheduler.py      # regenerate schedule
 python pipelines/dashboard/build_dashboard.py      # rebuild dashboard
-python pipelines/maps/build_collector_map.py       # rebuild collector map
 ```
 
-To rebuild the transit matrix (run when KMLs or GTFS data changes):
+Retired scripts are still runnable manually when needed:
 
 ```bash
-python pipelines/scheduling/transit_matrix.py
+python pipelines/_retired/scheduling/transit_matrix.py
+python pipelines/_retired/scheduling/walk_scheduler.py
+python pipelines/dashboard/build_availability_heatmap.py
+```
+
+Self-scheduling ops scripts:
+
+```bash
+py -3 scripts/ops/self_schedule_regression.py
+py -3 scripts/ops/backfill_assignment_ids.py            # dry-run (default)
+py -3 scripts/ops/backfill_assignment_ids.py --apply    # persist ID backfill
 ```
 
 ---
@@ -366,9 +359,9 @@ The deploy workflow is at `.github/workflows/gcp-deploy.yml`. It:
 
 The container CMD sequence on startup:
 ```sh
-python app/server/serve.py --restore-only   # download Walks_Log.txt + weather.json from GCS
+python app/server/serve.py --restore-only   # download runtime state from GCS
 python pipelines/dashboard/build_dashboard.py
-python pipelines/maps/build_collector_map.py
+python pipelines/_retired/maps/build_collector_map.py  # best-effort legacy path (errors are tolerated)
 python app/server/serve.py                  # listen on $PORT (8080)
 ```
 
@@ -384,13 +377,20 @@ bash scripts/deploy/deploy.sh
 | Variable | Where set | Purpose |
 |---|---|---|
 | `PORT` | Cloud Run (auto) | Server listen port (default 8080) |
-| `ANTHROPIC_API_KEY` | Secret Manager | Claude API for collector schedule parsing |
+| `ANTHROPIC_API_KEY` | Secret Manager | Legacy/retired scheduler workflows that use Claude |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Secret Manager | Service account JSON string for Drive/Sheets auth |
 | `GOOGLE_DRIVE_WALKS_FOLDER_ID` | Secret Manager | Drive folder ID containing walk log files |
 | `GCS_BUCKET` | Cloud Run env var | GCS bucket name for persisted state |
 | `GAS_SECRET` | Secret Manager | Bearer token for GAS → server webhooks |
 | `SCHEDULER_PIN` | Secret Manager | PIN for browser-triggered rebuilds |
 | `DRIVE_POLL_INTERVAL` | Cloud Run env var | Background Drive poll interval in seconds (0 = disabled, use GAS push) |
+| `SMTP_HOST` | Secret Manager/env var | SMTP server for email notifications |
+| `SMTP_PORT` | Secret Manager/env var | SMTP port, default `587` |
+| `SMTP_USERNAME` | Secret Manager/env var | Optional SMTP username |
+| `SMTP_PASSWORD` | Secret Manager | Optional SMTP password/app password |
+| `SMTP_USE_TLS` | Secret Manager/env var | Use STARTTLS for SMTP, default `1` |
+| `NOTIFICATION_FROM_EMAIL` | Secret Manager/env var | Sender address for email notifications |
+| `NOTIFICATION_PREFERENCES_JSON` | Secret Manager | Collector email opt-ins as JSON; overrides local `notification_preferences.json` |
 
 In production, `DRIVE_POLL_INTERVAL=0` — Drive sync is push-triggered by the GAS `drive_watcher.js` script rather than polled.
 
@@ -403,12 +403,13 @@ The container is stateless. Durable state is stored in GCS and restored on start
 **Restore flow** (`--restore-only` on startup):
 1. Download `Walks_Log.txt` from GCS → `data/runtime/persisted/Walks_Log.txt`
 2. Download `weather.json` from GCS → `data/outputs/site/weather.json`
-3. Exit — `build_dashboard.py` runs next with fresh data
+3. Download `schedule_output.json`, `Recal_Log.txt`, and `dashboard.html`
+4. Exit — `build_dashboard.py` runs next with fresh data
 
 **Persist flow** (after any pipeline run):
 - After `build_weather.py`: upload `weather.json`
-- After `walk_scheduler.py`: upload `schedule_output.json`
-- After `build_dashboard.py`: upload `dashboard.html`, `collector_map.html`, `availability_heatmap.html`, `schedule_map.html`
+- After schedule claim/unclaim/update APIs: upload `schedule_output.json`
+- After `build_dashboard.py`: upload `dashboard.html` (in weather-triggered rebuild path)
 - After Drive poll: upload `Walks_Log.txt`, `drive_seen_files.json`
 
 GCS blob names intentionally match the original filenames (e.g. `Walks_Log.txt`, not `data/runtime/persisted/Walks_Log.txt`) for backward compatibility with any external tooling.
@@ -419,11 +420,29 @@ GCS blob names intentionally match the original filenames (e.g. `Walks_Log.txt`,
 
 **New route KMLs**: drop into `data/inputs/routes/kml/`, then regenerate `routes_data.json` and `transit_matrix.json` and commit both.
 
-**Collector availability update**: replace `data/inputs/availability/Availability.xlsx` and commit. The dashboard will reflect the new grid on next rebuild.
+**Collector availability update**: replace `data/inputs/availability/Availability.xlsx` and commit. The embedded dashboard availability grid updates on next rebuild; regenerate `availability_heatmap.html` manually with `python pipelines/dashboard/build_availability_heatmap.py` when needed.
 
-**New collector**: add their ID/name to the registries in `walk_scheduler.py`, `build_collector_map.py`, and `build_availability_heatmap.py`.
+**New collector**: add their metadata in `shared/registry.py` (display name, groups, and any role-specific sets).
 
-**MTA GTFS update**: replace files in `data/inputs/transit/gtfs/`, run `python pipelines/scheduling/transit_matrix.py`, commit the updated `data/outputs/site/transit_matrix.json`.
+**Notification opt-ins**: copy `data/inputs/collectors/notification_preferences.example.json` to
+`data/inputs/collectors/notification_preferences.json`, then add opted-in collector emails.
+The real preferences file is git-ignored because it contains contact info.
+Email is the active transport; Slack preferences can be recorded for later but are not sent yet.
+
+For Cloud Run, store SMTP settings and opt-ins in Secret Manager instead of committing them:
+
+```bash
+printf '%s' 'smtp.gmail.com' | gcloud secrets versions add SMTP_HOST --data-file=-
+printf '%s' '587' | gcloud secrets versions add SMTP_PORT --data-file=-
+printf '%s' '<sender-email>' | gcloud secrets versions add SMTP_USERNAME --data-file=-
+printf '%s' '<gmail-app-password>' | gcloud secrets versions add SMTP_PASSWORD --data-file=-
+printf '%s' '<sender-email>' | gcloud secrets versions add NOTIFICATION_FROM_EMAIL --data-file=-
+gcloud secrets versions add NOTIFICATION_PREFERENCES_JSON --data-file=data/inputs/collectors/notification_preferences.json
+```
+
+If a secret does not exist yet, create it first with `gcloud secrets create <NAME> --replication-policy=automatic`.
+
+**MTA GTFS update**: replace files in `data/inputs/transit/gtfs/`, run `python pipelines/_retired/scheduling/transit_matrix.py`, commit the updated `data/outputs/site/transit_matrix.json`.
 
 **Forecast update**: update the Google Sheets tab → GAS triggers `/api/force-rebuild` automatically.
 
@@ -438,13 +457,24 @@ GCS blob names intentionally match the original filenames (e.g. `Walks_Log.txt`,
 | `GET` | `/` | — | Redirect to `/dashboard.html` |
 | `GET` | `/<filename>` | — | Serve file from `data/outputs/site/` |
 | `GET` | `/api/status` | — | JSON: file mod times, Drive status, GCS health |
-| `POST` | `/api/rerun` | GAS_SECRET | Run scheduler (both backpacks) + rebuild all dashboards, stream output |
-| `POST` | `/api/rerun/a` | GAS_SECRET | Run scheduler for Backpack A (CCNY) only |
-| `POST` | `/api/rerun/b` | GAS_SECRET | Run scheduler for Backpack B (LaGCC) only |
+| `GET` | `/api/schedule` | — | Read schedule document |
+| `GET` | `/api/schedule/slots` | — | Slot-oriented schedule view (optional `week_start=YYYY-MM-DD`) |
 | `POST` | `/api/rebuild` | — | Rebuild dashboards only (no scheduler), stream output |
-| `POST` | `/api/force-rebuild` | GAS_SECRET or PIN | Full pipeline: weather → scheduler → dashboard, runs async |
+| `POST` | `/api/forecast-stability` | — | Run forecast stability analysis, stream output |
+| `POST` | `/api/force-rebuild` | GAS_SECRET or PIN | Weather + dashboard rebuild (scheduler-free), runs async |
+| `POST` | `/api/schedule/rebuild-site` | GAS_SECRET or PIN | Weather + dashboard rebuild (scheduler-free), runs async |
+| `POST` | `/api/schedule/claim` | — | Claim one schedule slot |
+| `POST` | `/api/schedule/unclaim` | — | Unclaim one schedule slot |
+| `PATCH` | `/api/schedule/assignments/{id}` | — | Update a claimed assignment |
+| `DELETE` | `/api/schedule/assignments/{id}` | — | Delete a claimed assignment |
 | `POST` | `/api/drive/poll` | GAS_SECRET | Manually trigger one Drive poll cycle |
+| `POST` | `/api/upload-walk` | — | Upload walk assets and append walk log entry |
+| `POST` | `/api/notifications/preview` | — | Preview scheduled collector notifications |
+| `POST` | `/api/notifications/send` | PIN | Send scheduled collector email notifications and record per-channel results |
 | `POST` | `/api/confirm` | PIN | Verify SCHEDULER_PIN (used by browser auth modal) |
 | `POST` | `/api/record-calibration` | PIN | Append a calibration date to `Recal_Log.txt` |
 
 `GAS_SECRET` auth: `Authorization: Bearer <secret>` header. If `GAS_SECRET` is not set, endpoints are open (local dev mode).
+
+Retired endpoints:
+- `POST /api/rerun`, `POST /api/rerun/a`, and `POST /api/rerun/b` now return `410 Gone`.

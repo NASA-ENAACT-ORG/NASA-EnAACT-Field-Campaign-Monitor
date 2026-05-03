@@ -1,29 +1,29 @@
 /**
- * EnAACT Drive Watcher — Google Apps Script
+ * EnAACT Drive Watcher - Google Apps Script
  *
- * Polls the Cloud Run server every minute to check for new walk folders in Drive.
- * If new walks are found, triggers a full scheduler rerun.
+ * Polls the Cloud Run server every five minutes to check for new walk folders
+ * in Drive. If new walks are found, the server updates the walk log and
+ * rebuilds the dashboard.
  *
  * SETUP (one-time):
- *   1. Open script.google.com → New project → name it "EnAACT Drive Watcher"
+ *   1. Open script.google.com -> New project -> name it "EnAACT Drive Watcher"
  *   2. Paste this file's contents
- *   3. Add Script Properties (gear icon → Project Settings → Script Properties):
- *        SERVICE_URL  →  https://enact-walk-dashboard-uiy2p6yyja-ue.a.run.app
- *        GAS_SECRET   →  <token from GCP Secret Manager>
- *   4. Run setupTrigger() once from the editor to register the 1-minute poll
- *   5. Verify in Executions tab that it fires every minute
+ *   3. Add Script Properties (gear icon -> Project Settings -> Script Properties):
+ *        SERVICE_URL  ->  https://enact-walk-dashboard-uiy2p6yyja-ue.a.run.app
+ *        GAS_SECRET   ->  <token from GCP Secret Manager>
+ *   4. Run setupTrigger() once from the editor to register the 5-minute poll
+ *   5. Verify in Executions tab that it fires every five minutes
  */
 
-// ── Config ────────────────────────────────────────────────────────────────────
+// Config
 
 var SERVICE_URL = PropertiesService.getScriptProperties().getProperty("SERVICE_URL") || "YOUR_CLOUD_RUN_URL_HERE";
 
-// ── Poll handler ──────────────────────────────────────────────────────────────
+// Poll handler
 
 /**
- * Called every minute by the time-based trigger.
+ * Called every five minutes by the time-based trigger.
  * Asks the Cloud Run server to check Drive for new walk folders.
- * If any are found, triggers a full scheduler rerun.
  */
 function pollDrive() {
   var props  = PropertiesService.getScriptProperties();
@@ -46,8 +46,7 @@ function pollDrive() {
     if (code === 200) {
       var data = JSON.parse(pollResp.getContentText());
       Logger.log("new_files: " + data.new_files);
-      // Walk-log updated — dashboard rebuild happens server-side.
-      // Scheduler only reruns on new forecast data or manual rejection.
+      Logger.log("Drive poll complete; dashboard rebuild, if needed, happens server-side.");
     } else {
       Logger.log("Unexpected response: " + pollResp.getContentText());
     }
@@ -56,10 +55,10 @@ function pollDrive() {
   }
 }
 
-// ── Trigger registration ──────────────────────────────────────────────────────
+// Trigger registration
 
 /**
- * Run this function ONCE from the GAS editor to register a 1-minute poll trigger.
+ * Run this function ONCE from the GAS editor to register a 5-minute poll trigger.
  * Re-running removes existing triggers first to avoid duplicates.
  */
 function setupTrigger() {

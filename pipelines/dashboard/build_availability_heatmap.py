@@ -13,19 +13,21 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from shared.paths import AVAILABILITY_XLSX, AVAILABILITY_HEATMAP_HTML
+from shared.registry import BACKPACK_AVAILABILITY_GROUPS, COLLECTOR_DISPLAY_NAMES
 
 DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 TODS = ['AM', 'MD', 'PM']
 
 # Backpack groups
-GROUP_A = ['SOT', 'AYA', 'JEN', 'TAH', 'ANG']
-GROUP_B = ['TER', 'ALX', 'SCT', 'JAM', 'JEN']
+GROUP_A = list(BACKPACK_AVAILABILITY_GROUPS["A"])
+GROUP_B = list(BACKPACK_AVAILABILITY_GROUPS["B"])
 
 FULL_NAMES = {
-    'SOT': 'Soteri', 'AYA': 'Aya', 'JEN': 'Jennifer',
-    'TAH': 'Taha',   'ANG': 'Angy',
-    'TER': 'Terra',  'ALX': 'Alex', 'SCT': 'Scott', 'JAM': 'James',
+    cid: COLLECTOR_DISPLAY_NAMES.get(cid, cid)
+    for cid in set(GROUP_A + GROUP_B)
 }
+GROUP_A_LABEL = " · ".join(GROUP_A)
+GROUP_B_LABEL = " · ".join(GROUP_B)
 
 _XLSX_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -112,11 +114,11 @@ def build_heatmap(avail: dict) -> str:
 
 <div class="panels">
   <div class="panel">
-    <div class="panel-title a">Backpack A — CCNY &nbsp;<span style="font-weight:400;opacity:.7">(SOT · AYA · JEN · TAH · ANG &nbsp;max {max_a})</span></div>
+    <div class="panel-title a">Backpack A — CCNY &nbsp;<span style="font-weight:400;opacity:.7">({GROUP_A_LABEL} &nbsp;max {max_a})</span></div>
     <table id="tbl-a"></table>
   </div>
   <div class="panel">
-    <div class="panel-title b">Backpack B — LaGCC &nbsp;<span style="font-weight:400;opacity:.7">(TER · ALX · SCT · JAM · JEN &nbsp;max {max_b})</span></div>
+    <div class="panel-title b">Backpack B — LaGCC &nbsp;<span style="font-weight:400;opacity:.7">({GROUP_B_LABEL} &nbsp;max {max_b})</span></div>
     <table id="tbl-b"></table>
   </div>
 </div>

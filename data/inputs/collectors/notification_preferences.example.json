@@ -1,0 +1,50 @@
+{
+  "SOT": {
+    "enabled": false,
+    "email": "",
+    "preferred_channels": ["email"],
+    "slack_user_id": ""
+  },
+  "AYA": {
+    "enabled": false,
+    "email": "",
+    "preferred_channels": ["email"],
+    "slack_user_id": ""
+  },
+  "ALX": {
+    "enabled": false,
+    "email": "",
+    "preferred_channels": ["email"],
+    "slack_user_id": ""
+  },
+  "TAH": {
+    "enabled": false,
+    "email": "",
+    "preferred_channels": ["email"],
+    "slack_user_id": ""
+  },
+  "JAM": {
+    "enabled": false,
+    "email": "",
+    "preferred_channels": ["email"],
+    "slack_user_id": ""
+  },
+  "JEN": {
+    "enabled": false,
+    "email": "",
+    "preferred_channels": ["email"],
+    "slack_user_id": ""
+  },
+  "SCT": {
+    "enabled": false,
+    "email": "",
+    "preferred_channels": ["email"],
+    "slack_user_id": ""
+  },
+  "TER": {
+    "enabled": false,
+    "email": "",
+    "preferred_channels": ["email"],
+    "slack_user_id": ""
+  }
+}

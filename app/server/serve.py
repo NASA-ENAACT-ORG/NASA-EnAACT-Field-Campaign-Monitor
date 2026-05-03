@@ -1,5 +1,5 @@
 """
-serve.py " Server for the NYC Walk Scheduler dashboard.
+serve.py " Server for the NYC field campaign dashboard.
 
 Usage:
     python serve.py              # serves on 0.0.0.0:8765 (or $PORT)
@@ -9,13 +9,17 @@ Endpoints:
   GET  /                        ' redirect to /dashboard.html
   GET  /<filename>              ' serve static file
   GET  /api/status              ' JSON with file mod times, Drive status
-  POST /api/rerun               ' run scheduler (both backpacks) + rebuild dashboards, stream output
-  POST /api/rerun/a             ' run scheduler for Backpack A (CCNY) only + rebuild dashboards
-  POST /api/rerun/b             ' run scheduler for Backpack B (LaGCC) only + rebuild dashboards
-  POST /api/rebuild             ' rebuild dashboards only, stream output
+  GET  /api/schedule            ' JSON schedule document
+  GET  /api/schedule/slots      ' slot-oriented schedule view
+  POST /api/rebuild             ' rebuild dashboard, stream output
+  POST /api/schedule/rebuild-site ' weather + site rebuild (no scheduler)
+  POST /api/notifications/preview ' preview next-day confirmation/advisory payload
+  POST /api/notifications/send  ' record/send next-day notifications
   POST /api/forecast-stability  ' run forecast stability analysis, stream output
   POST /api/drive/poll          ' manually trigger one Google Drive poll cycle
 """
+
+from __future__ import annotations
 
 import argparse
 import email.parser
@@ -25,14 +29,17 @@ import json
 import mimetypes
 import os
 import re
+import smtplib
 import subprocess
 import sys
 import threading
 import time
 import urllib.parse
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
+from email.message import EmailMessage, Message
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Any, cast
 
 # Add repo root to sys.path so shared package is importable
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -43,31 +50,45 @@ from shared.paths import (
     REPO_ROOT,
     SITE_DIR,
     PERSISTED_DIR,
-    WALK_SCHEDULER,
     BUILD_WEATHER,
     BUILD_DASHBOARD,
-    BUILD_COLLECTOR_MAP,
     WALKS_LOG,
     RECAL_LOG,
     DRIVE_SEEN_FILES,
     SCHEDULE_OUTPUT_JSON,
     DASHBOARD_HTML,
-    COLLECTOR_MAP_HTML,
-    AVAILABILITY_HEATMAP_HTML,
-    SCHEDULE_MAP_HTML,
     WEATHER_JSON,
 )
 from shared import gcs
+from shared.schedule_store import (
+    ScheduleValidationError,
+    load_schedule,
+    save_schedule,
+)
+from shared.notification_preferences import (
+    destinations_for_collector,
+    load_notification_preferences,
+)
+from shared.registry import (
+    BACKPACK_TO_STUDENT_COLLECTORS,
+    ROUTE_CODES,
+    ROUTE_LABELS,
+    SLOT_TODS,
+    STUDENT_COLLECTOR_IDS,
+    VALID_BACKPACKS,
+)
 
 import upload_buffer
 import drive_mover
 
 BASE_DIR           = REPO_ROOT
-SCHEDULER          = WALK_SCHEDULER
-BUILD_MAP          = BUILD_COLLECTOR_MAP
 FORECAST_STABILITY = REPO_ROOT / "scripts" / "ops" / "forecast_stability_analysis.py"
 SEEN_FILES_PATH    = DRIVE_SEEN_FILES
 SCHEDULE_OUTPUT    = SCHEDULE_OUTPUT_JSON
+NOTIFICATION_LOG   = PERSISTED_DIR / "notification_dispatch_log.jsonl"
+ALLOWED_ROUTES = ROUTE_CODES
+ALLOWED_COLLECTORS = STUDENT_COLLECTOR_IDS
+BACKPACK_TO_COLLECTORS = BACKPACK_TO_STUDENT_COLLECTORS
 
 # "" Drive config """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
@@ -77,7 +98,6 @@ STATUS_FILES = {
     "schedule_output": SCHEDULE_OUTPUT,
     "walk_log":        WALKS_LOG,
     "dashboard":       DASHBOARD_HTML,
-    "collector_map":   COLLECTOR_MAP_HTML,
 }
 
 # "" Drive polling state """"""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -87,7 +107,10 @@ DRIVE_POLL_INTERVAL   = int(os.environ.get("DRIVE_POLL_INTERVAL", "300"))
 _DRIVE_LOCK           = threading.Lock()
 _drive_last_poll      = None
 _drive_new_today      = 0
-_scheduler_running    = threading.Lock()  # prevents concurrent scheduler runs
+_rebuild_running      = threading.Lock()  # prevents concurrent weather/site rebuild runs
+_schedule_write_lock  = threading.Lock()  # prevents concurrent schedule writes
+_bootstrap_build_lock = threading.Lock()  # prevents concurrent startup/missing-file builds
+_bootstrap_errors     = []
 
 
 # "" GCS helpers """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -261,7 +284,7 @@ def _drive_upload_file(service, folder_id: str, filename: str, data) -> bool:
     return True
 
 
-def _parse_multipart(headers, body: bytes) -> tuple[dict, dict]:
+def _parse_multipart(headers, body: bytes) -> tuple[dict[str, str], dict[str, list[tuple[str, bytes]]]]:
     """Parse multipart/form-data. Returns (fields, files).
     fields: {name: str}
     files:  {name: [(filename, bytes), ...]}
@@ -272,9 +295,13 @@ def _parse_multipart(headers, body: bytes) -> tuple[dict, dict]:
     raw = b"Content-Type: " + content_type.encode() + b"\r\n\r\n" + body
     msg = email.parser.BytesParser(policy=email.policy.compat32).parsebytes(raw)
 
-    fields: dict = {}
-    files: dict = {}
-    for part in msg.get_payload():
+    fields: dict[str, str] = {}
+    files: dict[str, list[tuple[str, bytes]]] = {}
+    parts = msg.get_payload()
+    if not isinstance(parts, list):
+        return fields, files
+    message_parts = [p for p in parts if isinstance(p, Message)]
+    for part in message_parts:
         disposition = part.get("Content-Disposition", "")
         # Extract name= and optional filename= from the disposition header
         name = None
@@ -287,9 +314,20 @@ def _parse_multipart(headers, body: bytes) -> tuple[dict, dict]:
                 filename = segment[9:].strip().strip('"')
         if name is None:
             continue
-        payload = part.get_payload(decode=True)
-        if payload is None:
+        payload_raw = part.get_payload(decode=True)
+        payload: bytes
+        if payload_raw is None:
             payload = b""
+        elif isinstance(payload_raw, bytes):
+            payload = payload_raw
+        elif isinstance(payload_raw, bytearray):
+            payload = bytes(payload_raw)
+        elif isinstance(payload_raw, memoryview):
+            payload = payload_raw.tobytes()
+        elif isinstance(payload_raw, str):
+            payload = payload_raw.encode("utf-8", errors="replace")
+        else:
+            payload = cast(Message, payload_raw).as_bytes()
         if filename:
             print(f"[upload] file '{filename}' field='{name}' size={len(payload)}")
             files.setdefault(name, []).append((filename, payload))
@@ -299,7 +337,7 @@ def _parse_multipart(headers, body: bytes) -> tuple[dict, dict]:
 
 
 def _rebuild_dashboard_and_upload():
-    """Run build_dashboard.py and upload all HTML + weather artefacts to GCS."""
+    """Run build_dashboard.py and upload dashboard artefacts to GCS."""
     r = subprocess.run(
         [sys.executable, str(BUILD_DASHBOARD)],
         cwd=str(REPO_ROOT),
@@ -313,25 +351,17 @@ def _rebuild_dashboard_and_upload():
         print(r.stdout[-500:])
     if _gcs_bucket:
         for html_path, blob_name in (
-            (DASHBOARD_HTML,            "dashboard.html"),
-            (AVAILABILITY_HEATMAP_HTML, "availability_heatmap.html"),
-            (SCHEDULE_MAP_HTML,         "schedule_map.html"),
-            (COLLECTOR_MAP_HTML,        "collector_map.html"),
+            (DASHBOARD_HTML, "dashboard.html"),
         ):
             if html_path.exists():
                 _upload_to_gcs(html_path, blob_name)
-        print("[forecast] Uploaded rebuilt HTML files -> GCS")
+        print("[forecast] Uploaded rebuilt dashboard -> GCS")
 
 
-def _run_scheduler_and_rebuild():
-    """Run build_weather.py -> walk_scheduler.py -> build_dashboard.py, upload to GCS.
-
-    The dashboard is rebuilt immediately after build_weather.py so that the site
-    always reflects the latest weather data, even when the scheduler fails.
-    Protected by _scheduler_running lock to prevent concurrent runs.
-    """
-    if not _scheduler_running.acquire(blocking=False):
-        print("[forecast] Scheduler already running -- skipping this trigger")
+def _run_weather_and_rebuild_site():
+    """Run build_weather.py then rebuild site artifacts (no scheduler)."""
+    if not _rebuild_running.acquire(blocking=False):
+        print("[forecast] Rebuild already running -- skipping this trigger")
         return
 
     try:
@@ -350,10 +380,9 @@ def _run_scheduler_and_rebuild():
         print(f"[forecast] build_weather.py exit={r_weather.returncode}")
 
         if r_weather.returncode != 0:
-            print("[forecast] build_weather.py failed -- aborting pipeline")
+            print("[forecast] build_weather.py failed -- aborting rebuild")
             return
 
-        # Upload fresh weather.json to GCS right away.
         if WEATHER_JSON.exists() and _gcs_bucket:
             ok = _upload_to_gcs(WEATHER_JSON, "weather.json")
             if ok:
@@ -365,42 +394,174 @@ def _run_scheduler_and_rebuild():
         elif not WEATHER_JSON.exists():
             print("[forecast] WARNING: weather.json missing -- nothing to upload")
 
-        # Rebuild the dashboard immediately so the site shows up-to-date weather
-        # regardless of whether the scheduler succeeds below.
-        print("[forecast] Rebuilding dashboard (post-weather) ...")
+        print("[forecast] Rebuilding dashboard (scheduler-free) ...")
         _rebuild_dashboard_and_upload()
-
-        print("[forecast] Running walk_scheduler.py ...")
-        r = subprocess.run(
-            [sys.executable, str(SCHEDULER)],
-            cwd=str(REPO_ROOT),
-            capture_output=True, text=True,
-            encoding="utf-8", errors="replace",
-            timeout=360,
-            env={**os.environ, "PYTHONUNBUFFERED": "1"},
-        )
-        # Print last 3000 chars so Cloud Run logs show what happened
-        out = (r.stdout or "") + (r.stderr or "")
-        if out:
-            print(out[-3000:])
-        print(f"[forecast] Scheduler exit={r.returncode}")
-
-        if r.returncode == 0:
-            if SCHEDULE_OUTPUT.exists() and _gcs_bucket:
-                _upload_to_gcs(SCHEDULE_OUTPUT, "schedule_output.json")
-                print("[forecast] Uploaded schedule_output.json -> GCS")
-            # Rebuild once more to bake in the freshly generated schedule.
-            print("[forecast] Rebuilding dashboard (post-scheduler) ...")
-            _rebuild_dashboard_and_upload()
-        else:
-            print("[forecast] walk_scheduler.py failed -- dashboard reflects latest weather only")
-
     except subprocess.TimeoutExpired:
-        print("[forecast] Scheduler timed out (6 min limit)")
+        print("[forecast] Weather/site rebuild timed out")
     except Exception as e:
-        print(f"[forecast] Pipeline error: {e}")
+        print(f"[forecast] Weather/site rebuild error: {e}")
     finally:
-        _scheduler_running.release()
+        _rebuild_running.release()
+
+
+def _resolve_notification_date(date_value: str | None) -> str:
+    """Resolve notification date, defaulting to tomorrow in local server time."""
+    if date_value:
+        return date_value
+    return str(datetime.now().date() + timedelta(days=1))
+
+
+def _normalize_notification_channels(raw: Any) -> list[str]:
+    if raw is None:
+        return ["email"]
+    if isinstance(raw, str):
+        raw = [raw]
+    if not isinstance(raw, list):
+        return ["email"]
+    channels: list[str] = []
+    for item in raw:
+        channel = str(item).strip().lower()
+        if channel in {"email", "slack"} and channel not in channels:
+            channels.append(channel)
+    return channels or ["email"]
+
+
+def _email_transport_configured() -> bool:
+    return bool(os.environ.get("SMTP_HOST") and os.environ.get("NOTIFICATION_FROM_EMAIL"))
+
+
+def _redact_notification_target(target: str) -> str:
+    if "@" not in target:
+        return "***"
+    name, domain = target.split("@", 1)
+    visible = name[:2] if len(name) > 2 else name[:1]
+    return f"{visible}***@{domain}"
+
+
+def _redact_notification_preview(preview: dict) -> dict:
+    redacted = json.loads(json.dumps(preview))
+    for msg in redacted.get("messages", []):
+        for destination in msg.get("destinations", []):
+            if destination.get("target"):
+                destination["target"] = _redact_notification_target(str(destination["target"]))
+    for messages in redacted.get("collectors", {}).values():
+        for msg in messages:
+            for destination in msg.get("destinations", []):
+                if destination.get("target"):
+                    destination["target"] = _redact_notification_target(str(destination["target"]))
+    return redacted
+
+
+def _send_email_notification(*, to_email: str, subject: str, body: str) -> dict:
+    host = os.environ.get("SMTP_HOST", "").strip()
+    from_email = os.environ.get("NOTIFICATION_FROM_EMAIL", "").strip()
+    if not host or not from_email:
+        return {"ok": False, "status": "skipped", "error": "SMTP_HOST and NOTIFICATION_FROM_EMAIL are required"}
+
+    try:
+        port = int(os.environ.get("SMTP_PORT", "587"))
+    except ValueError:
+        return {"ok": False, "status": "failed", "error": "SMTP_PORT must be an integer"}
+    username = os.environ.get("SMTP_USERNAME", "").strip()
+    password = os.environ.get("SMTP_PASSWORD", "")
+    use_tls = os.environ.get("SMTP_USE_TLS", "1").strip().lower() not in {"0", "false", "no"}
+
+    msg = EmailMessage()
+    msg["From"] = from_email
+    msg["To"] = to_email
+    msg["Subject"] = subject
+    msg.set_content(body)
+
+    try:
+        with smtplib.SMTP(host, port, timeout=20) as smtp:
+            if use_tls:
+                smtp.starttls()
+            if username:
+                smtp.login(username, password)
+            smtp.send_message(msg)
+        return {"ok": True, "status": "sent"}
+    except Exception as exc:
+        return {"ok": False, "status": "failed", "error": str(exc)}
+
+
+def _refresh_schedule_week_bounds(schedule_data: dict) -> None:
+    """Keep week_start/week_end aligned to the current assignment date span."""
+    assignments = schedule_data.get("assignments", []) or []
+    parsed_dates: list[date] = []
+    for assignment in assignments:
+        try:
+            parsed_dates.append(date.fromisoformat(str(assignment.get("date", ""))))
+        except Exception:
+            continue
+
+    if not parsed_dates:
+        return
+
+    start = min(parsed_dates)
+    end = max(parsed_dates)
+    schedule_data["week_start"] = str(start)
+    schedule_data["week_end"] = str(end)
+
+
+def _build_notifications_preview(target_date: str, requested_channels: list[str] | None = None) -> dict:
+    """Build a preview payload for assignments on one date."""
+    _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
+    schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
+    weather = schedule_data.get("weather", {})
+    preferences = load_notification_preferences()
+    assignments = [
+        a for a in schedule_data.get("assignments", [])
+        if str(a.get("date", "")) == target_date
+    ]
+    assignments.sort(key=lambda a: (
+        str(a.get("backpack", "")),
+        str(a.get("tod", "")),
+        str(a.get("route", "")),
+    ))
+
+    messages = []
+    collectors = {}
+    for assignment in assignments:
+        date_str = str(assignment.get("date", ""))
+        tod = str(assignment.get("tod", "")).upper()
+        weather_key = f"{date_str}_{tod}"
+        advisory = weather.get(weather_key) is False
+        advisory_text = (
+            "Weather advisory: forecast is unfavorable, verify before departure."
+            if advisory else
+            "Weather check: no advisory for this slot."
+        )
+        collector = str(assignment.get("collector", "")).upper()
+        route_label = assignment.get("label") or assignment.get("route")
+        backpack = str(assignment.get("backpack", "")).upper()
+        destinations = destinations_for_collector(collector, requested_channels, preferences)
+        msg = {
+            "collector": collector,
+            "date": date_str,
+            "tod": tod,
+            "backpack": backpack,
+            "route": assignment.get("route"),
+            "route_label": route_label,
+            "weather_advisory": advisory,
+            "advisory_text": advisory_text,
+            "destinations": destinations,
+            "sendable": any(d.get("channel") == "email" for d in destinations),
+            "message_text": (
+                f"Reminder for {collector}: {date_str} {tod}, Backpack {backpack}, "
+                f"{route_label}. {advisory_text}"
+            ),
+        }
+        messages.append(msg)
+        collectors.setdefault(collector, []).append(msg)
+
+    return {
+        "date": target_date,
+        "assignment_count": len(assignments),
+        "collector_count": len(collectors),
+        "email_transport_configured": _email_transport_configured(),
+        "messages": messages,
+        "collectors": collectors,
+    }
 
 
 # "" Forecast monitor " polls Drive for new forecast PDFs """"""""""""""""""""""
@@ -416,7 +577,7 @@ def _now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
-def _stream_script(wfile, script: Path, label: str, extra_args: list = None) -> int:
+def _stream_script(wfile, script: Path, label: str, extra_args: list[str] | None = None) -> int:
     header = f"\n"" {label} ""\n"
     _write_chunk(wfile, header.encode())
 
@@ -431,12 +592,13 @@ def _stream_script(wfile, script: Path, label: str, extra_args: list = None) -> 
         bufsize=1,
         env={**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONUTF8": "1"},
     )
-    for line in proc.stdout:
-        try:
-            _write_chunk(wfile, line.encode("utf-8"))
-        except (BrokenPipeError, ConnectionResetError):
-            proc.terminate()
-            return -1
+    if proc.stdout is not None:
+        for line in proc.stdout:
+            try:
+                _write_chunk(wfile, line.encode("utf-8"))
+            except (BrokenPipeError, ConnectionResetError):
+                proc.terminate()
+                return -1
     proc.wait()
     footer = f"[{label} exited with code {proc.returncode}]\n"
     _write_chunk(wfile, footer.encode("utf-8"))
@@ -448,6 +610,61 @@ def _write_chunk(wfile, data: bytes):
     wfile.write(data)
     wfile.write(b"\r\n")
     wfile.flush()
+
+
+def _run_script_once(script: Path, label: str, timeout: int = 180) -> tuple[bool, str | None]:
+    """Run a pipeline script and return (success, error_message)."""
+    print(f"[startup] Running {label} ...")
+    try:
+        r = subprocess.run(
+            [sys.executable, str(script)],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+        )
+    except subprocess.TimeoutExpired:
+        msg = f"{label} timed out after {timeout}s"
+        print(f"[startup] {msg}")
+        return False, msg
+    except Exception as e:
+        msg = f"{label} crashed before launch: {e}"
+        print(f"[startup] {msg}")
+        return False, msg
+
+    out = (r.stdout or "") + (r.stderr or "")
+    if out:
+        print(out[-3000:])
+    print(f"[startup] {label} exit={r.returncode}")
+    if r.returncode == 0:
+        return True, None
+
+    tail = [line.strip() for line in out.splitlines() if line.strip()]
+    detail = tail[-1] if tail else f"exit code {r.returncode}"
+    return False, f"{label} failed: {detail}"
+
+
+def _ensure_site_artifacts():
+    """Build site artifacts when key HTML outputs are missing."""
+    global _bootstrap_errors
+    with _bootstrap_build_lock:
+        _bootstrap_errors = []
+        required = [DASHBOARD_HTML]
+        missing = [p for p in required if not p.exists()]
+        if not missing:
+            return
+
+        print("[startup] Missing generated site files:")
+        for p in missing:
+            print(f"[startup]   - {p}")
+
+        # build_dashboard.py writes dashboard.html.
+        ok_dash, err_dash = _run_script_once(BUILD_DASHBOARD, "build_dashboard.py", timeout=240)
+        if not ok_dash and err_dash:
+            _bootstrap_errors.append(err_dash)
 
 
 # "" Drive polling """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -633,8 +850,58 @@ def _drive_poll_thread():
 
 class Handler(BaseHTTPRequestHandler):
 
-    def log_message(self, fmt, *args):  # suppress per-request console noise
+    def log_message(self, format, *args):  # suppress per-request console noise
         pass
+
+    def _assignment_fallback_id(self, assignment: dict, *, sep: str = "_") -> str:
+        """Build composite ID from slot identity fields.
+
+        This is used as a compatibility fallback for legacy assignments that
+        predate explicit `id` fields.
+        """
+        backpack = str(assignment.get("backpack", "")).upper()
+        route = str(assignment.get("route", "")).upper()
+        date_str = str(assignment.get("date", ""))
+        tod = str(assignment.get("tod", "")).upper()
+        return f"{backpack}{sep}{route}{sep}{date_str}{sep}{tod}"
+
+    def _assignment_id_aliases(self, assignment: dict) -> set[str]:
+        """Return all accepted ID forms for one assignment."""
+        aliases = {
+            self._assignment_fallback_id(assignment, sep="_"),
+            self._assignment_fallback_id(assignment, sep="|"),
+        }
+        explicit = str(assignment.get("id", "")).strip()
+        if explicit:
+            aliases.add(explicit)
+        return aliases
+
+    def _find_assignment_by_id(self, assignments: list[dict], assignment_id: str) -> tuple[int | None, dict | None]:
+        for idx, assignment in enumerate(assignments):
+            if assignment_id in self._assignment_id_aliases(assignment):
+                return idx, assignment
+        return None, None
+
+    def _read_json_body(self) -> tuple[dict, str | None]:
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            body_bytes = self.rfile.read(length) if length else b"{}"
+            payload = json.loads(body_bytes)
+            if not isinstance(payload, dict):
+                return {}, "bad request"
+            return payload, None
+        except Exception:
+            return {}, "bad request"
+
+    def _pin_ok(self, payload: dict) -> bool:
+        sched_pin = os.environ.get("SCHEDULER_PIN", "")
+        if not sched_pin:
+            return True
+        provided = (
+            str(payload.get("pin", "")).strip()
+            or str(self.headers.get("X-Scheduler-Pin", "")).strip()
+        )
+        return provided == sched_pin
 
     # "" GET """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     def do_GET(self):
@@ -654,7 +921,7 @@ class Handler(BaseHTTPRequestHandler):
             with _DRIVE_LOCK:
                 drive_last = _drive_last_poll
                 drive_today = _drive_new_today
-            payload = {name: _mtime_iso(p) for name, p in STATUS_FILES.items()}
+            payload: dict[str, Any] = {name: _mtime_iso(p) for name, p in STATUS_FILES.items()}
             payload["drive_last_poll"] = drive_last
             payload["drive_new_files_today"] = drive_today
             # GCS health
@@ -672,13 +939,113 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, "application/json", body)
             return
 
+        # /api/schedule
+        if path == "api/schedule":
+            try:
+                # Keep local disk synced with bucket-authoritative schedule when available.
+                _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
+                schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
+                self._send(
+                    200,
+                    "application/json",
+                    json.dumps(schedule_data, indent=2).encode("utf-8"),
+                )
+            except ScheduleValidationError as exc:
+                self._send(
+                    500,
+                    "application/json",
+                    json.dumps({"error": f"invalid schedule data: {exc}"}).encode("utf-8"),
+                )
+            return
+
+        # /api/schedule/slots?week_start=YYYY-MM-DD
+        if path == "api/schedule/slots":
+            try:
+                _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
+                schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
+            except ScheduleValidationError as exc:
+                self._send(
+                    500,
+                    "application/json",
+                    json.dumps({"error": f"invalid schedule data: {exc}"}).encode("utf-8"),
+                )
+                return
+
+            week_start = params.get("week_start", [None])[0]
+            week_start_date = None
+            week_end_date = None
+            if week_start:
+                try:
+                    week_start_date = date.fromisoformat(week_start)
+                    week_end_date = week_start_date + timedelta(days=6)
+                except ValueError:
+                    self._send(
+                        400,
+                        "application/json",
+                        json.dumps({"error": "week_start must be YYYY-MM-DD"}).encode("utf-8"),
+                    )
+                    return
+
+            slots = []
+            for assignment in schedule_data.get("assignments", []):
+                try:
+                    assignment_date = date.fromisoformat(str(assignment.get("date", "")))
+                except Exception:
+                    continue
+                if week_start_date and week_end_date:
+                    if not (week_start_date <= assignment_date <= week_end_date):
+                        continue
+
+                tod = str(assignment.get("tod", "")).upper()
+                date_str = str(assignment.get("date", ""))
+                weather_key = f"{date_str}_{tod}"
+                is_advisory = schedule_data.get("weather", {}).get(weather_key) is False
+                slot_id = assignment.get("id") or (
+                    f"{assignment.get('backpack','')}_{assignment.get('route','')}_{date_str}_{tod}"
+                )
+
+                slots.append({
+                    "id": slot_id,
+                    "backpack": assignment.get("backpack"),
+                    "route": assignment.get("route"),
+                    "label": assignment.get("label") or ROUTE_LABELS.get(str(assignment.get("route", "")), assignment.get("route")),
+                    "date": date_str,
+                    "tod": tod,
+                    "collector": assignment.get("collector"),
+                    "status": assignment.get("status", "claimed"),
+                    "weather_advisory": is_advisory,
+                })
+
+            payload = {
+                "week_start": week_start or schedule_data.get("week_start"),
+                "week_end": (str(week_end_date) if week_end_date else schedule_data.get("week_end")),
+                "slots": slots,
+            }
+            self._send(
+                200,
+                "application/json",
+                json.dumps(payload, indent=2).encode("utf-8"),
+            )
+            return
+
         # Static files -- served from the generated site output directory.
         # Runtime logs are persisted separately and served from PERSISTED_DIR.
         if path in ("Walks_Log.txt", "Recal_Log.txt"):
             file_path = PERSISTED_DIR / path
         else:
             file_path = SITE_DIR / path
+            if path == "dashboard.html" and not file_path.exists():
+                _ensure_site_artifacts()
         if not file_path.exists() or not file_path.is_file():
+            if path == "dashboard.html" and _bootstrap_errors:
+                msg = (
+                    "Dashboard files are missing because auto-build failed.\n\n"
+                    + "\n".join(f"- {e}" for e in _bootstrap_errors)
+                    + "\n\nInstall dependencies and retry:\n"
+                    "  pip install -r requirements.txt\n"
+                )
+                self._send(503, "text/plain; charset=utf-8", msg.encode("utf-8"))
+                return
             self._send(404, "text/plain", b"Not found")
             return
 
@@ -696,13 +1063,15 @@ class Handler(BaseHTTPRequestHandler):
 
     # "" POST """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     def do_POST(self):
-        endpoint = self.path.split("?")[0]
+        parsed = urllib.parse.urlparse(self.path)
+        endpoint = parsed.path
+        query_params = urllib.parse.parse_qs(parsed.query)
 
-        # Authenticate /api/drive/poll and /api/rerun with GAS_SECRET bearer token.
+        # Authenticate /api/drive/poll with GAS_SECRET bearer token.
         # If GAS_SECRET is not set, these endpoints remain open (local dev compatible).
         # /api/rebuild is not gated " it is only triggered by the browser UI.
         _gas_secret = os.environ.get("GAS_SECRET", "")
-        if _gas_secret and endpoint in ("/api/drive/poll", "/api/rerun"):
+        if _gas_secret and endpoint == "/api/drive/poll":
             auth_header = self.headers.get("Authorization", "")
             if auth_header != f"Bearer {_gas_secret}":
                 self._send(401, "application/json",
@@ -710,13 +1079,34 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
         if endpoint == "/api/rerun":
-            self._stream_response(run_scheduler=True)
+            self._send(
+                410,
+                "application/json",
+                json.dumps({
+                    "error": "endpoint retired",
+                    "message": "Use /api/rebuild or /api/schedule/rebuild-site",
+                }).encode(),
+            )
         elif endpoint == "/api/rerun/a":
-            self._stream_response(run_scheduler=True, backpack="A")
+            self._send(
+                410,
+                "application/json",
+                json.dumps({
+                    "error": "endpoint retired",
+                    "message": "Backpack-scoped scheduler runs are deprecated.",
+                }).encode(),
+            )
         elif endpoint == "/api/rerun/b":
-            self._stream_response(run_scheduler=True, backpack="B")
+            self._send(
+                410,
+                "application/json",
+                json.dumps({
+                    "error": "endpoint retired",
+                    "message": "Backpack-scoped scheduler runs are deprecated.",
+                }).encode(),
+            )
         elif endpoint == "/api/rebuild":
-            self._stream_response(run_scheduler=False)
+            self._stream_response()
         elif endpoint == "/api/forecast-stability":
             self._stream_forecast_stability()
         elif endpoint == "/api/confirm":
@@ -736,6 +1126,188 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self._send(200, "application/json", json.dumps({"ok": True}).encode())
 
+        elif endpoint == "/api/schedule/claim":
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body_bytes = self.rfile.read(length) if length else b"{}"
+                payload = json.loads(body_bytes)
+            except Exception:
+                self._send(400, "application/json",
+                           json.dumps({"error": "bad request"}).encode())
+                return
+
+            required = ["backpack", "route", "date", "tod", "collector"]
+            missing = [k for k in required if not payload.get(k)]
+            if missing:
+                self._send(400, "application/json",
+                           json.dumps({"error": f"missing fields: {', '.join(missing)}"}).encode())
+                return
+
+            backpack = str(payload.get("backpack", "")).upper().strip()
+            route = str(payload.get("route", "")).upper().strip()
+            date_str = str(payload.get("date", "")).strip()
+            tod = str(payload.get("tod", "")).upper().strip()
+            collector = str(payload.get("collector", "")).upper().strip()
+
+            if backpack not in VALID_BACKPACKS:
+                self._send(400, "application/json",
+                           json.dumps({"error": "backpack must be 'A' or 'B'"}).encode())
+                return
+            if tod not in SLOT_TODS:
+                self._send(400, "application/json",
+                           json.dumps({"error": "tod must be one of AM, MD, PM"}).encode())
+                return
+            if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_str):
+                self._send(400, "application/json",
+                           json.dumps({"error": "date must be YYYY-MM-DD"}).encode())
+                return
+            if route not in ALLOWED_ROUTES:
+                self._send(400, "application/json",
+                           json.dumps({"error": f"route must be one of: {', '.join(sorted(ALLOWED_ROUTES))}"}).encode())
+                return
+            if collector not in ALLOWED_COLLECTORS:
+                self._send(400, "application/json",
+                           json.dumps({"error": f"collector must be one of: {', '.join(sorted(ALLOWED_COLLECTORS))}"}).encode())
+                return
+            allowed_for_backpack = BACKPACK_TO_COLLECTORS.get(backpack, set())
+            if collector not in allowed_for_backpack:
+                self._send(400, "application/json",
+                           json.dumps({"error": f"collector {collector} is not eligible for Backpack {backpack}"}).encode())
+                return
+
+            parts = route.split("_", 1)
+            boro = parts[0] if parts else ""
+            neigh = parts[1] if len(parts) > 1 else route
+            label = str(payload.get("label") or ROUTE_LABELS.get(route, route))
+
+            with _schedule_write_lock:
+                _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
+                try:
+                    schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
+                except ScheduleValidationError as exc:
+                    self._send(500, "application/json",
+                               json.dumps({"error": f"invalid schedule data: {exc}"}).encode())
+                    return
+
+                for assignment in schedule_data.get("assignments", []):
+                    if (
+                        str(assignment.get("backpack", "")).upper() == backpack
+                        and str(assignment.get("date", "")) == date_str
+                        and str(assignment.get("tod", "")).upper() == tod
+                    ):
+                        self._send(409, "application/json",
+                                   json.dumps({"error": "backpack already has a claimed walk in this date/tod slot"}).encode())
+                        return
+
+                    if (
+                        str(assignment.get("collector", "")).upper() == collector
+                        and str(assignment.get("date", "")) == date_str
+                        and str(assignment.get("tod", "")).upper() == tod
+                    ):
+                        self._send(409, "application/json",
+                                   json.dumps({"error": "collector already assigned in this date/tod slot"}).encode())
+                        return
+
+                weather_key = f"{date_str}_{tod}"
+                weather_advisory = schedule_data.get("weather", {}).get(weather_key) is False
+                now_iso = datetime.now().isoformat()
+                assignment = {
+                    "id": f"{backpack}_{route}_{date_str}_{tod}",
+                    "route": route,
+                    "label": label,
+                    "boro": boro,
+                    "neigh": neigh,
+                    "tod": tod,
+                    "backpack": backpack,
+                    "collector": collector,
+                    "date": date_str,
+                    "status": "claimed",
+                    "claimed_at": now_iso,
+                    "claimed_by": collector,
+                    "updated_at": now_iso,
+                    "weather_advisory": weather_advisory,
+                }
+                schedule_data.setdefault("assignments", []).append(assignment)
+                _refresh_schedule_week_bounds(schedule_data)
+
+                try:
+                    save_schedule(schedule_data, SCHEDULE_OUTPUT, make_backup=True)
+                except ScheduleValidationError as exc:
+                    self._send(400, "application/json",
+                               json.dumps({"error": f"validation failed: {exc}"}).encode())
+                    return
+
+                if _gcs_bucket:
+                    _upload_to_gcs(SCHEDULE_OUTPUT, "schedule_output.json")
+
+            self._send(200, "application/json",
+                       json.dumps({"ok": True, "assignment": assignment}).encode())
+
+        elif endpoint == "/api/schedule/unclaim":
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body_bytes = self.rfile.read(length) if length else b"{}"
+                payload = json.loads(body_bytes)
+            except Exception:
+                self._send(400, "application/json",
+                           json.dumps({"error": "bad request"}).encode())
+                return
+
+            required = ["backpack", "route", "date", "tod"]
+            missing = [k for k in required if not payload.get(k)]
+            if missing:
+                self._send(400, "application/json",
+                           json.dumps({"error": f"missing fields: {', '.join(missing)}"}).encode())
+                return
+
+            backpack = str(payload.get("backpack", "")).upper().strip()
+            route = str(payload.get("route", "")).upper().strip()
+            date_str = str(payload.get("date", "")).strip()
+            tod = str(payload.get("tod", "")).upper().strip()
+            collector = str(payload.get("collector", "")).upper().strip()
+
+            with _schedule_write_lock:
+                _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
+                try:
+                    schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
+                except ScheduleValidationError as exc:
+                    self._send(500, "application/json",
+                               json.dumps({"error": f"invalid schedule data: {exc}"}).encode())
+                    return
+
+                match_idx = None
+                for idx, assignment in enumerate(schedule_data.get("assignments", [])):
+                    if (
+                        str(assignment.get("backpack", "")).upper() == backpack
+                        and str(assignment.get("route", "")).upper() == route
+                        and str(assignment.get("date", "")) == date_str
+                        and str(assignment.get("tod", "")).upper() == tod
+                    ):
+                        if collector and str(assignment.get("collector", "")).upper() != collector:
+                            continue
+                        match_idx = idx
+                        break
+
+                if match_idx is None:
+                    self._send(404, "application/json",
+                               json.dumps({"error": "assignment not found"}).encode())
+                    return
+
+                removed = schedule_data["assignments"].pop(match_idx)
+                _refresh_schedule_week_bounds(schedule_data)
+                try:
+                    save_schedule(schedule_data, SCHEDULE_OUTPUT, make_backup=True)
+                except ScheduleValidationError as exc:
+                    self._send(400, "application/json",
+                               json.dumps({"error": f"validation failed: {exc}"}).encode())
+                    return
+
+                if _gcs_bucket:
+                    _upload_to_gcs(SCHEDULE_OUTPUT, "schedule_output.json")
+
+            self._send(200, "application/json",
+                       json.dumps({"ok": True, "removed": removed}).encode())
+
         elif endpoint == "/api/drive/poll":
             count, err = _run_drive_poll(source="gas")
             if err:
@@ -745,7 +1317,7 @@ class Handler(BaseHTTPRequestHandler):
                 body = json.dumps({"status": "ok", "new_files": count}).encode()
                 self._send(200, "application/json", body)
         elif endpoint == "/api/force-rebuild":
-            # Force immediate rebuild: build weather, run scheduler, rebuild dashboard
+            # Force immediate rebuild: build weather + rebuild site (no scheduler)
             # Accepts either a valid GAS_SECRET bearer token (automated triggers)
             # or a valid SCHEDULER_PIN in the request body (browser UI).
             _sched_pin  = os.environ.get("SCHEDULER_PIN", "")
@@ -766,10 +1338,151 @@ class Handler(BaseHTTPRequestHandler):
                                json.dumps({"error": "wrong pin"}).encode())
                     return
             print("[API] Force rebuild triggered")
-            t = threading.Thread(target=_run_scheduler_and_rebuild, daemon=True)
+            t = threading.Thread(target=_run_weather_and_rebuild_site, daemon=True)
             t.start()
             self._send(200, "application/json",
                        json.dumps({"status": "ok", "message": "Rebuild started -- check back in 30 seconds"}).encode())
+        elif endpoint == "/api/schedule/rebuild-site":
+            _sched_pin  = os.environ.get("SCHEDULER_PIN", "")
+            _gas_secret = os.environ.get("GAS_SECRET", "")
+            auth_header = self.headers.get("Authorization", "")
+            gas_authed  = bool(_gas_secret and auth_header == f"Bearer {_gas_secret}")
+            if not gas_authed:
+                payload, err = self._read_json_body()
+                if err:
+                    self._send(400, "application/json",
+                               json.dumps({"error": err}).encode())
+                    return
+                if _sched_pin and payload.get("pin", "") != _sched_pin:
+                    self._send(403, "application/json",
+                               json.dumps({"error": "wrong pin"}).encode())
+                    return
+            t = threading.Thread(target=_run_weather_and_rebuild_site, daemon=True)
+            t.start()
+            self._send(200, "application/json",
+                       json.dumps({"status": "ok", "message": "Scheduler-free rebuild started"}).encode())
+        elif endpoint == "/api/notifications/preview":
+            payload, err = self._read_json_body()
+            if err:
+                self._send(400, "application/json",
+                           json.dumps({"error": err}).encode())
+                return
+            query_date = query_params.get("date", [None])[0]
+            target_date = _resolve_notification_date(payload.get("date") or query_date)
+            requested_channels = _normalize_notification_channels(payload.get("channels"))
+            if not re.match(r"^\d{4}-\d{2}-\d{2}$", target_date):
+                self._send(400, "application/json",
+                           json.dumps({"error": "date must be YYYY-MM-DD"}).encode())
+                return
+            try:
+                preview = _build_notifications_preview(target_date, requested_channels)
+            except (ScheduleValidationError, ValueError) as exc:
+                self._send(500, "application/json",
+                           json.dumps({"error": f"invalid notification preview data: {exc}"}).encode())
+                return
+            self._send(200, "application/json",
+                       json.dumps({"ok": True, "preview": _redact_notification_preview(preview)}).encode())
+        elif endpoint == "/api/notifications/send":
+            payload, err = self._read_json_body()
+            if err:
+                self._send(400, "application/json",
+                           json.dumps({"error": err}).encode())
+                return
+            if not self._pin_ok(payload):
+                self._send(403, "application/json",
+                           json.dumps({"error": "wrong pin"}).encode())
+                return
+            query_date = query_params.get("date", [None])[0]
+            target_date = _resolve_notification_date(payload.get("date") or query_date)
+            requested_channels = _normalize_notification_channels(payload.get("channels"))
+            if not re.match(r"^\d{4}-\d{2}-\d{2}$", target_date):
+                self._send(400, "application/json",
+                           json.dumps({"error": "date must be YYYY-MM-DD"}).encode())
+                return
+            try:
+                preview = _build_notifications_preview(target_date, requested_channels)
+            except (ScheduleValidationError, ValueError) as exc:
+                self._send(500, "application/json",
+                           json.dumps({"error": f"invalid notification send data: {exc}"}).encode())
+                return
+
+            sender = str(payload.get("sender", "")).strip() or "manual"
+            send_results = []
+            dry_run = bool(payload.get("dry_run", False))
+            for msg in preview.get("messages", []):
+                subject = f"EnAACT walk reminder: {msg.get('date')} {msg.get('tod')}"
+                body = str(msg.get("message_text", ""))
+                destinations = msg.get("destinations", [])
+                if not destinations:
+                    send_results.append({
+                        "collector": msg.get("collector"),
+                        "channel": None,
+                        "target": None,
+                        "status": "skipped",
+                        "error": "no opted-in destination configured",
+                    })
+                    continue
+                for destination in destinations:
+                    channel = destination.get("channel")
+                    target = destination.get("target")
+                    if channel == "email":
+                        if dry_run:
+                            result = {"ok": True, "status": "dry_run"}
+                        else:
+                            result = _send_email_notification(to_email=str(target), subject=subject, body=body)
+                        send_results.append({
+                            "collector": msg.get("collector"),
+                            "channel": "email",
+                            "target": target,
+                            **result,
+                        })
+                    elif channel == "slack":
+                        send_results.append({
+                            "collector": msg.get("collector"),
+                            "channel": "slack",
+                            "target": target,
+                            "ok": False,
+                            "status": "skipped",
+                            "error": "Slack transport integration pending",
+                        })
+                    else:
+                        send_results.append({
+                            "collector": msg.get("collector"),
+                            "channel": channel,
+                            "target": target,
+                            "ok": False,
+                            "status": "skipped",
+                            "error": "unsupported notification channel",
+                        })
+            dispatch_record = {
+                "dispatched_at": datetime.now().isoformat(),
+                "dispatched_by": sender,
+                "date": target_date,
+                "assignment_count": preview.get("assignment_count", 0),
+                "collector_count": preview.get("collector_count", 0),
+                "channels": requested_channels,
+                "dry_run": dry_run,
+                "email_transport_configured": _email_transport_configured(),
+                "send_results": send_results,
+                "messages": preview.get("messages", []),
+            }
+            try:
+                NOTIFICATION_LOG.parent.mkdir(parents=True, exist_ok=True)
+                with open(NOTIFICATION_LOG, "a", encoding="utf-8") as fh:
+                    fh.write(json.dumps(dispatch_record) + "\n")
+                if _gcs_bucket:
+                    _upload_to_gcs(NOTIFICATION_LOG, "notification_dispatch_log.jsonl")
+            except Exception as exc:
+                self._send(500, "application/json",
+                           json.dumps({"error": f"failed to persist dispatch log: {exc}"}).encode())
+                return
+
+            self._send(200, "application/json", json.dumps({
+                "ok": True,
+                "mode": "dry_run" if dry_run else "sent_or_recorded",
+                "message": "Notification dispatch processed. Slack transport integration pending.",
+                "dispatch": dispatch_record,
+            }).encode())
         elif endpoint == "/api/record-calibration":
             _sched_pin = os.environ.get("SCHEDULER_PIN", "")
             try:
@@ -917,7 +1630,7 @@ class Handler(BaseHTTPRequestHandler):
                                         new_name = f"{walk_code}_{ext}{Path(filename).suffix.lower()}"
                                         _drive_upload_file(svc, walk_folder_id, new_name, data)
                         notes_text = fields.get("notes", "").strip()
-                        if notes_text:
+                        if notes_text and walk_folder_id:
                             notes_bytes = notes_text.encode("utf-8")
                             _drive_upload_file(svc, walk_folder_id,
                                                f"{walk_code}_Notes.txt", notes_bytes)
@@ -1008,7 +1721,193 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self._send(404, "text/plain", b"Unknown endpoint")
 
-    def _stream_response(self, run_scheduler: bool, backpack: str = None):
+    def do_PATCH(self):
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        prefix = "/api/schedule/assignments/"
+        if not path.startswith(prefix):
+            self._send(404, "text/plain", b"Unknown endpoint")
+            return
+
+        assignment_id = urllib.parse.unquote(path[len(prefix):]).strip()
+        if not assignment_id:
+            self._send(400, "application/json",
+                       json.dumps({"error": "missing assignment id"}).encode())
+            return
+
+        payload, err = self._read_json_body()
+        if err:
+            self._send(400, "application/json",
+                       json.dumps({"error": err}).encode())
+            return
+
+        allowed = {"backpack", "route", "date", "tod", "collector", "label", "status"}
+        updates = {k: v for k, v in payload.items() if k in allowed and v is not None}
+        if not updates:
+            self._send(400, "application/json",
+                       json.dumps({"error": "no updatable fields provided"}).encode())
+            return
+
+        with _schedule_write_lock:
+            _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
+            try:
+                schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
+            except ScheduleValidationError as exc:
+                self._send(500, "application/json",
+                           json.dumps({"error": f"invalid schedule data: {exc}"}).encode())
+                return
+
+            assignments = schedule_data.get("assignments", [])
+            _, target = self._find_assignment_by_id(assignments, assignment_id)
+            if target is None:
+                self._send(404, "application/json",
+                           json.dumps({"error": "assignment not found"}).encode())
+                return
+
+            for key, value in updates.items():
+                if key in {"backpack", "route", "tod", "collector"}:
+                    target[key] = str(value).upper().strip()
+                else:
+                    target[key] = str(value).strip()
+
+            # Keep edit semantics aligned with claim validations.
+            backpack = str(target.get("backpack", "")).upper().strip()
+            route = str(target.get("route", "")).upper().strip()
+            date_str = str(target.get("date", "")).strip()
+            tod = str(target.get("tod", "")).upper().strip()
+            collector = str(target.get("collector", "")).upper().strip()
+
+            if backpack not in VALID_BACKPACKS:
+                self._send(400, "application/json",
+                           json.dumps({"error": "backpack must be 'A' or 'B'"}).encode())
+                return
+            if tod not in SLOT_TODS:
+                self._send(400, "application/json",
+                           json.dumps({"error": "tod must be one of AM, MD, PM"}).encode())
+                return
+            if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_str):
+                self._send(400, "application/json",
+                           json.dumps({"error": "date must be YYYY-MM-DD"}).encode())
+                return
+            if route not in ALLOWED_ROUTES:
+                self._send(400, "application/json",
+                           json.dumps({"error": f"route must be one of: {', '.join(sorted(ALLOWED_ROUTES))}"}).encode())
+                return
+            if collector not in ALLOWED_COLLECTORS:
+                self._send(400, "application/json",
+                           json.dumps({"error": f"collector must be one of: {', '.join(sorted(ALLOWED_COLLECTORS))}"}).encode())
+                return
+            allowed_for_backpack = BACKPACK_TO_COLLECTORS.get(backpack, set())
+            if collector not in allowed_for_backpack:
+                self._send(400, "application/json",
+                           json.dumps({"error": f"collector {collector} is not eligible for Backpack {backpack}"}).encode())
+                return
+
+            target["backpack"] = backpack
+            target["route"] = route
+            target["date"] = date_str
+            target["tod"] = tod
+            target["collector"] = collector
+
+            for assignment in assignments:
+                if assignment is target:
+                    continue
+                if (
+                    str(assignment.get("backpack", "")).upper() == backpack
+                    and str(assignment.get("date", "")) == date_str
+                    and str(assignment.get("tod", "")).upper() == tod
+                ):
+                    self._send(409, "application/json",
+                               json.dumps({"error": "backpack already has a claimed walk in this date/tod slot"}).encode())
+                    return
+                if (
+                    str(assignment.get("collector", "")).upper() == collector
+                    and str(assignment.get("date", "")) == date_str
+                    and str(assignment.get("tod", "")).upper() == tod
+                ):
+                    self._send(409, "application/json",
+                               json.dumps({"error": "collector already assigned in this date/tod slot"}).encode())
+                    return
+
+            if "route" in updates:
+                parts = str(target.get("route", "")).split("_", 1)
+                target["boro"] = parts[0] if parts else ""
+                target["neigh"] = parts[1] if len(parts) > 1 else str(target.get("route", ""))
+                if "label" not in updates:
+                    target["label"] = ROUTE_LABELS.get(route, route)
+            target["updated_at"] = datetime.now().isoformat()
+            explicit_id = str(target.get("id", "")).strip()
+            if explicit_id:
+                target["id"] = explicit_id
+            else:
+                target["id"] = self._assignment_fallback_id(target, sep="_")
+
+            try:
+                save_schedule(schedule_data, SCHEDULE_OUTPUT, make_backup=True)
+            except ScheduleValidationError as exc:
+                self._send(409, "application/json",
+                           json.dumps({"error": f"validation failed: {exc}"}).encode())
+                return
+
+            if _gcs_bucket:
+                _upload_to_gcs(SCHEDULE_OUTPUT, "schedule_output.json")
+
+        self._send(200, "application/json",
+                   json.dumps({"ok": True, "assignment": target}).encode())
+
+    def do_DELETE(self):
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        prefix = "/api/schedule/assignments/"
+        if not path.startswith(prefix):
+            self._send(404, "text/plain", b"Unknown endpoint")
+            return
+
+        assignment_id = urllib.parse.unquote(path[len(prefix):]).strip()
+        if not assignment_id:
+            self._send(400, "application/json",
+                       json.dumps({"error": "missing assignment id"}).encode())
+            return
+
+        payload, err = self._read_json_body()
+        if err:
+            self._send(400, "application/json",
+                       json.dumps({"error": err}).encode())
+            return
+
+        with _schedule_write_lock:
+            _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
+            try:
+                schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
+            except ScheduleValidationError as exc:
+                self._send(500, "application/json",
+                           json.dumps({"error": f"invalid schedule data: {exc}"}).encode())
+                return
+
+            removed = None
+            assignments = schedule_data.get("assignments", [])
+            match_idx, _ = self._find_assignment_by_id(assignments, assignment_id)
+            if match_idx is not None:
+                removed = assignments.pop(match_idx)
+            if removed is None:
+                self._send(404, "application/json",
+                           json.dumps({"error": "assignment not found"}).encode())
+                return
+
+            try:
+                save_schedule(schedule_data, SCHEDULE_OUTPUT, make_backup=True)
+            except ScheduleValidationError as exc:
+                self._send(409, "application/json",
+                           json.dumps({"error": f"validation failed: {exc}"}).encode())
+                return
+
+            if _gcs_bucket:
+                _upload_to_gcs(SCHEDULE_OUTPUT, "schedule_output.json")
+
+        self._send(200, "application/json",
+                   json.dumps({"ok": True, "removed": removed}).encode())
+
+    def _stream_response(self):
         self.send_response(200)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.send_header("Transfer-Encoding", "chunked")
@@ -1017,14 +1916,9 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
         try:
-            if run_scheduler:
-                extra = ["--backpack", backpack] if backpack else []
-                _stream_script(self.wfile, SCHEDULER, "walk_scheduler.py", extra)
-
             _stream_script(self.wfile, BUILD_DASHBOARD, "build_dashboard.py")
-            _stream_script(self.wfile, BUILD_MAP,       "build_collector_map.py")
 
-            done = "\n[All done -- reload the page to see updated dashboards]\n"
+            done = "\n[All done -- reload the page to see updated dashboard]\n"
             _write_chunk(self.wfile, done.encode("utf-8"))
         except Exception as e:
             err = f"\n[Server error: {e}]\n".encode("utf-8")
@@ -1097,12 +1991,9 @@ def _restore_gcs_state():
     # Recal_Log.txt -- calibration entries survive across redeploys only via GCS
     _download_from_gcs("Recal_Log.txt", RECAL_LOG)
 
-    # Pre-built HTML -- restore so server can serve immediately even if rebuild fails
+    # Pre-built dashboard HTML -- restore so server can serve immediately even if rebuild fails
     for _blob, _local in (
         ("dashboard.html",            DASHBOARD_HTML),
-        ("collector_map.html",        COLLECTOR_MAP_HTML),
-        ("availability_heatmap.html", AVAILABILITY_HEATMAP_HTML),
-        ("schedule_map.html",         SCHEDULE_MAP_HTML),
     ):
         _download_from_gcs(_blob, _local)
 
@@ -1110,7 +2001,7 @@ def _restore_gcs_state():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Walk Scheduler server")
+    parser = argparse.ArgumentParser(description="Field campaign dashboard server")
     parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8765")))
     parser.add_argument("--restore-only", action="store_true",
                         help="Download GCS state then exit (run before build_dashboard.py)")
@@ -1139,6 +2030,9 @@ def main():
         print("[startup] Walks_Log.txt not available -- starting with empty log")
         WALKS_LOG.write_text("", encoding="utf-8")
 
+    # Ensure generated site files exist so the dashboard link works on fresh runs.
+    _ensure_site_artifacts()
+
     # "" Start Drive walk-log polling thread """"""""""""""""""""""""""""""""""""
     if DRIVE_POLL_INTERVAL > 0:
         t = threading.Thread(target=_drive_poll_thread, daemon=True)
@@ -1163,9 +2057,8 @@ def main():
     server = ThreadingHTTPServer(("0.0.0.0", args.port), Handler)
     url = f"http://localhost:{args.port}"
     print(f"")
-    print(f"  NYC Walk Scheduler -- server")
+    print(f"  NYC Field Campaign Dashboard -- server")
     print(f"  Dashboard  : {url}")
-    print(f"  Rerun API  : POST {url}/api/rerun")
     print(f"  Rebuild API: POST {url}/api/rebuild")
     print(f"  Status API : GET  {url}/api/status")
     print(f"  Drive Poll : POST {url}/api/drive/poll")
@@ -1181,5 +2074,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

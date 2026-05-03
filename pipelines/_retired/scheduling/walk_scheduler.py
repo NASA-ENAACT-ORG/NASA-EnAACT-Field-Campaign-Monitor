@@ -70,6 +70,7 @@ import re
 import sys
 import json
 import math
+import zipfile
 
 # Force UTF-8 output on Windows so box-drawing characters render correctly
 if hasattr(sys.stdout, "reconfigure"):
@@ -107,8 +108,22 @@ from shared.paths import (
     TRANSIT_MATRIX_JSON,
     AVAILABILITY_XLSX,
     SCHEDULE_MAP_HTML,
+    ROUTE_GROUPS,
 )
 from shared.gcs import pull_if_available as gcs_pull, push as gcs_push
+from shared.registry import (
+    ALL_ROUTES,
+    BACKPACK_COLLECTORS,
+    CAMPUS_PROXY_ROUTE,
+    COLLECTOR_KML_NAMES as COLLECTOR_ID_TO_NAME,
+    FILENAME_TO_COLLECTOR,
+    KML_NAME_TO_ROUTE,
+    LAST_RESORT_BACKPACK,
+    LAST_RESORT_COLLECTORS,
+    ROUTES_BY_BOROUGH as ROUTES,
+    ROUTE_LABELS,
+    ACTIVE_COLLECTORS as COLLECTORS,
+)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CONFIGURATION
@@ -123,6 +138,7 @@ MIN_COMPLETIONS     = 4
 TODS                = ["AM", "MD", "PM"]
 CURRENT_YEAR        = date.today().year    # used for date inference throughout
 CLAUDE_MODEL        = "claude-haiku-4-5-20251001"
+MAX_BACKPACK_TRANSIT_MIN = 95.0  # block impractical same-bag route jumps
 
 # CCNY (Marshak Science Building, 160 Convent Ave) — home base for recalibration
 CCNY_LAT =  40.8196
@@ -139,115 +155,6 @@ CAMPUS_COORDS = {
     "A": (CCNY_LAT, CCNY_LON, "CCNY"),
     "B": (LAGCC_LAT, LAGCC_LON, "LAGCC"),
 }
-# Proxy routes for campus transit-time lookups
-# (CCNY ≈ 135 St / MN_HT stop; LAGCC ≈ Court Sq / QN_LA stop)
-CAMPUS_PROXY_ROUTE = {"A": "MN_HT", "B": "QN_LA"}
-
-# Student collectors per backpack (drive scheduling)
-BACKPACK_COLLECTORS: Dict[str, set] = {
-    "A": {"JEN", "AYA", "SOT", "TAH"},   # CCNY team
-    "B": {"TER", "ALX", "SCT", "JAM", "JEN"},   # LaGCC team
-}
-# ANG is CCNY-affiliated staff; only used as a last resort for Backpack A
-LAST_RESORT_COLLECTORS = ["ANG"]
-LAST_RESORT_BACKPACK   = "A"
-
-# Professors / support staff — excluded from regular scheduling
-STAFF_COLLECTORS = ["NRS", "PRA", "NAT", "EFD"]
-
-# Full collector list (students + ANG; excludes staff)
-COLLECTORS = ["SOT", "AYA", "ALX", "TAH", "JAM", "JEN", "SCT", "TER", "ANG"]
-
-# Map collector IDs to the first-name used in Collector_Locs.kml
-COLLECTOR_KML_NAMES = {
-    "SOT": "Soteri",
-    "AYA": "Aya",
-    "ALX": "Alex",
-    "JAM": "James",
-    "JEN": "Jennifer",
-    "SCT": "Scott",
-    "TER": "Terra",
-    "ANG": "Angy",
-    "TAH": "Taha",
-    "NRS": "Prof. Naresh Devineni",
-    "PRA": "Prof. Prathap Ramamurthy",
-    "EFD": "EFD",
-}
-COLLECTOR_ID_TO_NAME = COLLECTOR_KML_NAMES
-
-# Route definitions: boro code → neighbourhood codes
-ROUTES: Dict[str, List[str]] = {
-    "MN": ["HT", "WH", "UE", "MT", "LE"],
-    "BX": ["HP", "NW"],
-    "BK": ["DT", "WB", "BS", "CH", "SP", "CI"],
-    "QN": ["FU", "LI", "JH", "JA", "FH", "LA", "EE"],
-}
-ALL_ROUTES = [f"{b}_{n}" for b, ns in ROUTES.items() for n in ns]
-
-# Human-readable route labels
-ROUTE_LABELS = {
-    "MN_HT": "Manhattan – Harlem",
-    "MN_WH": "Manhattan – Washington Hts",
-    "MN_UE": "Manhattan – Upper East Side",
-    "MN_MT": "Manhattan – Midtown",
-    "MN_LE": "Manhattan – Union Sq/LES",
-    "BX_HP": "Bronx – Hunts Point",
-    "BX_NW": "Bronx – Norwood",
-    "BK_DT": "Brooklyn – Downtown BK",
-    "BK_WB": "Brooklyn – Williamsburg",
-    "BK_BS": "Brooklyn – Bed Stuy",
-    "BK_CH": "Brooklyn – Crown Heights",
-    "BK_SP": "Brooklyn – Sunset Park",
-    "BK_CI": "Brooklyn – Coney Island",
-    "QN_FU": "Queens – Flushing",
-    "QN_LI": "Queens – Astoria/LIC",
-    "QN_JH": "Queens – Jackson Heights",
-    "QN_JA": "Queens – Jamaica",
-    "QN_FH": "Queens – Forest Hills",
-    "QN_LA": "Queens – LaGuardia CC",
-    "QN_EE": "Queens – East Elmhurst",
-}
-
-# KML name used in each boro file → route code
-KML_NAME_TO_ROUTE = {
-    "Harlem":                      "MN_HT",
-    "Washington Heights":          "MN_WH",
-    "Upper East Side":             "MN_UE",
-    "Midtown":                     "MN_MT",
-    "Union Square/LES":            "MN_LE",
-    "Norwood":                     "BX_NW",
-    "Hunts Point":                 "BX_HP",
-    "Downtown Brooklyn":           "BK_DT",
-    "Williamsburg":                "BK_WB",
-    "Bed Sty":                     "BK_BS",
-    "Crown Heights":               "BK_CH",
-    "Sunset Park":                 "BK_SP",
-    "Coney Island":                "BK_CI",
-    "Flushing":                    "QN_FU",
-    "Astoria/LIC":                 "QN_LI",
-    "Jackson Heights":             "QN_JH",
-    "Jamaica":                     "QN_JA",
-    "Forest Hills":                "QN_FH",
-    "LaGuardia Community College": "QN_LA",
-    "East Elmhurst":               "QN_EE",
-}
-
-# Substring → collector ID for schedule filename matching
-FILENAME_TO_COLLECTOR = {
-    "terra": "TER", "emmerich": "TER",
-    "aya":   "AYA", "nasri":    "AYA",
-    "scott": "SCT", "atlixqueno": "SCT",
-    "alex":  "ALX", "leon":     "ALX",
-    "james": "JAM", "lu":       "JAM",
-    "jennifer": "JEN", "ramirez": "JEN",
-    "soteri": "SOT",
-    "pra":   "PRA", "prathap": "PRA",
-    "nat":   "NAT", "natalie": "NAT",
-    "nrs":   "NRS",
-    "tah":   "TAH", "tahani":  "TAH",
-    "efd":   "EFD",
-}
-
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
@@ -681,6 +588,95 @@ def parse_preferred_routes() -> Dict[str, Dict[str, int]]:
     v1_count = sum(1 for c in affinity if affinity[c] and c not in v2_collectors)
     print(f"  V2 scores: {len(v2_collectors)} collectors | V1 fallback: {v1_count} collectors")
     return affinity
+
+
+def parse_route_groups() -> Dict[str, List[str]]:
+    """
+    Parse Route_Groups.xlsx.
+
+    Expected sheet layout:
+      Group_1  NW
+               WH
+               HT
+      Group_2  JA
+               ...
+
+    Returns:
+      {"Group 1": ["BX_NW", "MN_WH", ...], ...}
+    """
+    xlsx = ROUTE_GROUPS
+    if not xlsx.exists():
+        print(f"  [WARN] {xlsx.name} not found — route-group constraints disabled")
+        return {}
+
+    ns = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+
+    try:
+        with zipfile.ZipFile(xlsx) as zf:
+            if "xl/worksheets/sheet1.xml" not in zf.namelist():
+                print("  [WARN] Route_Groups.xlsx missing sheet1.xml — route-group constraints disabled")
+                return {}
+
+            shared_strings: List[str] = []
+            if "xl/sharedStrings.xml" in zf.namelist():
+                sroot = ET.fromstring(zf.read("xl/sharedStrings.xml"))
+                for si in sroot.findall("x:si", ns):
+                    text = "".join((t.text or "") for t in si.findall(".//x:t", ns)).strip()
+                    shared_strings.append(text)
+
+            root = ET.fromstring(zf.read("xl/worksheets/sheet1.xml"))
+    except (OSError, zipfile.BadZipFile, ET.ParseError) as e:
+        print(f"  [WARN] Could not parse {xlsx.name}: {e} — route-group constraints disabled")
+        return {}
+
+    suffix_to_route = {r.split("_", 1)[1]: r for r in ALL_ROUTES}
+    groups: Dict[str, List[str]] = {}
+    current_group: Optional[str] = None
+
+    def _cell_value(cell) -> str:
+        raw = cell.find("x:v", ns)
+        if raw is None or raw.text is None:
+            return ""
+        val = raw.text.strip()
+        if cell.attrib.get("t") == "s":
+            try:
+                return shared_strings[int(val)].strip()
+            except (ValueError, IndexError):
+                return ""
+        return val
+
+    for row in root.findall(".//x:sheetData/x:row", ns):
+        vals = []
+        for c in row.findall("x:c", ns):
+            cv = _cell_value(c)
+            if cv:
+                vals.append(cv)
+        if not vals:
+            continue
+
+        first = vals[0].strip()
+        if first.startswith("Group_"):
+            current_group = first.replace("_", " ")
+            groups.setdefault(current_group, [])
+            codes = vals[1:]
+        elif current_group is not None:
+            codes = vals
+        else:
+            continue
+
+        for code in codes:
+            raw = code.strip().upper()
+            route = raw if raw in ALL_ROUTES else suffix_to_route.get(raw)
+            if route and route not in groups[current_group]:
+                groups[current_group].append(route)
+
+    groups = {g: routes for g, routes in groups.items() if routes}
+    if groups:
+        print(f"  Route groups loaded: {len(groups)} group(s), "
+              f"{len({r for rs in groups.values() for r in rs})} unique routes")
+    else:
+        print("  [WARN] Route_Groups.xlsx parsed but no routes were found")
+    return groups
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1706,6 +1702,7 @@ def build_weekly_calendar(
     season_counts:       Optional[Dict[str, int]] = None,
     bp_filter:           Optional[str] = None,
     preserved_assignments: Optional[List[Dict]] = None,
+    route_groups:        Optional[Dict[str, List[str]]] = None,
 ) -> None:
     """
     Assign each top-N combo to a day + TOD respecting:
@@ -1739,7 +1736,105 @@ def build_weekly_calendar(
     }
 
     collector_used_on:     Dict[str, set]        = defaultdict(set)
+    collector_used_slot:   Dict[str, set]        = defaultdict(set)  # (date, tod) to prevent same-slot double-booking
     collector_week_routes: Dict[str, List[str]]  = defaultdict(list)
+    slot_route_usage:      Dict[Tuple[date, str], set] = defaultdict(set)  # prevent same route+slot on both backpacks
+
+    # Route-group weekly zoning per backpack (one group lock per backpack)
+    route_to_groups: Dict[str, set] = defaultdict(set)
+    for gname, routes in (route_groups or {}).items():
+        for r in routes:
+            route_to_groups[r].add(gname)
+    group_campus_cost: Dict[Tuple[str, str], float] = {}
+    for gname, routes in (route_groups or {}).items():
+        for bp_name in ("A", "B"):
+            vals: List[float] = []
+            for r in routes:
+                t = _campus_transit_minutes(r, bp_name)
+                if t < 999:
+                    vals.append(float(t))
+                elif r in route_coords:
+                    rlat, rlon = route_coords[r]
+                    clat, clon = CAMPUS_COORDS[bp_name][0], CAMPUS_COORDS[bp_name][1]
+                    vals.append(haversine_km(rlat, rlon, clat, clon) * 3.0)
+            if vals:
+                group_campus_cost[(gname, bp_name)] = sum(vals) / len(vals)
+    bp_group_lock: Dict[str, Optional[str]] = {"A": None, "B": None}
+    group_owner: Dict[str, str] = {}  # group -> backpack
+
+    day_to_idx = {d: i for i, d in enumerate(all_week_days)}
+    tod_to_idx = {tod: i for i, tod in enumerate(TODS)}
+
+    def _route_transition_minutes(route_a: str, route_b: str, tod: str) -> Optional[float]:
+        t = _transit_minutes(route_a, route_b, tod=tod)
+        if t < 999:
+            return float(t)
+        # Conservative fallback when transit matrix lacks this edge.
+        if route_a in route_coords and route_b in route_coords:
+            a = route_coords[route_a]
+            b = route_coords[route_b]
+            return haversine_km(a[0], a[1], b[0], b[1]) * 3.0
+        return None
+
+    def _slot_index(d: date, tod: str) -> int:
+        return day_to_idx[d] * len(TODS) + tod_to_idx[tod]
+
+    def _adjacent_entries(bp: str, d: date, tod: str) -> Tuple[Optional[Dict], Optional[Dict]]:
+        sidx = _slot_index(d, tod)
+        prev_entry, next_entry = None, None
+        for i in range(sidx - 1, -1, -1):
+            dd = all_week_days[i // len(TODS)]
+            tt = TODS[i % len(TODS)]
+            e = cal[bp][dd][tt]
+            if e is not None:
+                prev_entry = e
+                break
+        total_slots = len(all_week_days) * len(TODS)
+        for i in range(sidx + 1, total_slots):
+            dd = all_week_days[i // len(TODS)]
+            tt = TODS[i % len(TODS)]
+            e = cal[bp][dd][tt]
+            if e is not None:
+                next_entry = e
+                break
+        return prev_entry, next_entry
+
+    def _violates_backpack_jump(bp: str, route: str, d: date, tod: str) -> bool:
+        prev_entry, next_entry = _adjacent_entries(bp, d, tod)
+        if prev_entry is not None:
+            t_prev = _route_transition_minutes(prev_entry["route"], route, tod=tod)
+            if t_prev is not None and t_prev > MAX_BACKPACK_TRANSIT_MIN:
+                return True
+        if next_entry is not None:
+            t_next = _route_transition_minutes(route, next_entry["route"], tod=tod)
+            if t_next is not None and t_next > MAX_BACKPACK_TRANSIT_MIN:
+                return True
+        return False
+
+    def _pick_group_for_route(bp: str, route: str) -> Optional[str]:
+        groups = sorted(route_to_groups.get(route, set()))
+        if not groups:
+            return None  # route is currently ungrouped
+        locked = bp_group_lock.get(bp)
+        if locked is not None:
+            return locked if locked in groups else "__BLOCK__"
+        owned_by_bp = [g for g in groups if group_owner.get(g) == bp]
+        if owned_by_bp:
+            owned_by_bp.sort(key=lambda g: group_campus_cost.get((g, bp), 999.0))
+            return owned_by_bp[0]
+        unowned = [g for g in groups if g not in group_owner]
+        if unowned:
+            unowned.sort(key=lambda g: group_campus_cost.get((g, bp), 999.0))
+            return unowned[0]
+        return "__BLOCK__"
+
+    def _lock_group(bp: str, group_name: str) -> None:
+        if group_name in (None, "__BLOCK__"):
+            return
+        if bp_group_lock[bp] is None:
+            bp_group_lock[bp] = group_name
+        if group_owner.get(group_name) is None:
+            group_owner[group_name] = bp
 
     assignments: List[Dict] = []
     unassigned:  List[Dict] = []
@@ -1757,6 +1852,19 @@ def build_weekly_calendar(
             continue                     # day not in this week's grid
         if cal[bp][d][tod] is not None:
             continue                     # slot already taken (e.g. forced CCNY)
+        if a["route"] in slot_route_usage[(d, tod)]:
+            print(f"  [WARN] Skipping preserved duplicate route+slot across backpacks: "
+                  f"{a['route']} {tod} {d}")
+            continue
+        g_pick = _pick_group_for_route(bp, a["route"])
+        if g_pick == "__BLOCK__":
+            print(f"  [WARN] Skipping preserved assignment outside Backpack {bp} route group: "
+                  f"{a['route']} {tod} {d}")
+            continue
+        if _violates_backpack_jump(bp, a["route"], d, tod):
+            print(f"  [WARN] Skipping preserved long transit jump for Backpack {bp}: "
+                  f"{a['route']} {tod} {d}")
+            continue
         entry = {
             "route":              a["route"],
             "boro":               a.get("boro", a["route"].split("_")[0]),
@@ -1769,10 +1877,15 @@ def build_weekly_calendar(
             "count":              0,
             "continuity_min":     0,
             "preserved":          True,
+            "route_group":        None if g_pick in (None, "__BLOCK__") else g_pick,
         }
         cal[bp][d][tod] = entry
         collector_used_on[a["collector"]].add(d)
+        collector_used_slot[a["collector"]].add((d, tod))
         collector_week_routes[a["collector"]].append(a["route"])
+        slot_route_usage[(d, tod)].add(a["route"])
+        if g_pick not in (None, "__BLOCK__"):
+            _lock_group(bp, g_pick)
         assignments.append(entry)
         preserved_keys.add((a["route"], tod))
         print(f"  ↩  Preserved: [{bp}] {a['route']} {tod} on {d} → {a['collector']}")
@@ -1835,8 +1948,8 @@ def build_weekly_calendar(
     combo_constraints.sort(key=lambda x: (x[0], x[1]))
 
     # Reorder top based on constraint level (but keep unplaceable at end)
-    top_sorted = [combo for _, _, combo in combo_constraints if _ > 0]
-    top_unplaceable = [combo for _, _, combo in combo_constraints if _ == 0]
+    top_sorted = [combo for level, _, combo in combo_constraints if level > 0]
+    top_unplaceable = [combo for level, _, combo in combo_constraints if level == 0]
     top = top_sorted + top_unplaceable
 
     # Update bp_map indices to match new ordering
@@ -1863,6 +1976,14 @@ def build_weekly_calendar(
                 continue  # never schedule today or any past day
             if cal[bp][d][tod] is not None:
                 continue  # slot taken by this backpack
+            if combo["route"] in slot_route_usage[(d, tod)]:
+                continue  # prevent both backpacks at same place+time
+            if _violates_backpack_jump(bp, combo["route"], d, tod):
+                continue  # prevent impractical consecutive route jumps
+
+            chosen_group = _pick_group_for_route(bp, combo["route"])
+            if chosen_group == "__BLOCK__":
+                continue  # route not allowed for this backpack's locked weekly group
 
             # Build scored candidate list:
             #   Intelligent scoring: prioritize affinity first, then continuity, then load balance
@@ -1877,6 +1998,8 @@ def build_weekly_calendar(
                     continue  # enforce: BP-A → CCNY only, BP-B → LaGCC only
                 if not availability.get(cid, {}).get((d, tod), True):
                     continue
+                if (d, tod) in collector_used_slot.get(cid, set()):
+                    continue  # same collector cannot hold two backpacks in same slot
                 # Count walks already assigned to this collector on day d (allow up to 2)
                 walks_today = sum(1 for tod_check in TODS if cal[bp][d].get(tod_check) is not None and cal[bp][d][tod_check].get("assigned_collector") == cid)
                 if walks_today >= 2:
@@ -1912,10 +2035,15 @@ def build_weekly_calendar(
                 "backpack":           bp,
                 "continuity_min":     round(_cont_min, 1),
                 "season_walks":       _sea_walks,
+                "route_group":        None if chosen_group in (None, "__BLOCK__") else chosen_group,
             }
             cal[bp][d][tod] = entry
             collector_used_on[chosen].add(d)
+            collector_used_slot[chosen].add((d, tod))
             collector_week_routes[chosen].append(combo["route"])
+            slot_route_usage[(d, tod)].add(combo["route"])
+            if chosen_group not in (None, "__BLOCK__"):
+                _lock_group(bp, chosen_group)
             assignments.append(entry)
             # ── Update dynamic walk count for intelligent load balancing ──────────
             # Increment the collector's count so subsequent assignments see the updated value
@@ -2056,6 +2184,7 @@ def build_weekly_calendar(
                 "collector": e["assigned_collector"],
                 "date":      str(e["assigned_date"]),
                 "preserved": e.get("preserved", False),
+                "route_group": e.get("route_group"),
             }
             for e in assignments
         ],
@@ -2190,6 +2319,7 @@ def main() -> None:
             for _a in _existing.get("assignments", []):
                 _d   = date.fromisoformat(_a["date"])
                 _tod = _a["tod"]
+                _conf_status = str(_a.get("status", _a.get("confirmation_status", ""))).strip().lower()
                 # Skip if outside the current week
                 if not (week_start <= _d <= week_end):
                     continue
@@ -2223,6 +2353,11 @@ def main() -> None:
     affinity = parse_preferred_routes()
     collectors_with_prefs = sum(1 for v in affinity.values() if any(s > 0 for s in v.values()))
     print(f"  {collectors_with_prefs} collectors have route preferences\n")
+
+    # ── Step 3b ─────────────────────────────────────────────────────────────
+    print("▶ Step 3b Parsing route groups …")
+    route_groups = parse_route_groups()
+    print()
 
     # ── Step 4 ──────────────────────────────────────────────────────────────
     print("▶ Step 4  Parsing collector availability …")
@@ -2302,9 +2437,9 @@ def main() -> None:
         season_counts=season_counts,
         bp_filter=bp_filter,
         preserved_assignments=preserved_assignments,
+        route_groups=route_groups,
     )
 
 
 if __name__ == "__main__":
     main()
-

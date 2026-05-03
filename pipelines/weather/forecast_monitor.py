@@ -1,23 +1,22 @@
 #!/usr/bin/env python3
 """
-forecast_monitor.py — Monitor a Google Sheets forecast spreadsheet and auto-trigger scheduler
+forecast_monitor.py — Monitor a Google Sheets forecast spreadsheet and auto-trigger site rebuild
 ========================================================================================
 Periodically polls the Google Sheets spreadsheet for changes (via its Drive
-modification time) and automatically triggers the walk scheduler when the
+modification time) and automatically triggers site rebuilds when the
 sheet is updated.
 
 When a change is detected:
 1. Runs build_weather.py  (reads fresh data from the spreadsheet)
-2. Runs walk_scheduler.py
-3. Runs build_dashboard.py
-4. Logs all activity to forecast_monitor.log
+2. Runs build_dashboard.py
+3. Logs all activity to forecast_monitor.log
 
 Runs every 5 minutes and tracks the sheet's last-modified time in .forecast_state.json.
 
 SETUP:
 1. Ensure drive-service-account.json exists in the same folder as this script
 2. Install dependencies: pip install google-auth google-auth-httplib2 google-api-python-client
-3. Ensure build_weather.py, walk_scheduler.py and build_dashboard.py are in the same folder
+3. Ensure build_weather.py and build_dashboard.py are available in this repository
 
 RUN:
 python forecast_monitor.py
@@ -50,14 +49,14 @@ from shared.paths import (
     SERVICE_ACCOUNT_KEY as SERVICE_ACCOUNT_JSON,
     FORECAST_MONITOR_LOG as LOG_FILE,
     FORECAST_STATE as STATE_FILE,
-    BUILD_WEATHER, BUILD_DASHBOARD, WALK_SCHEDULER,
+    BUILD_WEATHER, BUILD_DASHBOARD,
 )
 
 BASE_DIR = _REPO_ROOT
 
 SPREADSHEET_ID = "1-AQk9LXHlzeakHBvwdhFLeDrZojkZj3vG2h6cAOumm4"
 
-# BUILD_WEATHER, WALK_SCHEDULER, BUILD_DASHBOARD imported from shared.paths above
+# BUILD_WEATHER and BUILD_DASHBOARD imported from shared.paths above
 
 # Drive API scope (read file metadata only)
 SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
@@ -215,25 +214,14 @@ def sync_once(drive_service) -> bool:
         weather_ok = _run_script(BUILD_WEATHER, "build_weather.py")
 
         if not weather_ok:
-            logger.error("build_weather.py failed — skipping scheduler and dashboard")
+            logger.error("build_weather.py failed — skipping dashboard rebuild")
             return False
 
-        # Rebuild dashboard immediately after weather so the site always shows
-        # the latest weather data, even if the scheduler fails below.
         _run_script(BUILD_DASHBOARD, "build_dashboard.py")
 
-        scheduler_ok = _run_script(WALK_SCHEDULER, "walk_scheduler.py")
-
-        if scheduler_ok:
-            # Rebuild again to bake in the freshly generated schedule.
-            _run_script(BUILD_DASHBOARD, "build_dashboard.py")
-        else:
-            logger.warning("walk_scheduler.py failed — dashboard reflects latest weather only")
-
-        # Save state as long as weather succeeded; scheduler failure is non-fatal.
+        # Save state as long as weather succeeded; dashboard failure is non-fatal.
         save_forecast_state(current_mtime)
-        logger.info("✓ Sync completed (weather updated; scheduler %s)",
-                    "ok" if scheduler_ok else "FAILED")
+        logger.info("✓ Sync completed (weather + dashboard rebuild attempted)")
         return True
 
     except Exception as e:
