@@ -256,7 +256,10 @@ def _drive_find_file(svc, folder_id: str, name: str) -> str | None:
     try:
         safe = name.replace("\\", "\\\\").replace("'", "\\'")
         q = f"name='{safe}' and '{folder_id}' in parents and trashed=false"
-        r = svc.files().list(q=q, fields="files(id)", pageSize=1).execute()
+        r = svc.files().list(
+            q=q, fields="files(id)", pageSize=1,
+            supportsAllDrives=True, includeItemsFromAllDrives=True,
+        ).execute()
         files = r.get("files", [])
         return files[0]["id"] if files else None
     except Exception as exc:
@@ -274,7 +277,9 @@ def _upload_stream_to_drive(svc, folder_id: str, filename: str, fp) -> str:
                               chunksize=5 * 1024 * 1024)
     meta = {"name": filename, "parents": [folder_id]}
     try:
-        req = svc.files().create(body=meta, media_body=media, fields="id")
+        req = svc.files().create(
+            body=meta, media_body=media, fields="id", supportsAllDrives=True,
+        )
         resp = None
         while resp is None:
             try:

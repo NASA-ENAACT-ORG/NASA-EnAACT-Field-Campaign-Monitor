@@ -480,15 +480,9 @@ select option{background:var(--bg3)}
 #collector-homes-btn{position:absolute;bottom:100px;left:10px;z-index:1001;background:rgba(13,17,23,.88);border:1px solid var(--border);border-radius:7px;padding:5px 10px;font-size:11px;font-weight:600;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:6px;backdrop-filter:blur(4px);transition:background .15s,color .15s,border-color .15s;user-select:none;white-space:nowrap}
 #collector-homes-btn:hover{background:rgba(40,44,65,.95);color:var(--text)}
 #collector-homes-btn.chb-on{border-color:#4f8ef7;color:#4f8ef7;background:rgba(15,31,63,.88)}
-#route-groups-panel{position:absolute;bottom:140px;left:10px;z-index:1001;background:rgba(13,17,23,.92);border:1px solid var(--border);border-radius:7px;font-size:11px;font-weight:600;backdrop-filter:blur(4px);user-select:none;min-width:148px;overflow:hidden}
-.rgb-header{display:flex;align-items:center;justify-content:space-between;padding:5px 10px;color:var(--text);gap:10px;white-space:nowrap;border-bottom:1px solid var(--border)}
-#rgb-all-btn{font-size:9px;font-weight:700;padding:1px 7px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;color:var(--text2);cursor:pointer;font-family:inherit;letter-spacing:.3px;transition:all .15s;flex-shrink:0}
-#rgb-all-btn:hover{color:var(--text);border-color:var(--text3)}
-.rgb-item{display:flex;align-items:center;gap:6px;padding:3px 10px;cursor:pointer;width:100%;box-sizing:border-box}
-.rgb-item:hover{background:rgba(255,255,255,.05)}
-.rgb-item input[type=checkbox]{cursor:pointer;flex-shrink:0;accent-color:currentColor}
-.rgb-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
-.rgb-lbl{color:var(--text2);font-size:11px;white-space:nowrap}
+#route-groups-btn{position:absolute;bottom:140px;left:10px;z-index:1001;background:rgba(13,17,23,.88);border:1px solid var(--border);border-radius:7px;padding:5px 10px;font-size:11px;font-weight:600;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:6px;backdrop-filter:blur(4px);transition:background .15s,color .15s,border-color .15s;user-select:none;white-space:nowrap}
+#route-groups-btn:hover{background:rgba(40,44,65,.95);color:var(--text)}
+#route-groups-btn.rgb-on{border-color:#f0a500;color:#f0a500;background:rgba(40,32,10,.88)}
 #mstats{position:absolute;top:10px;left:10px;z-index:1000;display:flex;flex-direction:column;gap:5px;pointer-events:none}
 .msc{background:rgba(13,17,23,.88);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:10px;color:var(--text2)}
 .msc strong{display:block;font-size:17px;font-weight:700;color:var(--text);line-height:1.1}
@@ -510,8 +504,8 @@ select option{background:var(--bg3)}
 .bp-toggle:hover .bp-boro-tooltip{display:block}
 .bp-boro-tooltip .week-item{display:flex;align-items:center;gap:4px;padding:2px 0;color:#e6edf3}
 .bp-boro-tooltip .week-num{font-weight:700;color:var(--accent);min-width:20px}
-#cal-body{flex:1;overflow:auto;min-height:0}
-#cal-grid{display:grid;grid-template-columns:54px repeat(7,1fr);grid-template-rows:56px repeat(3,minmax(110px,1fr));min-height:100%}
+#cal-body{flex:1;overflow-y:auto;overflow-x:hidden;min-height:0}
+#cal-grid{display:grid;grid-template-columns:54px repeat(7,1fr);grid-template-rows:56px repeat(3,minmax(110px,1fr));min-height:100%;width:100%}
 .cal-corner{background:var(--bg2);border-right:1px solid var(--border);border-bottom:2px solid var(--border);position:sticky;top:0;left:0;z-index:20}
 .cal-day-head{background:var(--bg2);border-right:1px solid var(--border);border-bottom:2px solid var(--border);padding:8px 6px 6px;text-align:center;position:sticky;top:0;z-index:10}
 .cal-dname{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;font-weight:600}
@@ -716,14 +710,7 @@ select option{background:var(--bg3)}
 #toast.show{transform:translateY(0);opacity:1}
 #toast.success{border-color:var(--green);color:var(--green)}
 #toast.error{border-color:var(--red);color:var(--red)}
-/* -- Live GPS markers -- */
-.gps-dot{width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 0 rgba(248,81,73,.6);transition:background .3s}
-.gps-dot-a{background:#f85149;animation:gps-pulse-a 1.6s ease-out infinite}
-.gps-dot-b{background:#388bfd;animation:gps-pulse-b 1.6s ease-out infinite}
-.gps-dot-stale{background:#6e7681;animation:none;box-shadow:none}
-@keyframes gps-pulse-a{0%{box-shadow:0 0 0 0 rgba(248,81,73,.5)}70%{box-shadow:0 0 0 8px rgba(248,81,73,0)}100%{box-shadow:0 0 0 0 rgba(248,81,73,0)}}
-@keyframes gps-pulse-b{0%{box-shadow:0 0 0 0 rgba(56,139,253,.5)}70%{box-shadow:0 0 0 8px rgba(56,139,253,0)}100%{box-shadow:0 0 0 0 rgba(56,139,253,0)}}
-/* -- Drive / GPS header badges -- */
+/* -- Drive header badges -- */
 #live-badges{display:flex;align-items:center;gap:6px;margin-left:auto}
 .live-badge{font-size:10px;padding:2px 7px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text3);white-space:nowrap;cursor:default}
 .live-badge.ok{border-color:rgba(74,222,128,.4);color:#4ade80}
@@ -922,7 +909,7 @@ setTimeout(function(){
       <div id="map-wrap">
         <div id="map"></div>
         <div id="mstats"></div>
-        <div id="route-groups-panel"><div class="rgb-header"><span>&#9632; Route Groups</span><button id="rgb-all-btn">All</button></div><div id="rgb-list"></div></div>
+        <button id="route-groups-btn" title="Toggle route groups">&#9632; Route Groups</button>
         <button id="collector-homes-btn" title="Toggle collector areas">&#x1F3E0; Collector Areas</button>
         <div id="mlegend">
           <h4>Completion Progress</h4>
@@ -1143,7 +1130,7 @@ let filters={season:'',tod:'',backpack:'',from:null,to:null};
 let visibleBackpacks={A:true,B:true,X:true};
 let map=null, routeLayers={}, routeCentroids={}, charts={};
 let collectorHomeLayer=null, collectorHomesVisible=false, collectorHomeMarkers={};
-let routeGroupLayers=[], routeGroupLabels=[], routeGroupVisible=[];
+let routeGroupLayers=[], routeGroupLabels=[], routeGroupsVisible=false;
 
 // --- UTIL ---
 function getSeason(d){const m=d.getMonth()+1;return m>=3&&m<=5?'Spring':m>=6&&m<=8?'Summer':m>=9&&m<=11?'Fall':'Winter';}
@@ -1295,13 +1282,11 @@ function initMap(){
     document.getElementById('collector-homes-btn').classList.toggle('chb-on',collectorHomesVisible);
   });
   ROUTE_GROUPS.forEach((g,i)=>{
-    const poly=L.polygon(_smoothLoop(g.hull),{
+    routeGroupLayers.push(L.polygon(_smoothLoop(g.hull),{
       color:g.color,fillColor:g.color,
       fillOpacity:0.07,opacity:0.55,
       weight:2,dashArray:'7,5',interactive:false
-    });
-    routeGroupLayers.push(poly);
-    routeGroupVisible.push(false);
+    }));
     const cx=g.hull.reduce((s,p)=>s+p[0],0)/g.hull.length;
     const cy=g.hull.reduce((s,p)=>s+p[1],0)/g.hull.length;
     routeGroupLabels.push(L.marker([cx,cy],{
@@ -1310,27 +1295,14 @@ function initMap(){
         iconSize:[44,44],iconAnchor:[22,22],className:''
       }),interactive:false,zIndexOffset:500
     }));
-    const row=document.createElement('label');
-    row.className='rgb-item';
-    row.innerHTML=`<input type="checkbox" data-gi="${i}"><span class="rgb-dot" style="background:${g.color}"></span><span class="rgb-lbl">${g.name}</span>`;
-    row.querySelector('input').addEventListener('change',e=>{
-      routeGroupVisible[i]=e.target.checked;
-      if(e.target.checked){routeGroupLayers[i].addTo(map);routeGroupLabels[i].addTo(map);}
-      else{routeGroupLayers[i].remove();routeGroupLabels[i].remove();}
-      const allOn=routeGroupVisible.every(Boolean),allOff=routeGroupVisible.every(v=>!v);
-      document.getElementById('rgb-all-btn').textContent=allOn?'None':'All';
-    });
-    document.getElementById('rgb-list').appendChild(row);
   });
-  document.getElementById('rgb-all-btn').addEventListener('click',()=>{
-    const newState=!routeGroupVisible.every(Boolean);
-    routeGroupVisible.fill(newState);
-    document.querySelectorAll('#rgb-list input').forEach((cb,i)=>{
-      cb.checked=newState;
-      if(newState){routeGroupLayers[i].addTo(map);routeGroupLabels[i].addTo(map);}
-      else{routeGroupLayers[i].remove();routeGroupLabels[i].remove();}
+  document.getElementById('route-groups-btn').addEventListener('click',()=>{
+    routeGroupsVisible=!routeGroupsVisible;
+    routeGroupLayers.forEach((l,i)=>{
+      if(routeGroupsVisible){l.addTo(map);routeGroupLabels[i].addTo(map);}
+      else{l.remove();routeGroupLabels[i].remove();}
     });
-    document.getElementById('rgb-all-btn').textContent=newState?'None':'All';
+    document.getElementById('route-groups-btn').classList.toggle('rgb-on',routeGroupsVisible);
   });
 }
 function gradientColor(n){
@@ -2879,15 +2851,6 @@ async function init(){
   }
   document.getElementById('loading').style.display='none';
 }
-// --- LIVE GPS TRACKING ---
-let gpsMarkers={}, gpsTrailLayers={};
-
-function makeGpsIcon(bp,stale){
-  const cls=stale?'gps-dot-stale':(bp==='BP_A'?'gps-dot-a':'gps-dot-b');
-  return L.divIcon({className:'',iconSize:[14,14],iconAnchor:[7,7],
-    html:`<div class="gps-dot ${cls}"></div>`});
-}
-
 function _relTime(isoTs){
   if(!isoTs)return'-';
   const sec=Math.round((Date.now()-new Date(isoTs).getTime())/1000);
@@ -2895,64 +2858,6 @@ function _relTime(isoTs){
   if(sec<60)return`${sec}s ago`;
   if(sec<3600)return`${Math.round(sec/60)}m ago`;
   return`${Math.round(sec/3600)}h ago`;
-}
-
-async function refreshGps(){
-  if(!map)return;
-  let data;
-  try{
-    const r=await fetch('/api/gps/status');
-    if(!r.ok)throw new Error(r.status);
-    data=await r.json();
-  }catch(e){
-    document.getElementById('gps-badge-a').textContent='BP-A: offline';
-    document.getElementById('gps-badge-b').textContent='BP-B: offline';
-    return;
-  }
-  for(const[bp,pos]of Object.entries(data)){
-    const badgeId=bp==='BP_A'?'gps-badge-a':'gps-badge-b';
-    const badge=document.getElementById(badgeId);
-    if(!pos||pos.lat===null){
-      badge.textContent=(bp==='BP_A'?'BP-A':'BP-B')+': no fix';
-      badge.className='live-badge warn';
-      continue;
-    }
-    const lbl=(bp==='BP_A'?'BP-A':'BP-B');
-    if(pos.stale){
-      badge.textContent=lbl+': stale';
-      badge.className='live-badge err';
-    }else{
-      const spd=pos.speed!=null?` ${pos.speed.toFixed(1)}m/s`:'';
-      badge.textContent=`${lbl}: live${spd}`;
-      badge.className='live-badge ok';
-    }
-    badge.title=`${bp} | Last: ${pos.ts?new Date(pos.ts).toLocaleTimeString():'-'}${pos.batt!=null?' | Batt: '+pos.batt+'%':''}`;
-    const latLng=L.latLng(pos.lat,pos.lon);
-    if(gpsMarkers[bp]){
-      gpsMarkers[bp].setLatLng(latLng);
-      gpsMarkers[bp].setIcon(makeGpsIcon(bp,pos.stale));
-    }else{
-      const label=bp==='BP_A'?'Backpack A':'Backpack B';
-      gpsMarkers[bp]=L.marker(latLng,{icon:makeGpsIcon(bp,pos.stale),zIndexOffset:1000})
-        .bindPopup(`<b>${label}</b><br><small>Last: ${pos.ts?new Date(pos.ts).toLocaleTimeString():'-'}</small>${pos.speed!=null?'<br><small>Speed: '+pos.speed.toFixed(1)+' m/s</small>':''}${pos.batt!=null?'<br><small>Battery: '+pos.batt+'%</small>':''}`)
-        .addTo(map);
-    }
-  }
-  // Refresh trails
-  for(const bp of['BP_A','BP_B']){
-    try{
-      const r=await fetch(`/api/gps/trail?id=${bp}`);
-      if(!r.ok)continue;
-      const trail=await r.json();
-      if(trail.length<2)continue;
-      const pts=trail.map(p=>[p.lat,p.lon]);
-      if(gpsTrailLayers[bp]){gpsTrailLayers[bp].setLatLngs(pts);}
-      else{
-        const color=bp==='BP_A'?'#f85149':'#388bfd';
-        gpsTrailLayers[bp]=L.polyline(pts,{color,weight:2,opacity:.45,dashArray:'4 4'}).addTo(map);
-      }
-    }catch(e){}
-  }
 }
 
 // --- DRIVE SYNC UI ---
@@ -2994,8 +2899,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       refreshDriveStatus();
     });
   }
-  // Poll GPS every 5s, Drive status every 30s
-  setInterval(refreshGps,5000);
+  // Poll Drive status every 30s
   setInterval(refreshDriveStatus,30000);
   refreshDriveStatus();
 });
@@ -3505,7 +3409,7 @@ _failures_path = PERSISTED_DIR / "upload_failures.json"
 if _failures_path.exists():
     try:
         _records = json.loads(_failures_path.read_text(encoding="utf-8"))
-        _cutoff = _dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(days=7)
+        _cutoff = _dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(minutes=30)
         _recent = []
         for _r in _records if isinstance(_records, list) else []:
             try:
@@ -3527,7 +3431,7 @@ if _failures_path.exists():
                 "background:#5a1d1d;color:#ffd6d6;border-bottom:2px solid #f85149;"
                 "padding:10px 16px;font-family:system-ui,sans-serif;font-size:13px;"
                 "z-index:9999;position:relative\">"
-                f"<strong>⚠ {len(_recent)} upload(s) failed to sync to Drive in the last 7 days.</strong> "
+                f"<strong>⚠ {len(_recent)} upload(s) failed to sync to Drive in the last 30 minutes.</strong> "
                 "Files remain in <code>upload_holding_bucket/failed/</code>. "
                 f"<details style=\"display:inline-block;margin-left:8px\"><summary>show recent</summary>"
                 f"<ul style=\"margin:6px 0 0 18px\">{_items}</ul></details>"

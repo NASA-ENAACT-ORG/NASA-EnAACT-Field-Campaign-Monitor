@@ -30,9 +30,7 @@ PORT=8080
 ANTHROPIC_API_KEY=sk-ant-xxxxx
 GOOGLE_SERVICE_ACCOUNT_JSON={"type": "service_account", "project_id": ...}
 GOOGLE_DRIVE_FOLDER_ID=1ABCD1234567890abcdefg
-GPS_AUTH_TOKEN=your-gps-bearer-token
 GAS_SECRET=your-gas-secret
-GPS_STALE_SECONDS=300
 DRIVE_POLL_INTERVAL=0
 GCS_BUCKET=
 EOF
@@ -58,7 +56,6 @@ docker run -p 8080:8080 \
   -e ANTHROPIC_API_KEY="your-key" \
   -e GOOGLE_SERVICE_ACCOUNT_JSON='{...}' \
   -e GOOGLE_DRIVE_FOLDER_ID="..." \
-  -e GPS_AUTH_TOKEN="..." \
   -e GAS_SECRET="..." \
   -e DRIVE_POLL_INTERVAL=0 \
   enact-walk-dashboard:latest
@@ -83,29 +80,17 @@ curl http://localhost:8080/dashboard.html | head -20
 ### Test 2: Status endpoint
 ```bash
 curl -s http://localhost:8080/api/status | jq .
-# Should return JSON with file timestamps and GPS data
+# Should return JSON with file timestamps
 ```
 
-### Test 3: GPS endpoint
-```bash
-curl "http://localhost:8080/api/gps?id=BP_A&lat=40.71&lon=-73.96&speed=1.5&batt=85&token=your-gps-bearer-token"
-# Should return: {"status": "ok"}
-```
-
-### Test 4: GPS status endpoint
-```bash
-curl http://localhost:8080/api/gps/status | jq .
-# Should return GPS positions for both backpacks
-```
-
-### Test 5: Drive poll trigger
+### Test 3: Drive poll trigger
 ```bash
 curl -X POST http://localhost:8080/api/drive/poll \
   -H "Authorization: Bearer your-gas-secret"
 # Should return: {"status": "ok", "new_files": 0}
 ```
 
-### Test 6: Rebuild dashboards
+### Test 4: Rebuild dashboards
 ```bash
 curl -X POST http://localhost:8080/api/rebuild
 # Returns chunked response with build output
@@ -225,9 +210,6 @@ curl -s http://localhost:8080/dashboard.html | head -1
 
 echo -n "✓ Status API: "
 curl -s http://localhost:8080/api/status | jq -r '.walk_log // "null"'
-
-echo -n "✓ GPS Status: "
-curl -s http://localhost:8080/api/gps/status | jq 'keys'
 
 echo ""
 echo "✓ Local tests passed!"

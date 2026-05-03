@@ -82,7 +82,7 @@ gcloud run deploy ${SERVICE_NAME} \
   --timeout=3600 \
   --concurrency=100 \
   --max-instances=10 \
-  --min-instances=0 \
+  --min-instances=1 \
   --service-account=cloud-run-sa@${PROJECT_ID}.iam.gserviceaccount.com \
   --set-env-vars="\
 GPS_STALE_SECONDS=300,\
@@ -94,7 +94,8 @@ GOOGLE_SERVICE_ACCOUNT_JSON=GOOGLE_SERVICE_ACCOUNT_JSON:latest,\
 GOOGLE_DRIVE_WALKS_FOLDER_ID=GOOGLE_DRIVE_WALKS_FOLDER_ID:latest,\
 DRIVE_FORECASTS_FOLDER_ID=DRIVE_FORECASTS_FOLDER_ID:latest,\
 GPS_AUTH_TOKEN=GPS_AUTH_TOKEN:latest,\
-GAS_SECRET=GAS_SECRET:latest" \
+GAS_SECRET=GAS_SECRET:latest,\
+UPLOAD_HOLDING_BUCKET=UPLOAD_HOLDING_BUCKET:latest" \
   --allow-unauthenticated \
   --quiet
 

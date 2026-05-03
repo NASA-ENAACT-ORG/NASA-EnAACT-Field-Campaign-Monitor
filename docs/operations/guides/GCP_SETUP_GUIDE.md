@@ -215,11 +215,7 @@ echo -n "$(cat /path/to/your/google-service-account.json)" | gcloud secrets crea
 echo -n "YOUR_GOOGLE_DRIVE_FOLDER_ID" | gcloud secrets create GOOGLE_DRIVE_FOLDER_ID \
   --data-file=-
 
-# 4. GPS Auth Token (optional, but recommended)
-echo -n "YOUR_GPS_BEARER_TOKEN" | gcloud secrets create GPS_AUTH_TOKEN \
-  --data-file=-
-
-# 5. GAS Secret (Google Apps Script trigger token)
+# 4. GAS Secret (Google Apps Script trigger token)
 echo -n "YOUR_GAS_SECRET_TOKEN" | gcloud secrets create GAS_SECRET \
   --data-file=-
 
@@ -231,8 +227,7 @@ gcloud secrets list
 - **ANTHROPIC_API_KEY**: Your Anthropic console API key
 - **GOOGLE_SERVICE_ACCOUNT_JSON**: Download from GCP Console > Service Accounts > Choose account > Keys > Add Key > JSON
 - **GOOGLE_DRIVE_FOLDER_ID**: The folder ID from your Google Drive folder URL (e.g., `https://drive.google.com/drive/folders/FOLDER_ID_HERE`)
-- **GPS_AUTH_TOKEN**: From the existing deployment secrets or `.env` file
-- **GAS_SECRET**: From the existing deployment secrets or `.env` file
+- **GAS_SECRET**: From your Fly.io secrets or .env file
 
 ## Phase 6: Create Cloud Run Service (First Deployment)
 
@@ -255,14 +250,12 @@ gcloud run deploy enact-walk-dashboard \
   --min-instances=0 \
   --service-account=${CLOUD_RUN_SA} \
   --set-env-vars="\
-GPS_STALE_SECONDS=300,\
 DRIVE_POLL_INTERVAL=0,\
 GCS_BUCKET=enact-walk-dashboard-data-${PROJECT_ID}" \
   --set-secrets="\
 ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,\
 GOOGLE_SERVICE_ACCOUNT_JSON=GOOGLE_SERVICE_ACCOUNT_JSON:latest,\
 GOOGLE_DRIVE_FOLDER_ID=GOOGLE_DRIVE_FOLDER_ID:latest,\
-GPS_AUTH_TOKEN=GPS_AUTH_TOKEN:latest,\
 GAS_SECRET=GAS_SECRET:latest" \
   --allow-unauthenticated
 ```
@@ -306,7 +299,7 @@ After completing this guide, you'll have:
 | GCS Bucket | `enact-walk-dashboard-data-{PROJECT_ID}` | Persistent storage for Walks_Log.txt |
 | Service Account | `cloud-run-sa@{PROJECT_ID}.iam.gserviceaccount.com` | Cloud Run execution identity |
 | Service Account | `github-actions-sa@{PROJECT_ID}.iam.gserviceaccount.com` | GitHub Actions deployment |
-| Secrets (5x) | ANTHROPIC_API_KEY, GOOGLE_SERVICE_ACCOUNT_JSON, GOOGLE_DRIVE_FOLDER_ID, GPS_AUTH_TOKEN, GAS_SECRET | Sensitive config |
+| Secrets (4x) | ANTHROPIC_API_KEY, GOOGLE_SERVICE_ACCOUNT_JSON, GOOGLE_DRIVE_FOLDER_ID, GAS_SECRET | Sensitive config |
 | Cloud Run | `enact-walk-dashboard` | Running application (deployed later) |
 
 ## Troubleshooting

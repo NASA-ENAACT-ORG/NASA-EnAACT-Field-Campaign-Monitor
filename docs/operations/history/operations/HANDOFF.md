@@ -34,9 +34,7 @@ Set these in the Fly.io dashboard (under **Secrets**), never in code or files:
 | `ANTHROPIC_API_KEY` | Yes | Claude API key for walk_scheduler.py |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Yes (for Drive) | Full JSON content of the GCP service account key |
 | `GOOGLE_DRIVE_FOLDER_ID` | Yes (for Drive) | The Google Drive folder ID where collectors upload data |
-| `GPS_AUTH_TOKEN` | Recommended | Secret token that GPS devices must include in requests |
 | `GAS_SECRET` | Yes (for GAS) | Bearer token that GAS uses to authenticate Drive poll triggers |
-| `GPS_STALE_SECONDS` | Optional | Seconds before a GPS position is marked stale (default: 300) |
 | `DRIVE_POLL_INTERVAL` | Optional | Set to `0` to disable background polling (use when GAS triggers are active). Default: 60 |
 | `PORT` | Set by Fly.io | Do not set manually |
 
@@ -45,7 +43,6 @@ To set a secret on Fly.io:
 fly secrets set ANTHROPIC_API_KEY=sk-ant-...
 fly secrets set GOOGLE_SERVICE_ACCOUNT_JSON='{"type":"service_account",...}'
 fly secrets set GOOGLE_DRIVE_FOLDER_ID=1aBcDeFgHiJkLmN...
-fly secrets set GPS_AUTH_TOKEN=choose-a-long-random-string
 fly secrets set GAS_SECRET=$(python -c "import secrets; print(secrets.token_urlsafe(32))")
 fly secrets set DRIVE_POLL_INTERVAL=0
 ```

@@ -193,7 +193,10 @@ def _drive_find_folder(service, parent_id: str, name: str) -> str | None:
     try:
         q = (f"name='{name}' and mimeType='application/vnd.google-apps.folder'"
              f" and '{parent_id}' in parents and trashed=false")
-        r = service.files().list(q=q, fields="files(id)", pageSize=1).execute()
+        r = service.files().list(
+            q=q, fields="files(id)", pageSize=1,
+            supportsAllDrives=True, includeItemsFromAllDrives=True,
+        ).execute()
         files = r.get("files", [])
         return files[0]["id"] if files else None
     except Exception as e:
@@ -207,7 +210,10 @@ def _drive_find_folder_by_prefix(service, parent_id: str, prefix: str) -> str | 
     try:
         q = (f"mimeType='application/vnd.google-apps.folder'"
              f" and '{parent_id}' in parents and trashed=false")
-        r = service.files().list(q=q, fields="files(id, name)", pageSize=200).execute()
+        r = service.files().list(
+            q=q, fields="files(id, name)", pageSize=200,
+            supportsAllDrives=True, includeItemsFromAllDrives=True,
+        ).execute()
         prefix_up = prefix.strip().upper()
         for f in r.get("files", []):
             if f["name"].strip().upper().startswith(prefix_up):
@@ -248,7 +254,9 @@ def _drive_create_or_get_folder(service, parent_id: str, name: str) -> str | Non
             "mimeType": "application/vnd.google-apps.folder",
             "parents": [parent_id],
         }
-        f = service.files().create(body=meta, fields="id").execute()
+        f = service.files().create(
+            body=meta, fields="id", supportsAllDrives=True,
+        ).execute()
         return f.get("id")
     except Exception as e:
         print(f"[drive] Create folder '{name}' error: {e}")
@@ -266,7 +274,9 @@ def _drive_upload_file(service, folder_id: str, filename: str, data) -> bool:
     meta = {"name": filename, "parents": [folder_id]}
     media = MediaIoBaseUpload(fp, mimetype=mime, resumable=True,
                               chunksize=5 * 1024 * 1024)
-    req = service.files().create(body=meta, media_body=media, fields="id")
+    req = service.files().create(
+        body=meta, media_body=media, fields="id", supportsAllDrives=True,
+    )
     resp = None
     while resp is None:
         _, resp = req.next_chunk(num_retries=5)
@@ -374,8 +384,15 @@ def _run_weather_and_rebuild_site():
             return
 
         if WEATHER_JSON.exists() and _gcs_bucket:
-            _upload_to_gcs(WEATHER_JSON, "weather.json")
-            print("[forecast] Uploaded weather.json -> GCS")
+            ok = _upload_to_gcs(WEATHER_JSON, "weather.json")
+            if ok:
+                print("[forecast] Uploaded weather.json -> GCS")
+            else:
+                print("[forecast] WARNING: GCS upload of weather.json failed")
+        elif not _gcs_bucket:
+            print("[forecast] WARNING: GCS not configured -- weather.json not uploaded")
+        elif not WEATHER_JSON.exists():
+            print("[forecast] WARNING: weather.json missing -- nothing to upload")
 
         print("[forecast] Rebuilding dashboard (scheduler-free) ...")
         _rebuild_dashboard_and_upload()
@@ -688,10 +705,25 @@ def _save_seen_ids(ids: set):
 
 def _rebuild_walk_log(entries: list):
     """Rewrite Walks_Log.txt from scratch with all discovered walk entries.
-    Never writes RECAL lines " those live exclusively in Recal_Log.txt."""
-    content = "\n".join(entries) + "\n" if entries else ""
+    Never writes RECAL lines — those live exclusively in Recal_Log.txt.
+    Validates each entry and skips malformed ones."""
+    validated = []
+    skipped = []
+    for e in entries:
+        line = e.strip() if isinstance(e, str) else str(e)
+        if not line or line.startswith("RECAL_"):
+            continue
+        if _WALK_LOG_RE.match(line.upper()):
+            validated.append(line.upper())
+        else:
+            skipped.append(line)
+
+    if skipped:
+        print(f"[drive] WARNING: Skipped {len(skipped)} invalid walk entries: {skipped[:5]}")
+
+    content = "\n".join(validated) + "\n" if validated else ""
     WALKS_LOG.write_text(content, encoding="utf-8")
-    print(f"[drive] Rebuilt Walks_Log.txt: {len(entries)} walk entries")
+    print(f"[drive] Rebuilt Walks_Log.txt: {len(validated)} valid walk entries")
     if _gcs_bucket:
         _upload_to_gcs(WALKS_LOG, "Walks_Log.txt")
 
@@ -731,6 +763,8 @@ def _run_drive_poll(source: str = "background"):
                 fields="nextPageToken, files(id, name, mimeType)",
                 pageToken=page_token,
                 pageSize=100,
+                supportsAllDrives=True,
+                includeItemsFromAllDrives=True,
             ).execute()
             files = response.get("files", [])
 
@@ -745,6 +779,8 @@ def _run_drive_poll(source: str = "background"):
                         q=f"'{fid}' in parents and trashed=false",
                         fields="files(id, name, mimeType)",
                         pageSize=200,
+                        supportsAllDrives=True,
+                        includeItemsFromAllDrives=True,
                     ).execute()
                     files.extend(sub_resp.get("files", []))
 
@@ -765,19 +801,17 @@ def _run_drive_poll(source: str = "background"):
     for e in all_entries:
         drive_set.add(e.upper())
 
-    # Load existing log entries (manually added entries not in Drive must be preserved)
-    existing_entries: set = set()
+    # Compare against what's currently on disk to detect real changes
+    prev_entries: set = set()
     if WALKS_LOG.exists():
-        existing_entries = {
+        prev_entries = {
             l.strip().upper() for l in WALKS_LOG.read_text(encoding="utf-8").splitlines()
             if l.strip() and not l.strip().upper().startswith("RECAL_")
         }
 
-    # Union: Drive entries + any manually-added entries not found in Drive
-    merged = sorted(drive_set | existing_entries)
-    log_changed = set(merged) != existing_entries
-
-    # Rebuild log from merged set (Drive state + preserved manual entries)
+    # Rebuild log from Drive entries only (no manual-entry preservation)
+    merged = sorted(drive_set)
+    log_changed = drive_set != prev_entries
     _rebuild_walk_log(merged)
 
     new_count = len(current_ids - seen_ids)
@@ -1609,6 +1643,80 @@ class Handler(BaseHTTPRequestHandler):
 
             self._send(200, "application/json",
                        json.dumps({"ok": True, "walk": walk_code}).encode())
+
+        elif endpoint == "/api/admin/clear-walks-log":
+            _sched_pin = os.environ.get("SCHEDULER_PIN", "")
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body_bytes = self.rfile.read(length) if length else b"{}"
+                payload = json.loads(body_bytes)
+            except Exception:
+                self._send(400, "application/json",
+                           json.dumps({"error": "bad request"}).encode())
+                return
+            if _sched_pin and payload.get("pin", "") != _sched_pin:
+                self._send(403, "application/json",
+                           json.dumps({"error": "wrong pin"}).encode())
+                return
+            try:
+                WALKS_LOG.write_text("", encoding="utf-8")
+                if _gcs_bucket:
+                    _upload_to_gcs(WALKS_LOG, "Walks_Log.txt")
+                print("[API] Walks_Log.txt cleared")
+                self._send(200, "application/json",
+                           json.dumps({"ok": True, "message": "Walks_Log.txt cleared"}).encode())
+            except Exception as e:
+                self._send(500, "application/json",
+                           json.dumps({"error": str(e)}).encode())
+
+        elif endpoint == "/api/admin/rebuild-walks-log-now":
+            _sched_pin = os.environ.get("SCHEDULER_PIN", "")
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body_bytes = self.rfile.read(length) if length else b"{}"
+                payload = json.loads(body_bytes)
+            except Exception:
+                self._send(400, "application/json",
+                           json.dumps({"error": "bad request"}).encode())
+                return
+            if _sched_pin and payload.get("pin", "") != _sched_pin:
+                self._send(403, "application/json",
+                           json.dumps({"error": "wrong pin"}).encode())
+                return
+            try:
+                count, err = _run_drive_poll(source="manual-admin")
+                if err:
+                    self._send(500, "application/json",
+                               json.dumps({"error": err}).encode())
+                else:
+                    body = json.dumps({
+                        "ok": True,
+                        "message": "Drive poll triggered and log rebuilt",
+                        "new_files": count
+                    }).encode()
+                    self._send(200, "application/json", body)
+            except Exception as e:
+                self._send(500, "application/json",
+                           json.dumps({"error": str(e)}).encode())
+
+        elif endpoint == "/api/admin/get-walks-log":
+            try:
+                if not WALKS_LOG.exists():
+                    entries = []
+                else:
+                    entries = [
+                        l.strip() for l in WALKS_LOG.read_text(encoding="utf-8").splitlines()
+                        if l.strip()
+                    ]
+                body = json.dumps({
+                    "ok": True,
+                    "count": len(entries),
+                    "entries": entries
+                }).encode()
+                self._send(200, "application/json", body)
+            except Exception as e:
+                self._send(500, "application/json",
+                           json.dumps({"error": str(e)}).encode())
 
         else:
             self._send(404, "text/plain", b"Unknown endpoint")
