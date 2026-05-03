@@ -7,9 +7,11 @@ Covers:
 - duplicate claim conflict
 - collector double-booking conflict
 - unclaim success
-- patch success by explicit ID
+- patch success by fallback alias against explicit ID
+- patch route update keeps explicit ID and refreshes boro/neigh/label
 - patch conflict returns validation error
 - delete success by explicit ID
+- patch success by legacy pipe-delimited fallback ID
 - delete success by legacy pipe-delimited fallback ID
 """
 
@@ -286,9 +288,14 @@ def _patch(schedule_data: dict, assignment_id: str, updates: dict) -> dict:
         parts = route.split("_", 1)
         target["boro"] = parts[0] if parts else ""
         target["neigh"] = parts[1] if len(parts) > 1 else route
-        target.setdefault("label", route)
+        if "label" not in normalized_updates:
+            target["label"] = ROUTE_LABELS.get(route, route)
     target["updated_at"] = datetime.now().isoformat()
-    target["id"] = _compose_id(backpack, route, date_str, tod, "_")
+    explicit_id = str(target.get("id", "")).strip()
+    if explicit_id:
+        target["id"] = explicit_id
+    else:
+        target["id"] = _compose_id(backpack, route, date_str, tod, "_")
     return target
 
 
@@ -389,7 +396,7 @@ def run_regression(schedule_path: Path, start_date: str | None) -> int:
         _unclaim(schedule, ref1)
         schedule = _save_roundtrip(schedule, work_path)
 
-        # 5) Patch succeeds for explicit ID
+        # 5) Patch succeeds using fallback alias while preserving explicit ID
         slot2 = _find_open_slot(schedule, start_date=start_date)
         ref2 = _claim(
             schedule,
@@ -400,12 +407,49 @@ def run_regression(schedule_path: Path, start_date: str | None) -> int:
             collector=slot2[4],
         )
         schedule = _save_roundtrip(schedule, work_path)
+        custom_id = f"custom-{ref2.assignment_id}"
+        for assignment in schedule.get("assignments", []):
+            if str(assignment.get("id", "")).strip() == ref2.assignment_id:
+                assignment["id"] = custom_id
+                break
+        schedule = _save_roundtrip(schedule, work_path)
         patched = _patch(schedule, ref2.assignment_id, {"status": "confirmed"})
         if str(patched.get("status", "")).lower() != "confirmed":
-            raise AssertionError("explicit-id patch failed to update status")
+            raise AssertionError("fallback-alias patch failed to update status")
+        if str(patched.get("id", "")).strip() != custom_id:
+            raise AssertionError("patch should preserve explicit id")
         schedule = _save_roundtrip(schedule, work_path)
 
-        # 6) Patch conflict path (edit into occupied slot) -> API conflict
+        # 6) Route patch updates boro/neigh/label while preserving explicit ID
+        route_after_patch = next(r for r in ALLOWED_ROUTES if r != ref2.route)
+        patched_route = _patch(schedule, custom_id, {"route": route_after_patch})
+        expected_label = ROUTE_LABELS.get(route_after_patch, route_after_patch)
+        parts_after_patch = route_after_patch.split("_", 1)
+        expected_boro = parts_after_patch[0] if parts_after_patch else ""
+        expected_neigh = (
+            parts_after_patch[1] if len(parts_after_patch) > 1 else route_after_patch
+        )
+        if str(patched_route.get("route", "")).upper() != route_after_patch:
+            raise AssertionError("route patch failed")
+        if str(patched_route.get("boro", "")) != expected_boro:
+            raise AssertionError("route patch should refresh boro")
+        if str(patched_route.get("neigh", "")) != expected_neigh:
+            raise AssertionError("route patch should refresh neigh")
+        if str(patched_route.get("label", "")) != expected_label:
+            raise AssertionError("route patch should refresh default label")
+        if str(patched_route.get("id", "")).strip() != custom_id:
+            raise AssertionError("route patch should preserve explicit id")
+        ref2 = AssignmentRef(
+            backpack=str(patched_route.get("backpack", "")).upper(),
+            route=str(patched_route.get("route", "")).upper(),
+            date_str=str(patched_route.get("date", "")),
+            tod=str(patched_route.get("tod", "")).upper(),
+            collector=str(patched_route.get("collector", "")).upper(),
+            assignment_id=custom_id,
+        )
+        schedule = _save_roundtrip(schedule, work_path)
+
+        # 7) Patch conflict path (edit into occupied slot) -> API conflict
         slot3 = _find_open_slot(schedule, start_date=start_date)
         ref3 = _claim(
             schedule,
@@ -433,11 +477,11 @@ def run_regression(schedule_path: Path, start_date: str | None) -> int:
         except ApiConflictError:
             schedule = load_schedule(work_path, strict=True)
 
-        # 7) Delete succeeds for explicit ID
+        # 8) Delete succeeds for explicit ID
         _delete(schedule, ref3.assignment_id)
         schedule = _save_roundtrip(schedule, work_path)
 
-        # 8) Delete succeeds for legacy pipe-delimited fallback ID
+        # 9) Legacy assignment: patch succeeds via pipe-delimited fallback ID
         legacy_backpack, legacy_route, legacy_date, legacy_tod, legacy_collector = _find_open_slot(
             schedule, start_date=start_date
         )
@@ -460,12 +504,19 @@ def run_regression(schedule_path: Path, start_date: str | None) -> int:
         )
         schedule = _save_roundtrip(schedule, work_path)
         legacy_pipe_id = _compose_id(legacy_backpack, legacy_route, legacy_date, legacy_tod, "|")
+        patched_legacy = _patch(schedule, legacy_pipe_id, {"status": "confirmed"})
+        if str(patched_legacy.get("status", "")).lower() != "confirmed":
+            raise AssertionError("legacy pipe-id patch failed")
+        schedule = _save_roundtrip(schedule, work_path)
+
+        # 10) Delete succeeds for legacy pipe-delimited fallback ID
         _delete(schedule, legacy_pipe_id)
         schedule = _save_roundtrip(schedule, work_path)
 
         print("PASS self-scheduling regression")
         print(f"  explicit patch id: {ref2.assignment_id}")
         print(f"  explicit delete id: {ref3.assignment_id}")
+        print(f"  legacy patch id: {legacy_pipe_id}")
         print(f"  legacy delete id: {legacy_pipe_id}")
         print(f"  file: {work_path}")
         return 0

@@ -82,18 +82,25 @@ Recently completed:
 - self-scheduling smoke test added at `scripts/ops/self_schedule_smoke.py`
 - assignment-level update/remove APIs are active for schedule records
 - docs history now lives under `docs/operations/history/`
+- repo-owned caller audit found no active `/api/rerun*` callers outside the
+  intentional `410 Gone` handlers and historical/context documentation
 
 Still true:
 
 - `build_dashboard.py` remains the biggest active complexity hotspot
-- some comments/docs still use scheduler-era wording even when code has moved on
 - some sidecar scripts are still present even though the active runtime is slimmer
-- `integrations/gas/forecast_monitor.js` calls `/api/force-rebuild`, but its
-  comments still use older rerun language
+- external automation callers still need one final confirmation pass to ensure
+  no active dependency on `/api/rerun*`
 
 ## Release Validation Status
 
-Code-verifiable checks from the self-scheduling checkpoint are complete.
+Code-verifiable checks now pass in user-local execution:
+
+- `python scripts/ops/self_schedule_regression.py` -> PASS
+- `python scripts/ops/self_schedule_smoke.py --schedule ".tmp/schedule_output.test.json" --in-place` -> PASS
+
+Note: the agent shell remains path/permission-isolated from the user-local
+Python environment.
 
 Manual checks still worth doing before merge:
 
@@ -101,7 +108,8 @@ Manual checks still worth doing before merge:
   path regression
 - browser UI sanity: claim, conflict rejection, unclaim/delete, and refresh
   persistence
-- automation sanity: confirm no external caller still depends on `/api/rerun*`
+- automation sanity: confirm no coworker-owned/external caller still depends on
+  `/api/rerun*`
 
 ## How To Resume Work
 

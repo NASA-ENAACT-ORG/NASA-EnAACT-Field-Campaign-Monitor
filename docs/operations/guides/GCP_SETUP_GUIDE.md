@@ -200,7 +200,7 @@ Create secrets in Google Cloud Secret Manager for sensitive configuration:
 PROJECT_ID="enact-walk-dashboard-prod"
 gcloud config set project $PROJECT_ID
 
-# Create each secret (use values from your Fly.io configuration or .env file)
+# Create each secret (use values from the existing deployment or local .env file)
 
 # 1. Anthropic API Key
 echo -n "YOUR_ANTHROPIC_API_KEY_HERE" | gcloud secrets create ANTHROPIC_API_KEY \
@@ -231,8 +231,8 @@ gcloud secrets list
 - **ANTHROPIC_API_KEY**: Your Anthropic console API key
 - **GOOGLE_SERVICE_ACCOUNT_JSON**: Download from GCP Console > Service Accounts > Choose account > Keys > Add Key > JSON
 - **GOOGLE_DRIVE_FOLDER_ID**: The folder ID from your Google Drive folder URL (e.g., `https://drive.google.com/drive/folders/FOLDER_ID_HERE`)
-- **GPS_AUTH_TOKEN**: From your Fly.io secrets or .env file
-- **GAS_SECRET**: From your Fly.io secrets or .env file
+- **GPS_AUTH_TOKEN**: From the existing deployment secrets or `.env` file
+- **GAS_SECRET**: From the existing deployment secrets or `.env` file
 
 ## Phase 6: Create Cloud Run Service (First Deployment)
 

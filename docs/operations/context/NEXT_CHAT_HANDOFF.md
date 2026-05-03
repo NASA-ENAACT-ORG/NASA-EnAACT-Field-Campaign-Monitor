@@ -2,10 +2,10 @@
 
 ## Agent Snapshot
 
-- status: self_scheduling_stabilization_in_progress
+- status: stabilization_validated_pending_manual_release_checks
 - date: 2026-05-03
 - branch: feature/self-scheduling-v1
-- last_commit: 8e950a5
+- last_commit: 21dfb61
 - runtime_mode: self_scheduling_active
 - scheduler_runtime: retired_default_path
 - retired_endpoints: /api/rerun, /api/rerun/a, /api/rerun/b (410)
@@ -21,7 +21,7 @@
   - POST /api/force-rebuild
   - POST /api/schedule/rebuild-site
 - checklist_state:
-  - codex_verifiable_checks: blocked locally because the Windows Python launcher has no installed Python
+  - codex_verifiable_checks: passed in user-local venv
   - manual_checks_remaining:
     - cloud_run_deploy_sanity
     - browser_ui_claim_conflict_unclaim_refresh
@@ -38,58 +38,40 @@ Branch: `feature/self-scheduling-v1`
 
 ## What Just Landed
 
-- Stabilization work in the current worktree aligns self-scheduling uniqueness
-  across server, shared schedule validation, docs, and local ops scripts:
+- Stabilization work aligns self-scheduling uniqueness across server, shared
+  schedule validation, docs, and local ops scripts:
   `backpack + date + tod` is now the schedule slot uniqueness key.
 - `PATCH /api/schedule/assignments/{id}` now applies claim-equivalent
   validation before saving, including collector double-booking rejection.
 - Assignment IDs now use explicit IDs when present, with underscore and
   pipe-delimited composite fallbacks for legacy records.
-- `integrations/gas/forecast_monitor.js` wording now references
-  `/api/force-rebuild` and weather + dashboard rebuilds instead of retired
-  scheduler reruns.
-- `integrations/gas/drive_watcher.js` wording now references drive polling and
-  server-side dashboard rebuilds instead of retired scheduler reruns.
-- Two local ops scripts are present for stabilization:
+- `integrations/gas/forecast_monitor.js` now references
+  `/api/force-rebuild` and weather + dashboard rebuilds.
+- `integrations/gas/drive_watcher.js` now describes drive polling and
+  server-side dashboard rebuilds.
+- Local ops scripts added:
   - `scripts/ops/self_schedule_regression.py`
   - `scripts/ops/backfill_assignment_ids.py`
-- Slot scheduler modal now includes assignment-level remove action wired to
-  `DELETE /api/schedule/assignments/{id}` (with assignment-id fallback derivation
-  for older records missing explicit `id`).
-- Self-scheduling migration is now the active runtime path.
-- Scheduler rerun endpoints were retired (`/api/rerun*` return `410`).
-- Active schedule lifecycle APIs are in place:
-  - `GET /api/schedule`
-  - `GET /api/schedule/slots`
-  - `POST /api/schedule/claim`
-  - `POST /api/schedule/unclaim`
-  - `PATCH /api/schedule/assignments/{id}`
-  - `DELETE /api/schedule/assignments/{id}`
-- Scheduler-free rebuild paths are active:
-  - `POST /api/rebuild`
-  - `POST /api/force-rebuild`
-  - `POST /api/schedule/rebuild-site`
-- Runtime/docs polish pass landed:
-  - `README.md` aligned to current runtime behavior
-  - `Dockerfile` startup path corrected to retired map script location
-  - `serve.py` internal lock naming clarified (`_rebuild_running`)
-- Docs history reorg was applied:
-  - obsolete docs moved under `docs/operations/history/`
-  - active docs remain under `docs/operations/context/`, `docs/operations/guides/`, `docs/architecture/`
-  - path reference fixes were applied in `docs/operations/README.md` and `docs/architecture/README.md`
+- `app/server/serve.py` typing cleanup for Pylance:
+  - multipart parsing now narrows payload types explicitly
+  - `_stream_script` handles optional `proc.stdout`
+  - `log_message` override signature aligned with `BaseHTTPRequestHandler`
+  - status payload and Drive folder-id optional cases are type-safe
 
 ## Current Repo State
 
-Branch has local stabilization changes that still need Python-backed validation
-before merge readiness can be called complete. The shell check found
-`C:\WINDOWS\py.exe`, but `py -0p` reports no installed Python and `python` is
-not on PATH.
+Stabilization changes were committed in `21dfb61` and the branch is
+`ahead 1` of `origin/feature/self-scheduling-v1`.
+
+Agent shell still has isolated Python/path limits, but user-local execution
+completed successfully in venv after schedule dedupe.
 
 Recent commits from this chat:
 
-- `8e950a5` — "Add assignment remove action to self-scheduling slot modal"
-- `f5d5342` — "Finalize docs history reorg and add next-chat handoff snapshot"
-- `ec4a87d` — "Polish self-scheduling runtime docs and legacy startup paths"
+- `21dfb61` - "Stabilize self-scheduling assignment handling"
+- `8e950a5` - "Add assignment remove action to self-scheduling slot modal"
+- `f5d5342` - "Finalize docs history reorg and add next-chat handoff snapshot"
+- `ec4a87d` - "Polish self-scheduling runtime docs and legacy startup paths"
 
 Most important current context docs:
 
@@ -100,42 +82,27 @@ Most important current context docs:
 
 ## Best Next Likely Task
 
-Finish quick release validation for merge readiness (fast, high-value checks).
+Finish quick release validation for merge readiness.
 
 Use this minimal go/no-go set:
 
 - Cloud Run sanity: deploy + one rebuild + no scheduler path regressions
-- UI sanity: claim, conflict rejection, unclaim, refresh persistence
+- UI sanity: claim, conflict rejection, unclaim/delete, refresh persistence
 - Automation sanity: confirm no active callers still depend on `/api/rerun*`
-
-## Important Architectural Reminder
-
-Do not treat the scheduling algorithm as the main future direction unless
-explicitly asked.
-
-The active direction is:
-
-- direct slot claim/unclaim workflows
-- scheduler-free rebuild paths
-- simpler runtime operations
-- clearer boundaries between active code and historical code
 
 ## Validation Already Done
 
-- self-scheduling smoke test passed via `scripts/ops/self_schedule_smoke.py`
-- compile sanity passed for key Python modules via `python3 -m py_compile`
-- checklist evidence pass completed for code-verifiable items
-- docs path consistency check completed for history reorg references
-- current worktree: `git diff --check` passes
-- current worktree: Python tests/regression scripts could not be run because no
-  Python interpreter is available in this shell
+- current worktree consistency checks completed before commit
+- docs and integrations updated to remove active scheduler-rerun wording
+- schedule duplicate-slot data issue was confirmed and manually corrected
+- local user-run checks now pass:
+  - `python scripts/ops/self_schedule_regression.py` -> PASS
+  - `python scripts/ops/self_schedule_smoke.py --schedule ".tmp/schedule_output.test.json" --in-place` -> PASS
+- Pylance-reported `serve.py` diagnostics were addressed (multipart typing +
+  override/type-narrowing fixes)
 
 ## Suggested Resume Strategy
 
-1. Read `CURRENT_STATE.md`.
-2. Read `CLEANUP_PRIORITIES.md`.
-3. Install or expose Python in the tool shell, then run:
-   - `py -3 scripts/ops/self_schedule_regression.py`
-   - `py -3 scripts/ops/self_schedule_smoke.py`
-4. Run quick release validation checks (Cloud Run + UI + rerun endpoint dependency check).
-5. If checks pass, merge PR and monitor post-deploy logs briefly.
+1. Run quick release manual checks (Cloud Run + UI + rerun dependency check).
+2. Re-open VS Code diagnostics once to confirm no new Pylance regressions.
+3. If manual checks pass, push branch and proceed to merge readiness.

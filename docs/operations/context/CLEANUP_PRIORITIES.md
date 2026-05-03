@@ -39,7 +39,8 @@ Highest-value follow-up targets:
   path regression
 - browser UI sanity: claim, conflict rejection, unclaim/delete, and refresh
   persistence
-- automation sanity: confirm no external caller still depends on `/api/rerun*`
+- automation sanity: repo-owned callers are clean; confirm no coworker-owned or
+  external caller still depends on `/api/rerun*`
 
 Goal:
 
@@ -54,8 +55,8 @@ runtime path:
   as a weather + dashboard rebuild
 - `integrations/gas/drive_watcher.js` now describes drive polling and
   server-side dashboard rebuilds
-- generated-doc helper text in `scripts/ops/create_doc.py` now says
-  "weather and dashboard rebuilds"
+- `scripts/ops/create_doc.py` now generates a self-scheduling/current-runtime
+  architecture note instead of presenting the retired scheduler as active
 
 Goal:
 

@@ -37,6 +37,8 @@ import urllib.parse
 from datetime import date, datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Any, cast
+from email.message import Message
 
 # Add repo root to sys.path so shared package is importable
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -267,7 +269,7 @@ def _drive_upload_file(service, folder_id: str, filename: str, data) -> bool:
     return True
 
 
-def _parse_multipart(headers, body: bytes) -> tuple[dict, dict]:
+def _parse_multipart(headers, body: bytes) -> tuple[dict[str, str], dict[str, list[tuple[str, bytes]]]]:
     """Parse multipart/form-data. Returns (fields, files).
     fields: {name: str}
     files:  {name: [(filename, bytes), ...]}
@@ -278,9 +280,13 @@ def _parse_multipart(headers, body: bytes) -> tuple[dict, dict]:
     raw = b"Content-Type: " + content_type.encode() + b"\r\n\r\n" + body
     msg = email.parser.BytesParser(policy=email.policy.compat32).parsebytes(raw)
 
-    fields: dict = {}
-    files: dict = {}
-    for part in msg.get_payload():
+    fields: dict[str, str] = {}
+    files: dict[str, list[tuple[str, bytes]]] = {}
+    parts = msg.get_payload()
+    if not isinstance(parts, list):
+        return fields, files
+    message_parts = [p for p in parts if isinstance(p, Message)]
+    for part in message_parts:
         disposition = part.get("Content-Disposition", "")
         # Extract name= and optional filename= from the disposition header
         name = None
@@ -293,9 +299,20 @@ def _parse_multipart(headers, body: bytes) -> tuple[dict, dict]:
                 filename = segment[9:].strip().strip('"')
         if name is None:
             continue
-        payload = part.get_payload(decode=True)
-        if payload is None:
+        payload_raw = part.get_payload(decode=True)
+        payload: bytes
+        if payload_raw is None:
             payload = b""
+        elif isinstance(payload_raw, bytes):
+            payload = payload_raw
+        elif isinstance(payload_raw, bytearray):
+            payload = bytes(payload_raw)
+        elif isinstance(payload_raw, memoryview):
+            payload = payload_raw.tobytes()
+        elif isinstance(payload_raw, str):
+            payload = payload_raw.encode("utf-8", errors="replace")
+        else:
+            payload = cast(Message, payload_raw).as_bytes()
         if filename:
             print(f"[upload] file '{filename}' field='{name}' size={len(payload)}")
             files.setdefault(name, []).append((filename, payload))
@@ -460,7 +477,7 @@ def _now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
-def _stream_script(wfile, script: Path, label: str, extra_args: list = None) -> int:
+def _stream_script(wfile, script: Path, label: str, extra_args: list[str] | None = None) -> int:
     header = f"\n"" {label} ""\n"
     _write_chunk(wfile, header.encode())
 
@@ -475,12 +492,13 @@ def _stream_script(wfile, script: Path, label: str, extra_args: list = None) -> 
         bufsize=1,
         env={**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONUTF8": "1"},
     )
-    for line in proc.stdout:
-        try:
-            _write_chunk(wfile, line.encode("utf-8"))
-        except (BrokenPipeError, ConnectionResetError):
-            proc.terminate()
-            return -1
+    if proc.stdout is not None:
+        for line in proc.stdout:
+            try:
+                _write_chunk(wfile, line.encode("utf-8"))
+            except (BrokenPipeError, ConnectionResetError):
+                proc.terminate()
+                return -1
     proc.wait()
     footer = f"[{label} exited with code {proc.returncode}]\n"
     _write_chunk(wfile, footer.encode("utf-8"))
@@ -715,7 +733,7 @@ def _drive_poll_thread():
 
 class Handler(BaseHTTPRequestHandler):
 
-    def log_message(self, fmt, *args):  # suppress per-request console noise
+    def log_message(self, format, *args):  # suppress per-request console noise
         pass
 
     def _assignment_fallback_id(self, assignment: dict, *, sep: str = "_") -> str:
@@ -786,7 +804,7 @@ class Handler(BaseHTTPRequestHandler):
             with _DRIVE_LOCK:
                 drive_last = _drive_last_poll
                 drive_today = _drive_new_today
-            payload = {name: _mtime_iso(p) for name, p in STATUS_FILES.items()}
+            payload: dict[str, Any] = {name: _mtime_iso(p) for name, p in STATUS_FILES.items()}
             payload["drive_last_poll"] = drive_last
             payload["drive_new_files_today"] = drive_today
             # GCS health
@@ -1443,7 +1461,7 @@ class Handler(BaseHTTPRequestHandler):
                                         new_name = f"{walk_code}_{ext}{Path(filename).suffix.lower()}"
                                         _drive_upload_file(svc, walk_folder_id, new_name, data)
                         notes_text = fields.get("notes", "").strip()
-                        if notes_text:
+                        if notes_text and walk_folder_id:
                             notes_bytes = notes_text.encode("utf-8")
                             _drive_upload_file(svc, walk_folder_id,
                                                f"{walk_code}_Notes.txt", notes_bytes)
@@ -1572,9 +1590,14 @@ class Handler(BaseHTTPRequestHandler):
                 parts = str(target.get("route", "")).split("_", 1)
                 target["boro"] = parts[0] if parts else ""
                 target["neigh"] = parts[1] if len(parts) > 1 else str(target.get("route", ""))
-                target.setdefault("label", str(target.get("route", "")))
+                if "label" not in updates:
+                    target["label"] = ROUTE_LABELS.get(route, route)
             target["updated_at"] = datetime.now().isoformat()
-            target["id"] = self._assignment_fallback_id(target, sep="_")
+            explicit_id = str(target.get("id", "")).strip()
+            if explicit_id:
+                target["id"] = explicit_id
+            else:
+                target["id"] = self._assignment_fallback_id(target, sep="_")
 
             try:
                 save_schedule(schedule_data, SCHEDULE_OUTPUT, make_backup=True)
