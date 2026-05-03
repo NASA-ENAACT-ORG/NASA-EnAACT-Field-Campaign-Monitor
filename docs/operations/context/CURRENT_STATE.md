@@ -2,7 +2,7 @@
 
 This document is the quickest way to re-establish the current project direction.
 
-Last scanned: 2026-05-03 on `feature/self-scheduling-v1`.
+Last scanned: 2026-05-03 on `followup/backpack-status`.
 
 ## Project Goal
 
@@ -52,6 +52,13 @@ Self-scheduling is implemented in the dashboard and server:
 - uniqueness is enforced per `backpack + date + tod`
 - collector double-booking is blocked within the same `date + tod`
 - claim/unclaim writes go through `shared/schedule_store.py`
+- backpack holder/location status is shown in the calendar nav and persists to
+  `schedule_output.json` under `backpack_status`; when no manual status exists,
+  the dashboard defaults to the collector from the most recent completed walk
+  for each backpack
+- Backpack A status options include the BP A team, Angy, and `CCNY`; Backpack B
+  status options include the BP B team, `LaGuardia`, and `CCNY`; professor
+  accounts are available and ordered at the bottom of relevant dropdowns
 - email-first reminder notifications are implemented for next-day assignments
   with SMTP transport, collector opt-ins, dispatch logging, and a dashboard
   Reminders modal; Slack remains a future transport
@@ -62,6 +69,7 @@ Important active APIs:
 - `GET /api/schedule/slots`
 - `POST /api/schedule/claim`
 - `POST /api/schedule/unclaim`
+- `POST /api/backpack-status`
 - `PATCH /api/schedule/assignments/{id}`
 - `DELETE /api/schedule/assignments/{id}`
 - `POST /api/rebuild`
@@ -82,11 +90,15 @@ These now return `410 Gone` and should not be used by active callers.
 
 Recently completed:
 
+- PR #8 merged self-scheduling into `main`
+- follow-up branch `followup/backpack-status` was created from merged
+  `origin/main`
 - shared collector/route/backpack registry extraction into `shared/registry.py`
 - scheduler runtime hooks retired from the active server flow
 - scheduler/map/transit scripts moved under `pipelines/_retired/`
 - self-scheduling smoke test added at `scripts/ops/self_schedule_smoke.py`
 - assignment-level update/remove APIs are active for schedule records
+- backpack status controls/API are active for self-scheduling coordination
 - docs history now lives under `docs/operations/history/`
 - repo-owned caller audit found no active `/api/rerun*` callers outside the
   intentional `410 Gone` handlers and historical/context documentation
@@ -102,18 +114,22 @@ Still true:
 
 Code-verifiable checks now pass in user-local execution:
 
-- `python scripts/ops/self_schedule_regression.py` -> PASS
-- `python scripts/ops/self_schedule_smoke.py --schedule ".tmp/schedule_output.test.json" --in-place` -> PASS
+- `C:\Users\terra\AppData\Local\Programs\Python\Python39\python.exe -m py_compile app/server/serve.py pipelines/dashboard/build_dashboard.py shared/schedule_store.py` -> PASS
+- `C:\Users\terra\AppData\Local\Programs\Python\Python39\python.exe pipelines/dashboard/build_dashboard.py` -> PASS
+- `C:\Users\terra\AppData\Local\Programs\Python\Python39\python.exe scripts/ops/self_schedule_regression.py` -> PASS
+- `C:\Users\terra\AppData\Local\Programs\Python\Python39\python.exe scripts/ops/self_schedule_smoke.py --schedule ".tmp/schedule_output.test.json" --in-place` -> PASS
+- `git diff --check` -> PASS
 
-Note: the agent shell remains path/permission-isolated from the user-local
-Python environment.
+Note: use the exact workspace Python interpreter path above for checks. Plain
+`python` and `py -3` are unavailable in the agent sandbox.
 
 Manual checks still worth doing before merge:
 
 - Cloud Run deploy sanity: deploy, trigger one rebuild, and confirm no scheduler
   path regression
 - browser UI sanity: claim, conflict rejection, unclaim/delete, and refresh
-  persistence
+  persistence; also verify Backpack A/B status dropdown persistence after
+  refresh/reopen
 - production notification setup: Secret Manager SMTP values and
   `NOTIFICATION_PREFERENCES_JSON`
 - automation sanity: confirm no coworker-owned/external caller still depends on
