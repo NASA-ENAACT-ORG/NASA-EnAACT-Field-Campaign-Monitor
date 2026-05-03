@@ -337,6 +337,14 @@ python pipelines/_retired/scheduling/walk_scheduler.py
 python pipelines/dashboard/build_availability_heatmap.py
 ```
 
+Self-scheduling ops scripts:
+
+```bash
+py -3 scripts/ops/self_schedule_regression.py
+py -3 scripts/ops/backfill_assignment_ids.py            # dry-run (default)
+py -3 scripts/ops/backfill_assignment_ids.py --apply    # persist ID backfill
+```
+
 ---
 
 ## Deployment
@@ -432,8 +440,8 @@ GCS blob names intentionally match the original filenames (e.g. `Walks_Log.txt`,
 | `POST` | `/api/schedule/rebuild-site` | GAS_SECRET or PIN | Weather + dashboard rebuild (scheduler-free), runs async |
 | `POST` | `/api/schedule/claim` | — | Claim one schedule slot |
 | `POST` | `/api/schedule/unclaim` | — | Unclaim one schedule slot |
-| `PATCH` | `/api/schedule/assignments/{id}` | PIN | Update a claimed assignment |
-| `DELETE` | `/api/schedule/assignments/{id}` | PIN | Delete a claimed assignment |
+| `PATCH` | `/api/schedule/assignments/{id}` | — | Update a claimed assignment |
+| `DELETE` | `/api/schedule/assignments/{id}` | — | Delete a claimed assignment |
 | `POST` | `/api/drive/poll` | GAS_SECRET | Manually trigger one Drive poll cycle |
 | `POST` | `/api/upload-walk` | — | Upload walk assets and append walk log entry |
 | `POST` | `/api/notifications/preview` | — | Preview scheduled collector notifications |

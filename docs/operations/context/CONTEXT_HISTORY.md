@@ -74,7 +74,7 @@ The self-scheduling migration plan formalized the shift to:
 Important decisions recorded during that phase:
 
 - weather is advisory only
-- uniqueness is per `backpack + route + date + tod`
+- uniqueness is per `backpack + date + tod`
 - no collector double-booking within the same `date + tod`
 
 ### Phase 5: Registry cleanup and retirement pass

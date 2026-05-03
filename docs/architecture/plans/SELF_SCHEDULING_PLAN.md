@@ -8,7 +8,7 @@ Replace algorithmic assignment generation with collector self-scheduling in the 
 
 - Weather is advisory only.
 - Scheduling remains backpack-specific.
-- Slot uniqueness is enforced per `backpack + route + date + tod`.
+- Slot uniqueness is enforced per `backpack + date + tod`.
 - Transition will preserve compatibility with existing `schedule_output.json` consumers.
 
 ## Non-Goals (V1)
@@ -32,7 +32,7 @@ Replace algorithmic assignment generation with collector self-scheduling in the 
 
 - Validation on every write.
 - Conflict checks:
-  - Unique assignment per `backpack + route + date + tod`.
+  - Unique assignment per `backpack + date + tod`.
   - No collector double-booking in same `date + tod`.
 - Audit logging for claim/unclaim/edit/delete.
 - Keep legacy scheduler runnable as temporary fallback endpoint during cutover.

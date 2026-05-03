@@ -106,7 +106,7 @@ p.add_run("Key Responsibilities:").bold = True
 doc.add_paragraph("Polls Google Drive every 60 seconds for new walk data files", style='List Bullet')
 doc.add_paragraph("Maintains Walks_Log.txt as single source of truth", style='List Bullet')
 doc.add_paragraph("Serves HTML dashboards to web browsers", style='List Bullet')
-doc.add_paragraph("Triggers scheduler and dashboard rebuilds", style='List Bullet')
+doc.add_paragraph("Triggers weather and dashboard rebuilds", style='List Bullet')
 
 doc.add_paragraph()
 p = doc.add_paragraph()

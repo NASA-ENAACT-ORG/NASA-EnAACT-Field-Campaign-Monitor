@@ -79,11 +79,10 @@ def _claim_assignment(schedule_data: dict, *, backpack: str, route: str, date_st
     for assignment in schedule_data.get("assignments", []):
         if (
             str(assignment.get("backpack", "")).upper() == backpack
-            and str(assignment.get("route", "")).upper() == route
             and str(assignment.get("date", "")) == date_str
             and str(assignment.get("tod", "")).upper() == tod
         ):
-            raise ValueError("slot already claimed for this backpack")
+            raise ValueError("backpack already has a claimed walk in this date/tod slot")
         if (
             str(assignment.get("collector", "")).upper() == collector
             and str(assignment.get("date", "")) == date_str
@@ -151,7 +150,6 @@ def _pick_open_slot(schedule_data: dict, start_date: str | None) -> tuple[str, s
                 for route in routes:
                     slot_taken = any(
                         str(a.get("backpack", "")).upper() == backpack
-                        and str(a.get("route", "")).upper() == route
                         and str(a.get("date", "")) == d_str
                         and str(a.get("tod", "")).upper() == tod
                         for a in existing

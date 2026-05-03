@@ -85,7 +85,7 @@ Fields:
 
 ## Validation Rules
 
-1. Assignment uniqueness key: `backpack + route + date + tod`.
+1. Assignment uniqueness key: `backpack + date + tod` (max one walk per backpack per slot).
 2. Collector cannot be assigned to multiple backpacks in the same `date + tod`.
 3. `tod` must be one of `AM`, `MD`, `PM`.
 4. `date` must match `YYYY-MM-DD`.
@@ -93,6 +93,6 @@ Fields:
 
 ## API Implications
 
-- Claim endpoint must reject duplicate `backpack + route + date + tod`.
+- Claim endpoint must reject multiple assignments for the same `backpack + date + tod` slot.
 - Claim endpoint must reject collector double-booking on `date + tod`.
 - Weather advisory should be returned for clients, but never block claims.

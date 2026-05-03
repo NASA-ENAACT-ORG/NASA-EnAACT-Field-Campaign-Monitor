@@ -53,10 +53,9 @@ def _validate_date(value: str, field_name: str) -> None:
         ) from exc
 
 
-def _assignment_slot_key(assignment: dict) -> tuple[str, str, str, str]:
+def _assignment_slot_key(assignment: dict) -> tuple[str, str, str]:
     return (
         str(assignment.get("backpack", "")).upper(),
-        str(assignment.get("route", "")),
         str(assignment.get("date", "")),
         str(assignment.get("tod", "")).upper(),
     )
@@ -158,8 +157,8 @@ def validate_schedule(data: dict) -> None:
         slot_key = _assignment_slot_key(assignment)
         if slot_key in seen_assignment_slots:
             raise ScheduleValidationError(
-                "Duplicate slot key (backpack+route+date+tod): "
-                f"{slot_key[0]} {slot_key[1]} {slot_key[2]} {slot_key[3]}"
+                "Duplicate slot key (backpack+date+tod): "
+                f"{slot_key[0]} {slot_key[1]} {slot_key[2]}"
             )
         seen_assignment_slots.add(slot_key)
 

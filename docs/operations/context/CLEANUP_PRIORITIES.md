@@ -3,6 +3,8 @@
 This document condenses the current cleanup and migration priorities into one
 short, practical roadmap.
 
+Last scanned: 2026-05-03 on `feature/self-scheduling-v1`.
+
 ## Primary Objective
 
 Reduce repo bloat and runtime complexity without destabilizing operations.
@@ -20,24 +22,47 @@ The guiding principles are:
 - Scheduler runtime hooks have been retired from the active server flow.
 - Legacy scheduler/map/transit scripts have been moved under `pipelines/_retired/`.
 - The dashboard now supports direct slot claim/unclaim workflows.
+- Assignment-level schedule update/remove APIs are active.
+- `README.md`, `Dockerfile`, and operations/architecture indexes have been
+  aligned with the self-scheduling runtime and docs history reorg.
 
 ## Current Priority Order
 
-### 1. Docs and operations alignment
+### 1. Release validation for merge readiness
 
-Several docs still describe the old scheduler-centered architecture.
+The branch is in a strong checkpoint state, but the remaining go/no-go checks
+are environment and browser checks.
 
 Highest-value follow-up targets:
 
-- `README.md`
-- replacement docs for the retired handoff/testing guides
-- deployment/startup references such as `Dockerfile`
+- Cloud Run deploy sanity: deploy, trigger one rebuild, and confirm no scheduler
+  path regression
+- browser UI sanity: claim, conflict rejection, unclaim/delete, and refresh
+  persistence
+- automation sanity: confirm no external caller still depends on `/api/rerun*`
 
 Goal:
 
-- make the written operational story match the current runtime behavior
+- establish merge readiness without taking on more refactor risk
 
-### 2. Finish availability-heatmap separation
+### 2. Clean remaining scheduler-era wording
+
+The known stale Apps Script wording has been aligned with the self-scheduling
+runtime path:
+
+- `integrations/gas/forecast_monitor.js` now describes `/api/force-rebuild`
+  as a weather + dashboard rebuild
+- `integrations/gas/drive_watcher.js` now describes drive polling and
+  server-side dashboard rebuilds
+- generated-doc helper text in `scripts/ops/create_doc.py` now says
+  "weather and dashboard rebuilds"
+
+Goal:
+
+- keep active setup guidance from sending future operators back to retired
+  scheduler endpoints
+
+### 3. Finish availability-heatmap separation
 
 `build_dashboard.py` still imports shared heatmap parsing data directly from
 `build_availability_heatmap.py`.
@@ -47,7 +72,7 @@ Goal:
 - extract shared availability parsing/helpers into a dedicated helper module
 - let both builders consume that helper without cross-script coupling
 
-### 3. Demote or clarify `forecast_monitor.py`
+### 4. Demote or clarify `forecast_monitor.py`
 
 The active production story appears to rely on Apps Script triggers rather than
 the standalone Python forecast monitor.
@@ -57,7 +82,7 @@ Goal:
 - either mark `pipelines/weather/forecast_monitor.py` as local-only backup
 - or retire/archive it if operations no longer need it
 
-### 4. Confirm and clean unused inputs
+### 5. Confirm and clean unused inputs
 
 The strongest known candidate is:
 
@@ -68,7 +93,7 @@ Goal:
 - confirm whether it is still operationally needed
 - remove it from the active contract if not
 
-### 5. Decide scope of optional subsystems
+### 6. Decide scope of optional subsystems
 
 Still worth confirming:
 
@@ -94,6 +119,6 @@ already handled:
 These documents still contain useful deeper analysis:
 
 - `docs/architecture/plans/SELF_SCHEDULING_PLAN.md`
-- `docs/retired/history/architecture/CLEANUP_AUDIT.md`
-- `docs/retired/history/architecture/REDUNDANCY_VERDICTS.md`
-- `docs/retired/history/architecture/Repo_Reorg_plan_codex.md`
+- `docs/operations/history/architecture/CLEANUP_AUDIT.md`
+- `docs/operations/history/architecture/REDUNDANCY_VERDICTS.md`
+- `docs/operations/history/architecture/Repo_Reorg_plan_codex.md`

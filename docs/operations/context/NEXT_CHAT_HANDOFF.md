@@ -2,8 +2,8 @@
 
 ## Agent Snapshot
 
-- status: ready_for_release_validation
-- date: 2026-05-02
+- status: self_scheduling_stabilization_in_progress
+- date: 2026-05-03
 - branch: feature/self-scheduling-v1
 - last_commit: 8e950a5
 - runtime_mode: self_scheduling_active
@@ -21,7 +21,7 @@
   - POST /api/force-rebuild
   - POST /api/schedule/rebuild-site
 - checklist_state:
-  - codex_verifiable_checks: complete
+  - codex_verifiable_checks: blocked locally because the Windows Python launcher has no installed Python
   - manual_checks_remaining:
     - cloud_run_deploy_sanity
     - browser_ui_claim_conflict_unclaim_refresh
@@ -33,11 +33,26 @@
   - docs/operations/context/NEXT_CHAT_HANDOFF.md
 - note: docs history reorg uses docs/operations/history/* (not docs/retired/history/*)
 
-Date: 2026-05-02
+Date: 2026-05-03
 Branch: `feature/self-scheduling-v1`
 
 ## What Just Landed
 
+- Stabilization work in the current worktree aligns self-scheduling uniqueness
+  across server, shared schedule validation, docs, and local ops scripts:
+  `backpack + date + tod` is now the schedule slot uniqueness key.
+- `PATCH /api/schedule/assignments/{id}` now applies claim-equivalent
+  validation before saving, including collector double-booking rejection.
+- Assignment IDs now use explicit IDs when present, with underscore and
+  pipe-delimited composite fallbacks for legacy records.
+- `integrations/gas/forecast_monitor.js` wording now references
+  `/api/force-rebuild` and weather + dashboard rebuilds instead of retired
+  scheduler reruns.
+- `integrations/gas/drive_watcher.js` wording now references drive polling and
+  server-side dashboard rebuilds instead of retired scheduler reruns.
+- Two local ops scripts are present for stabilization:
+  - `scripts/ops/self_schedule_regression.py`
+  - `scripts/ops/backfill_assignment_ids.py`
 - Slot scheduler modal now includes assignment-level remove action wired to
   `DELETE /api/schedule/assignments/{id}` (with assignment-id fallback derivation
   for older records missing explicit `id`).
@@ -65,9 +80,10 @@ Branch: `feature/self-scheduling-v1`
 
 ## Current Repo State
 
-Branch is in a strong checkpoint state. Prior release-readiness updates are
-already on branch, and a new local self-scheduling UI commit has been added
-for assignment-level removal in the slot modal.
+Branch has local stabilization changes that still need Python-backed validation
+before merge readiness can be called complete. The shell check found
+`C:\WINDOWS\py.exe`, but `py -0p` reports no installed Python and `python` is
+not on PATH.
 
 Recent commits from this chat:
 
@@ -110,10 +126,16 @@ The active direction is:
 - compile sanity passed for key Python modules via `python3 -m py_compile`
 - checklist evidence pass completed for code-verifiable items
 - docs path consistency check completed for history reorg references
+- current worktree: `git diff --check` passes
+- current worktree: Python tests/regression scripts could not be run because no
+  Python interpreter is available in this shell
 
 ## Suggested Resume Strategy
 
 1. Read `CURRENT_STATE.md`.
 2. Read `CLEANUP_PRIORITIES.md`.
-3. Run quick release validation checks (Cloud Run + UI + rerun endpoint dependency check).
-4. If checks pass, merge PR and monitor post-deploy logs briefly.
+3. Install or expose Python in the tool shell, then run:
+   - `py -3 scripts/ops/self_schedule_regression.py`
+   - `py -3 scripts/ops/self_schedule_smoke.py`
+4. Run quick release validation checks (Cloud Run + UI + rerun endpoint dependency check).
+5. If checks pass, merge PR and monitor post-deploy logs briefly.

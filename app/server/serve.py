@@ -19,6 +19,8 @@ Endpoints:
   POST /api/drive/poll          ' manually trigger one Google Drive poll cycle
 """
 
+from __future__ import annotations
+
 import argparse
 import email.parser
 import email.policy
@@ -716,16 +718,34 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):  # suppress per-request console noise
         pass
 
-    def _assignment_id(self, assignment: dict) -> str:
-        aid = str(assignment.get("id", "")).strip()
-        if aid:
-            return aid
-        return (
-            f"{assignment.get('backpack', '')}_"
-            f"{assignment.get('route', '')}_"
-            f"{assignment.get('date', '')}_"
-            f"{assignment.get('tod', '')}"
-        )
+    def _assignment_fallback_id(self, assignment: dict, *, sep: str = "_") -> str:
+        """Build composite ID from slot identity fields.
+
+        This is used as a compatibility fallback for legacy assignments that
+        predate explicit `id` fields.
+        """
+        backpack = str(assignment.get("backpack", "")).upper()
+        route = str(assignment.get("route", "")).upper()
+        date_str = str(assignment.get("date", ""))
+        tod = str(assignment.get("tod", "")).upper()
+        return f"{backpack}{sep}{route}{sep}{date_str}{sep}{tod}"
+
+    def _assignment_id_aliases(self, assignment: dict) -> set[str]:
+        """Return all accepted ID forms for one assignment."""
+        aliases = {
+            self._assignment_fallback_id(assignment, sep="_"),
+            self._assignment_fallback_id(assignment, sep="|"),
+        }
+        explicit = str(assignment.get("id", "")).strip()
+        if explicit:
+            aliases.add(explicit)
+        return aliases
+
+    def _find_assignment_by_id(self, assignments: list[dict], assignment_id: str) -> tuple[int | None, dict | None]:
+        for idx, assignment in enumerate(assignments):
+            if assignment_id in self._assignment_id_aliases(assignment):
+                return idx, assignment
+        return None, None
 
     def _read_json_body(self) -> tuple[dict, str | None]:
         try:
@@ -1037,12 +1057,11 @@ class Handler(BaseHTTPRequestHandler):
                 for assignment in schedule_data.get("assignments", []):
                     if (
                         str(assignment.get("backpack", "")).upper() == backpack
-                        and str(assignment.get("route", "")).upper() == route
                         and str(assignment.get("date", "")) == date_str
                         and str(assignment.get("tod", "")).upper() == tod
                     ):
                         self._send(409, "application/json",
-                                   json.dumps({"error": "slot already claimed for this backpack"}).encode())
+                                   json.dumps({"error": "backpack already has a claimed walk in this date/tod slot"}).encode())
                         return
 
                     if (
@@ -1460,10 +1479,6 @@ class Handler(BaseHTTPRequestHandler):
             self._send(400, "application/json",
                        json.dumps({"error": err}).encode())
             return
-        if not self._pin_ok(payload):
-            self._send(403, "application/json",
-                       json.dumps({"error": "wrong pin"}).encode())
-            return
 
         allowed = {"backpack", "route", "date", "tod", "collector", "label", "status"}
         updates = {k: v for k, v in payload.items() if k in allowed and v is not None}
@@ -1481,11 +1496,8 @@ class Handler(BaseHTTPRequestHandler):
                            json.dumps({"error": f"invalid schedule data: {exc}"}).encode())
                 return
 
-            target = None
-            for assignment in schedule_data.get("assignments", []):
-                if self._assignment_id(assignment) == assignment_id:
-                    target = assignment
-                    break
+            assignments = schedule_data.get("assignments", [])
+            _, target = self._find_assignment_by_id(assignments, assignment_id)
             if target is None:
                 self._send(404, "application/json",
                            json.dumps({"error": "assignment not found"}).encode())
@@ -1497,13 +1509,72 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     target[key] = str(value).strip()
 
+            # Keep edit semantics aligned with claim validations.
+            backpack = str(target.get("backpack", "")).upper().strip()
+            route = str(target.get("route", "")).upper().strip()
+            date_str = str(target.get("date", "")).strip()
+            tod = str(target.get("tod", "")).upper().strip()
+            collector = str(target.get("collector", "")).upper().strip()
+
+            if backpack not in VALID_BACKPACKS:
+                self._send(400, "application/json",
+                           json.dumps({"error": "backpack must be 'A' or 'B'"}).encode())
+                return
+            if tod not in SLOT_TODS:
+                self._send(400, "application/json",
+                           json.dumps({"error": "tod must be one of AM, MD, PM"}).encode())
+                return
+            if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_str):
+                self._send(400, "application/json",
+                           json.dumps({"error": "date must be YYYY-MM-DD"}).encode())
+                return
+            if route not in ALLOWED_ROUTES:
+                self._send(400, "application/json",
+                           json.dumps({"error": f"route must be one of: {', '.join(sorted(ALLOWED_ROUTES))}"}).encode())
+                return
+            if collector not in ALLOWED_COLLECTORS:
+                self._send(400, "application/json",
+                           json.dumps({"error": f"collector must be one of: {', '.join(sorted(ALLOWED_COLLECTORS))}"}).encode())
+                return
+            allowed_for_backpack = BACKPACK_TO_COLLECTORS.get(backpack, set())
+            if collector not in allowed_for_backpack:
+                self._send(400, "application/json",
+                           json.dumps({"error": f"collector {collector} is not eligible for Backpack {backpack}"}).encode())
+                return
+
+            target["backpack"] = backpack
+            target["route"] = route
+            target["date"] = date_str
+            target["tod"] = tod
+            target["collector"] = collector
+
+            for assignment in assignments:
+                if assignment is target:
+                    continue
+                if (
+                    str(assignment.get("backpack", "")).upper() == backpack
+                    and str(assignment.get("date", "")) == date_str
+                    and str(assignment.get("tod", "")).upper() == tod
+                ):
+                    self._send(409, "application/json",
+                               json.dumps({"error": "backpack already has a claimed walk in this date/tod slot"}).encode())
+                    return
+                if (
+                    str(assignment.get("collector", "")).upper() == collector
+                    and str(assignment.get("date", "")) == date_str
+                    and str(assignment.get("tod", "")).upper() == tod
+                ):
+                    self._send(409, "application/json",
+                               json.dumps({"error": "collector already assigned in this date/tod slot"}).encode())
+                    return
+
             if "route" in updates:
                 parts = str(target.get("route", "")).split("_", 1)
                 target["boro"] = parts[0] if parts else ""
                 target["neigh"] = parts[1] if len(parts) > 1 else str(target.get("route", ""))
                 target.setdefault("label", str(target.get("route", "")))
             target["updated_at"] = datetime.now().isoformat()
-            target["id"] = self._assignment_id(target)
+            target["id"] = self._assignment_fallback_id(target, sep="_")
 
             try:
                 save_schedule(schedule_data, SCHEDULE_OUTPUT, make_backup=True)
@@ -1537,10 +1608,6 @@ class Handler(BaseHTTPRequestHandler):
             self._send(400, "application/json",
                        json.dumps({"error": err}).encode())
             return
-        if not self._pin_ok(payload):
-            self._send(403, "application/json",
-                       json.dumps({"error": "wrong pin"}).encode())
-            return
 
         with _schedule_write_lock:
             _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
@@ -1553,10 +1620,9 @@ class Handler(BaseHTTPRequestHandler):
 
             removed = None
             assignments = schedule_data.get("assignments", [])
-            for idx, assignment in enumerate(assignments):
-                if self._assignment_id(assignment) == assignment_id:
-                    removed = assignments.pop(idx)
-                    break
+            match_idx, _ = self._find_assignment_by_id(assignments, assignment_id)
+            if match_idx is not None:
+                removed = assignments.pop(match_idx)
             if removed is None:
                 self._send(404, "application/json",
                            json.dumps({"error": "assignment not found"}).encode())

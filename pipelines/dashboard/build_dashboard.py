@@ -1948,7 +1948,7 @@ function _assignmentId(a){
     String(a&&a.route||''),
     String(a&&a.date||''),
     String(a&&a.tod||'').toUpperCase(),
-  ].join('|');
+  ].join('_');
 }
 function closeSlotScheduler(){
   const bg=document.getElementById('slot-sched-bg');
@@ -2080,13 +2080,10 @@ async function deleteCalendarAssignment(btn){
   if(!confirm('Remove this assignment? This cannot be undone.'))return;
   _setSlotSchedMsg('Removing assignment...','');
   try{
-    const pinInput=prompt('Enter admin PIN if required (leave blank if not configured):','');
-    const payload={};
-    if(pinInput&&pinInput.trim())payload.pin=pinInput.trim();
     const resp=await fetch('/api/schedule/assignments/'+encodeURIComponent(assignmentId),{
       method:'DELETE',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(payload),
+      body:JSON.stringify({}),
     });
     const data=await resp.json().catch(()=>({}));
     if(!resp.ok)throw new Error(data.error||('HTTP '+resp.status));

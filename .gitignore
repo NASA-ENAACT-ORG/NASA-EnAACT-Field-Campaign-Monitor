@@ -5,6 +5,8 @@ Walk_Dash_API_key.txt
 .env
 ANTHROPIC_API_KEY.txt
 drive-service-account.json
+.venv/
+venv/
 
 # Generated outputs (data/outputs/) — not committed; rebuilt at deploy time
 data/outputs/

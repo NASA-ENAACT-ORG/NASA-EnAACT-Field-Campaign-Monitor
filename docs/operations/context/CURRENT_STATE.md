@@ -2,6 +2,8 @@
 
 This document is the quickest way to re-establish the current project direction.
 
+Last scanned: 2026-05-03 on `feature/self-scheduling-v1`.
+
 ## Project Goal
 
 The current goal is to simplify the repo and runtime so the system is easier to
@@ -46,7 +48,7 @@ Self-scheduling is implemented in the dashboard and server:
 
 - calendar slot -> modal -> claim/unclaim workflow exists
 - weather is advisory only
-- uniqueness is enforced per `backpack + route + date + tod`
+- uniqueness is enforced per `backpack + date + tod`
 - collector double-booking is blocked within the same `date + tod`
 - claim/unclaim writes go through `shared/schedule_store.py`
 
@@ -56,8 +58,19 @@ Important active APIs:
 - `GET /api/schedule/slots`
 - `POST /api/schedule/claim`
 - `POST /api/schedule/unclaim`
+- `PATCH /api/schedule/assignments/{id}`
+- `DELETE /api/schedule/assignments/{id}`
 - `POST /api/rebuild`
+- `POST /api/force-rebuild`
 - `POST /api/schedule/rebuild-site`
+
+Retired scheduler endpoints:
+
+- `POST /api/rerun`
+- `POST /api/rerun/a`
+- `POST /api/rerun/b`
+
+These now return `410 Gone` and should not be used by active callers.
 
 ## Cleanup Status
 
@@ -67,12 +80,28 @@ Recently completed:
 - scheduler runtime hooks retired from the active server flow
 - scheduler/map/transit scripts moved under `pipelines/_retired/`
 - self-scheduling smoke test added at `scripts/ops/self_schedule_smoke.py`
+- assignment-level update/remove APIs are active for schedule records
+- docs history now lives under `docs/operations/history/`
 
 Still true:
 
 - `build_dashboard.py` remains the biggest active complexity hotspot
-- some docs still describe the older scheduler-centered architecture
+- some comments/docs still use scheduler-era wording even when code has moved on
 - some sidecar scripts are still present even though the active runtime is slimmer
+- `integrations/gas/forecast_monitor.js` calls `/api/force-rebuild`, but its
+  comments still use older rerun language
+
+## Release Validation Status
+
+Code-verifiable checks from the self-scheduling checkpoint are complete.
+
+Manual checks still worth doing before merge:
+
+- Cloud Run deploy sanity: deploy, trigger one rebuild, and confirm no scheduler
+  path regression
+- browser UI sanity: claim, conflict rejection, unclaim/delete, and refresh
+  persistence
+- automation sanity: confirm no external caller still depends on `/api/rerun*`
 
 ## How To Resume Work
 
@@ -90,5 +119,5 @@ Use these for deeper background after reading this file:
 - `docs/operations/context/CLEANUP_PRIORITIES.md`
 - `docs/operations/context/CONTEXT_HISTORY.md`
 - `docs/architecture/plans/SELF_SCHEDULING_PLAN.md`
-- `docs/retired/history/architecture/CLEANUP_AUDIT.md`
-- `docs/retired/history/architecture/REDUNDANCY_VERDICTS.md`
+- `docs/operations/history/architecture/CLEANUP_AUDIT.md`
+- `docs/operations/history/architecture/REDUNDANCY_VERDICTS.md`
