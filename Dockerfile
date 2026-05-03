@@ -19,7 +19,8 @@ EXPOSE 8080
 # Set environment variable for Cloud Run
 ENV PORT=8080
 
-# 1. Restore GCS state (schedule_output.json etc) BEFORE building the dashboard
-# 2. Build static dashboards (now with fresh schedule baked in)
-# 3. Launch the server
-CMD ["sh", "-c", "python app/server/serve.py --restore-only; python pipelines/dashboard/build_dashboard.py || echo '[startup] dashboard build failed — serving GCS-restored version'; python pipelines/maps/build_collector_map.py || echo '[startup] collector map build failed'; python app/server/serve.py"]
+# 1. Restore runtime state from GCS.
+# 2. Rebuild dashboard.html from current local artifacts.
+# 3. Attempt legacy collector-map build (non-fatal if missing/fails).
+# 4. Launch the server.
+CMD ["sh", "-c", "python app/server/serve.py --restore-only; python pipelines/dashboard/build_dashboard.py || echo '[startup] dashboard build failed — serving GCS-restored version'; python pipelines/_retired/maps/build_collector_map.py || echo '[startup] collector map build failed'; python app/server/serve.py"]

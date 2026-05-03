@@ -98,7 +98,7 @@ DRIVE_POLL_INTERVAL   = int(os.environ.get("DRIVE_POLL_INTERVAL", "300"))
 _DRIVE_LOCK           = threading.Lock()
 _drive_last_poll      = None
 _drive_new_today      = 0
-_scheduler_running    = threading.Lock()  # prevents concurrent scheduler runs
+_rebuild_running      = threading.Lock()  # prevents concurrent weather/site rebuild runs
 _schedule_write_lock  = threading.Lock()  # prevents concurrent schedule writes
 _bootstrap_build_lock = threading.Lock()  # prevents concurrent startup/missing-file builds
 _bootstrap_errors     = []
@@ -326,7 +326,7 @@ def _rebuild_dashboard_and_upload():
 
 def _run_weather_and_rebuild_site():
     """Run build_weather.py then rebuild site artifacts (no scheduler)."""
-    if not _scheduler_running.acquire(blocking=False):
+    if not _rebuild_running.acquire(blocking=False):
         print("[forecast] Rebuild already running -- skipping this trigger")
         return
 
@@ -360,7 +360,7 @@ def _run_weather_and_rebuild_site():
     except Exception as e:
         print(f"[forecast] Weather/site rebuild error: {e}")
     finally:
-        _scheduler_running.release()
+        _rebuild_running.release()
 
 
 def _resolve_notification_date(date_value: str | None) -> str:
