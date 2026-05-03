@@ -1941,6 +1941,15 @@ function _slotClaims(dateStr,tod){
   if(!schedData||!Array.isArray(schedData.assignments))return [];
   return schedData.assignments.filter(a=>String(a.date)===dateStr&&String(a.tod).toUpperCase()===tod);
 }
+function _assignmentId(a){
+  if(a&&a.id)return String(a.id);
+  return [
+    String(a&&a.backpack||'').toUpperCase(),
+    String(a&&a.route||''),
+    String(a&&a.date||''),
+    String(a&&a.tod||'').toUpperCase(),
+  ].join('|');
+}
 function closeSlotScheduler(){
   const bg=document.getElementById('slot-sched-bg');
   if(bg)bg.classList.remove('open');
@@ -1973,7 +1982,9 @@ function renderSlotSchedulerClaims(){
           data-route="${_escHtml(a.route||'')}"
           data-date="${_escHtml(a.date||'')}"
           data-tod="${_escHtml(String(a.tod||'').toUpperCase())}"
-          data-collector="${_escHtml(a.collector||'')}">Unclaim</button></td>
+          data-collector="${_escHtml(a.collector||'')}">Unclaim</button>
+          <button type="button" class="ss-btn ss-delete-btn"
+          data-assignment-id="${_escHtml(_assignmentId(a))}">Remove</button></td>
     </tr>`;
   }).join('');
 }
@@ -2058,6 +2069,37 @@ async function unclaimCalendarSlot(btn){
     _setSlotSchedMsg('Claim removed.','ok');
   }catch(err){
     _setSlotSchedMsg('Unclaim failed: '+err.message,'err');
+  }
+}
+async function deleteCalendarAssignment(btn){
+  const assignmentId=(btn.dataset.assignmentId||'').trim();
+  if(!assignmentId){
+    _setSlotSchedMsg('Missing assignment id.','err');
+    return;
+  }
+  if(!confirm('Remove this assignment? This cannot be undone.'))return;
+  _setSlotSchedMsg('Removing assignment...','');
+  try{
+    const pinInput=prompt('Enter admin PIN if required (leave blank if not configured):','');
+    const payload={};
+    if(pinInput&&pinInput.trim())payload.pin=pinInput.trim();
+    const resp=await fetch('/api/schedule/assignments/'+encodeURIComponent(assignmentId),{
+      method:'DELETE',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload),
+    });
+    const data=await resp.json().catch(()=>({}));
+    if(!resp.ok)throw new Error(data.error||('HTTP '+resp.status));
+    await refreshRuntimeData();
+    if(RUNTIME_SCHEDULE&&RUNTIME_SCHEDULE.assignments){
+      loadScheduleJSON(JSON.stringify(RUNTIME_SCHEDULE));
+    }else{
+      renderCalendar();
+    }
+    renderSlotSchedulerClaims();
+    _setSlotSchedMsg('Assignment removed.','ok');
+  }catch(err){
+    _setSlotSchedMsg('Remove failed: '+err.message,'err');
   }
 }
 
@@ -2474,8 +2516,12 @@ function bindEvents(){
   if(slotBody){
     slotBody.addEventListener('click',e=>{
       const btn=e.target.closest('.ss-unclaim-btn');
-      if(!btn)return;
-      unclaimCalendarSlot(btn);
+      if(btn){
+        unclaimCalendarSlot(btn);
+        return;
+      }
+      const deleteBtn=e.target.closest('.ss-delete-btn');
+      if(deleteBtn)deleteCalendarAssignment(deleteBtn);
     });
   }
   document.getElementById('fseason').addEventListener('change',e=>{filters.season=e.target.value;applyFilters();});
