@@ -1962,8 +1962,7 @@ function _ensureSlotSchedulerInputs(){
   const renderCollectors=()=>{
     if(!collectorSel)return;
     const bp=(backpackSel&&backpackSel.value)||'A';
-    const scoped=(SLOT_BACKPACK_COLLECTORS[bp]||SLOT_SCHEDULE_COLLECTORS)
-      .filter(cid=>SLOT_SCHEDULE_COLLECTORS.includes(cid));
+    const scoped=(SLOT_BACKPACK_COLLECTORS[bp]||SLOT_SCHEDULE_COLLECTORS);
     collectorSel.innerHTML=scoped
       .map(cid=>`<option value="${cid}">${CNAMES[cid]||cid} (${cid})</option>`)
       .join('');
