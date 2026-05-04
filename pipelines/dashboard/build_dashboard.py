@@ -2345,7 +2345,7 @@ function _backpackLocationOptions(bp){return bp==='A'?['CCNY']:['LaGuardia','CCN
 function _backpackStatusLabel(status){
   if(status.holder){
     const id=String(status.holder).toUpperCase();
-    return `${CNAMES[id]||id} (${id})`;
+    return CNAMES[id]||id;
   }
   if(status.location)return status.location;
   return 'Set status';
@@ -2379,13 +2379,13 @@ function _fillBackpackStatusOptions(selectEl,bp){
   const staffOptions=holderOptions.filter(cid=>STAFF_COLLECTORS.includes(cid));
   const teamOptions=holderOptions.filter(cid=>!STAFF_COLLECTORS.includes(cid));
   const teamHtml=teamOptions.map(cid=>
-    `<option value="person:${_escHtml(cid)}">${_escHtml(CNAMES[cid]||cid)} (${_escHtml(cid)})</option>`
+    `<option value="person:${_escHtml(cid)}">${_escHtml(CNAMES[cid]||cid)}</option>`
   ).join('');
   const locationHtml=_backpackLocationOptions(bp).map(location=>
     `<option value="location:${_escHtml(location)}">${_escHtml(location)}</option>`
   ).join('');
   const staffHtml=staffOptions.map(cid=>
-    `<option value="person:${_escHtml(cid)}">${_escHtml(CNAMES[cid]||cid)} (${_escHtml(cid)})</option>`
+    `<option value="person:${_escHtml(cid)}">${_escHtml(CNAMES[cid]||cid)}</option>`
   ).join('');
   selectEl.innerHTML=teamHtml+locationHtml+staffHtml;
 }
