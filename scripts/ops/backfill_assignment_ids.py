@@ -3,9 +3,9 @@
 Backfill missing assignment IDs in schedule_output.json.
 
 Usage:
-  py -3 scripts/ops/backfill_assignment_ids.py
-  py -3 scripts/ops/backfill_assignment_ids.py --apply
-  py -3 scripts/ops/backfill_assignment_ids.py --schedule path/to/schedule_output.json --apply
+  python scripts/ops/backfill_assignment_ids.py
+  python scripts/ops/backfill_assignment_ids.py --apply
+  python scripts/ops/backfill_assignment_ids.py --schedule path/to/schedule_output.json --apply
 """
 
 from __future__ import annotations

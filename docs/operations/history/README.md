@@ -17,6 +17,6 @@ but many of them describe workflows that have since been replaced or retired.
 
 For current docs, start in:
 
-- `docs/operations/context/`
+- `docs/operations/context/CURRENT_STATE.md`
 - `docs/architecture/`
 - `docs/operations/`

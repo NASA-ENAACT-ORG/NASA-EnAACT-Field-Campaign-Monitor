@@ -340,9 +340,9 @@ python pipelines/dashboard/build_availability_heatmap.py
 Self-scheduling ops scripts:
 
 ```bash
-py -3 scripts/ops/self_schedule_regression.py
-py -3 scripts/ops/backfill_assignment_ids.py            # dry-run (default)
-py -3 scripts/ops/backfill_assignment_ids.py --apply    # persist ID backfill
+python scripts/ops/self_schedule_regression.py
+python scripts/ops/backfill_assignment_ids.py            # dry-run (default)
+python scripts/ops/backfill_assignment_ids.py --apply    # persist ID backfill
 ```
 
 ---

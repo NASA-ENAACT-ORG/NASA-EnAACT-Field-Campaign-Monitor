@@ -230,7 +230,7 @@ for step, desc in [
 add_heading(doc, "For New Team Members", level=1)
 add_bullets(doc, [
     "Start with docs/operations/context/CURRENT_STATE.md for current runtime truth",
-    "Use docs/operations/context/CLEANUP_PRIORITIES.md for next cleanup tasks",
+    "Use docs/operations/history/architecture/CONTEXT_HISTORY.md and docs/operations/history/architecture/REDUNDANCY_VERDICTS.md for cleanup background",
     "Treat pipelines/_retired/ as historical unless explicitly asked to restore old workflows",
     "Use README.md for setup and API reference",
 ])

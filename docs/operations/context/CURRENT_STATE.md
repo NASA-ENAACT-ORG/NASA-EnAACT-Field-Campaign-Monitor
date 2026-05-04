@@ -2,7 +2,7 @@
 
 This document is the quickest way to re-establish the current project direction.
 
-Last scanned: 2026-05-03 on `followup/backpack-status`.
+Last scanned: 2026-05-03 on `main` at `db6b422`.
 
 ## Project Goal
 
@@ -56,6 +56,9 @@ Self-scheduling is implemented in the dashboard and server:
   `schedule_output.json` under `backpack_status`; when no manual status exists,
   the dashboard defaults to the collector from the most recent completed walk
   for each backpack
+- the backpack status control group has a visible "Current holder/location"
+  label and stronger dropdown affordance so it is easier to find in the calendar
+  nav
 - Backpack A status options include the BP A team, Angy, and `CCNY`; Backpack B
   status options include the BP B team, `LaGuardia`, and `CCNY`; professor
   accounts are available and ordered at the bottom of relevant dropdowns
@@ -91,8 +94,8 @@ These now return `410 Gone` and should not be used by active callers.
 Recently completed:
 
 - PR #8 merged self-scheduling into `main`
-- follow-up branch `followup/backpack-status` was created from merged
-  `origin/main`
+- backpack status controls and the follow-up prominence polish are pushed on
+  `main`
 - shared collector/route/backpack registry extraction into `shared/registry.py`
 - scheduler runtime hooks retired from the active server flow
 - scheduler/map/transit scripts moved under `pipelines/_retired/`
@@ -100,6 +103,10 @@ Recently completed:
 - assignment-level update/remove APIs are active for schedule records
 - backpack status controls/API are active for self-scheduling coordination
 - docs history now lives under `docs/operations/history/`
+- active operations context is consolidated to this file; the old cleanup
+  priorities file was removed, context history moved to
+  `docs/operations/history/architecture/CONTEXT_HISTORY.md`, and the
+  Codex handoff moved to local-only `.codex-local/context/NEXT_CHAT_HANDOFF.md`
 - repo-owned caller audit found no active `/api/rerun*` callers outside the
   intentional `410 Gone` handlers and historical/context documentation
 
@@ -110,18 +117,29 @@ Still true:
 - external automation callers still need one final confirmation pass to ensure
   no active dependency on `/api/rerun*`
 
+## Python Execution
+
+Codex should use the repo-local sandbox Python first:
+
+```powershell
+.codex-local\python39\python.exe
+```
+
+The older user-profile interpreter outside the workspace is blocked from the
+sandbox and should not be used as the default in Codex runs. Plain `python`,
+`py -3`, and the checked-in `.venv` shim are also unreliable in the agent shell.
+If the repo-local Python copy is missing or broken, then diagnose alternatives
+instead of falling back to the blocked user-profile path.
+
 ## Release Validation Status
 
-Code-verifiable checks now pass in user-local execution:
+Code-verifiable checks now pass with the repo-local sandbox Python:
 
-- `C:\Users\terra\AppData\Local\Programs\Python\Python39\python.exe -m py_compile app/server/serve.py pipelines/dashboard/build_dashboard.py shared/schedule_store.py` -> PASS
-- `C:\Users\terra\AppData\Local\Programs\Python\Python39\python.exe pipelines/dashboard/build_dashboard.py` -> PASS
-- `C:\Users\terra\AppData\Local\Programs\Python\Python39\python.exe scripts/ops/self_schedule_regression.py` -> PASS
-- `C:\Users\terra\AppData\Local\Programs\Python\Python39\python.exe scripts/ops/self_schedule_smoke.py --schedule ".tmp/schedule_output.test.json" --in-place` -> PASS
+- `.codex-local\python39\python.exe -m py_compile app/server/serve.py pipelines/dashboard/build_dashboard.py shared/schedule_store.py` -> PASS
+- `.codex-local\python39\python.exe pipelines/dashboard/build_dashboard.py` -> PASS
+- `.codex-local\python39\python.exe scripts/ops/self_schedule_regression.py` -> PASS
+- `.codex-local\python39\python.exe scripts/ops/self_schedule_smoke.py --schedule ".tmp/schedule_output.test.json" --in-place` -> PASS
 - `git diff --check` -> PASS
-
-Note: use the exact workspace Python interpreter path above for checks. Plain
-`python` and `py -3` are unavailable in the agent sandbox.
 
 Manual checks still worth doing before merge:
 
@@ -148,8 +166,7 @@ When picking work back up:
 
 Use these for deeper background after reading this file:
 
-- `docs/operations/context/CLEANUP_PRIORITIES.md`
-- `docs/operations/context/CONTEXT_HISTORY.md`
 - `docs/architecture/plans/SELF_SCHEDULING_PLAN.md`
+- `docs/operations/history/architecture/CONTEXT_HISTORY.md`
 - `docs/operations/history/architecture/CLEANUP_AUDIT.md`
 - `docs/operations/history/architecture/REDUNDANCY_VERDICTS.md`

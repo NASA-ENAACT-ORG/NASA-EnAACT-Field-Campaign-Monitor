@@ -5,7 +5,6 @@ This file preserves the reasoning trail behind the current repo direction.
 It is not the best starting point for day-to-day work. Start with:
 
 - `docs/operations/context/CURRENT_STATE.md`
-- `docs/operations/context/CLEANUP_PRIORITIES.md`
 
 ## Why This File Exists
 
@@ -88,6 +87,19 @@ The next major cleanup step was completed by:
 
 This marks the current architecture boundary between active runtime code and
 historical scheduler-era code.
+
+### Phase 6: Backpack status coordination polish
+
+After self-scheduling landed on `main`, the dashboard gained backpack
+holder/location controls in the calendar nav:
+
+- one status dropdown per backpack
+- saved manual status in `schedule_output.json` under `backpack_status`
+- default holder inferred from the latest completed walk when no manual status
+  exists
+- professor/staff accounts kept at the bottom of relevant dropdowns
+- a more prominent "Current holder/location" control-group treatment so the
+  status box is easier to find during calendar use
 
 ## Superseded Temporary Source Files
 
