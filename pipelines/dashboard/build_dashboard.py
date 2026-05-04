@@ -517,12 +517,14 @@ select option{background:var(--bg3)}
 .bp-boro-tooltip .week-item{display:flex;align-items:center;gap:4px;padding:2px 0;color:#e6edf3}
 .bp-boro-tooltip .week-num{font-weight:700;color:var(--accent);min-width:20px}
 #cal-body{flex:1;overflow-y:auto;overflow-x:hidden;min-height:0}
-#backpack-status-panel{display:flex;align-items:center;gap:8px;padding:5px 9px;border:1px solid var(--border);border-radius:7px;background:rgba(255,255,255,.035);flex-shrink:0}
+#backpack-status-panel{display:flex;align-items:center;gap:9px;padding:7px 10px;border:1px solid rgba(88,166,255,.45);border-radius:7px;background:rgba(88,166,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.03);flex-shrink:0}
+.bp-status-heading{font-size:9px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--text2);white-space:nowrap;border-right:1px solid var(--border);padding-right:9px;line-height:1.2}
 .bp-status-card{display:grid;grid-template-columns:auto 132px;align-items:center;gap:5px}
 .bp-status-label{font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap}
 .bp-status-card[data-bp="A"] .bp-status-label{color:#f87171}
 .bp-status-card[data-bp="B"] .bp-status-label{color:#60a5fa}
-.bp-status-card select{height:28px;min-width:0;border-radius:5px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:11px;font-family:inherit;padding:0 6px}
+.bp-status-card select{height:30px;min-width:0;border-radius:5px;border:1px solid rgba(139,148,158,.55);background:var(--bg);color:var(--text);font-size:11px;font-family:inherit;padding:0 6px;cursor:pointer}
+.bp-status-card select:hover,.bp-status-card select:focus{border-color:#58a6ff;outline:none}
 .bp-status-card select:disabled{opacity:.6}
 .bp-status-source{font-size:9px;color:var(--text3);white-space:nowrap;grid-column:2;margin-top:-2px}
 #cal-grid{display:grid;grid-template-columns:54px repeat(7,1fr);grid-template-rows:56px repeat(3,minmax(110px,1fr));min-height:100%;width:100%}
@@ -1004,6 +1006,7 @@ setTimeout(function(){
           <button class="bp-toggle active" data-backpack="B" title="Toggle Backpack B">BP B<span class="bp-boro-badge" data-bp="B"></span><div class="bp-boro-tooltip" data-bp="B"></div></button>
         </div>
         <div id="backpack-status-panel" title="Current backpack holder and location">
+          <div class="bp-status-heading">Current<br>holder/location</div>
           <div class="bp-status-card" data-bp="A">
             <span class="bp-status-label">BP A</span>
             <select class="bp-status-select" data-bp="A" aria-label="Backpack A current location or holder"></select>
