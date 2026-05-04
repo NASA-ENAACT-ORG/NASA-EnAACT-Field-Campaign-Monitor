@@ -517,16 +517,38 @@ select option{background:var(--bg3)}
 .bp-boro-tooltip .week-item{display:flex;align-items:center;gap:4px;padding:2px 0;color:#e6edf3}
 .bp-boro-tooltip .week-num{font-weight:700;color:var(--accent);min-width:20px}
 #cal-body{flex:1;overflow-y:auto;overflow-x:hidden;min-height:0}
-#backpack-status-panel{display:flex;align-items:center;gap:9px;padding:7px 10px;border:1px solid rgba(88,166,255,.45);border-radius:7px;background:rgba(88,166,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.03);flex-shrink:0}
-.bp-status-heading{font-size:9px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--text2);white-space:nowrap;border-right:1px solid var(--border);padding-right:9px;line-height:1.2}
-.bp-status-card{display:grid;grid-template-columns:auto 132px;align-items:center;gap:5px}
-.bp-status-label{font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap}
+#backpack-status-panel{display:grid;grid-template-columns:auto repeat(2,124px);align-items:center;gap:8px;padding:6px 8px;border:1px solid rgba(88,166,255,.38);border-radius:7px;background:rgba(88,166,255,.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,.03);flex-shrink:0}
+.bp-status-heading{font-size:9px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--text2);white-space:nowrap;border-right:1px solid var(--border);padding-right:8px;line-height:1.2}
+.bp-status-card{display:block;min-width:0}
+.bp-status-button{width:100%;height:38px;border-radius:6px;border:1px solid rgba(139,148,158,.5);background:rgba(13,17,23,.72);color:var(--text);font-family:inherit;cursor:pointer;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:7px;align-items:center;text-align:left;padding:5px 8px;transition:border-color .15s,background .15s,transform .15s}
+.bp-status-button:hover,.bp-status-button:focus{border-color:#58a6ff;background:rgba(31,45,67,.92);outline:none}
+.bp-status-button:active{transform:translateY(1px)}
+.bp-status-label{font-size:9px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap;grid-row:1 / span 2;align-self:center}
 .bp-status-card[data-bp="A"] .bp-status-label{color:#f87171}
 .bp-status-card[data-bp="B"] .bp-status-label{color:#60a5fa}
-.bp-status-card select{height:30px;min-width:0;border-radius:5px;border:1px solid rgba(139,148,158,.55);background:var(--bg);color:var(--text);font-size:11px;font-family:inherit;padding:0 6px;cursor:pointer}
-.bp-status-card select:hover,.bp-status-card select:focus{border-color:#58a6ff;outline:none}
-.bp-status-card select:disabled{opacity:.6}
-.bp-status-source{font-size:9px;color:var(--text3);white-space:nowrap;grid-column:2;margin-top:-2px}
+.bp-status-current{font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.15}
+.bp-status-source{font-size:9px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.1}
+#bp-status-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:9100;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+#bp-status-modal-bg.open{display:flex}
+#bp-status-modal{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:20px 22px;width:340px;display:flex;flex-direction:column;gap:13px;box-shadow:0 16px 48px rgba(0,0,0,.8)}
+#bp-status-modal h3{font-size:14px;font-weight:700;font-family:'Space Grotesk',sans-serif;color:var(--text);margin:0}
+#bp-status-modal-question{font-size:12px;line-height:1.45;color:var(--red);font-weight:700}
+#bp-status-current-line{font-size:11px;color:var(--text3);background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 9px}
+#bp-status-editor{display:none;flex-direction:column;gap:5px}
+#bp-status-editor.open{display:flex}
+#bp-status-editor label{font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.6px}
+#bp-status-choice{width:100%;height:32px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:12px;font-family:inherit}
+#bp-status-choice:focus{border-color:var(--accent);outline:none}
+#bp-status-modal-msg{display:none;font-size:11px;border-radius:5px;padding:6px 9px}
+#bp-status-modal-msg.err{display:block;color:var(--red);background:var(--red-bg);border:1px solid rgba(248,81,73,.3)}
+#bp-status-modal-actions,#bp-status-submit-actions{display:flex;gap:8px;justify-content:flex-end}
+#bp-status-submit-actions{display:none}
+#bp-status-submit-actions.open{display:flex}
+.bp-status-modal-btn{padding:6px 14px;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;font-family:'Space Grotesk',sans-serif;transition:all .15s}
+.bp-status-modal-btn:hover{background:var(--bg3);color:var(--text)}
+.bp-status-modal-btn.primary{background:var(--accent2);border-color:var(--accent);color:#fff}
+.bp-status-modal-btn.primary:hover{background:var(--accent)}
+.bp-status-modal-btn:disabled{opacity:.55;cursor:not-allowed}
 #cal-grid{display:grid;grid-template-columns:54px repeat(7,1fr);grid-template-rows:56px repeat(3,minmax(110px,1fr));min-height:100%;width:100%}
 .cal-corner{background:var(--bg2);border-right:1px solid var(--border);border-bottom:2px solid var(--border);position:sticky;top:0;left:0;z-index:20}
 .cal-day-head{background:var(--bg2);border-right:1px solid var(--border);border-bottom:2px solid var(--border);padding:8px 6px 6px;text-align:center;position:sticky;top:0;z-index:10}
@@ -1008,14 +1030,18 @@ setTimeout(function(){
         <div id="backpack-status-panel" title="Current backpack holder and location">
           <div class="bp-status-heading">Current<br>holder/location</div>
           <div class="bp-status-card" data-bp="A">
-            <span class="bp-status-label">BP A</span>
-            <select class="bp-status-select" data-bp="A" aria-label="Backpack A current location or holder"></select>
-            <span class="bp-status-source" data-bp="A"></span>
+            <button class="bp-status-button" data-bp="A" type="button" aria-label="Change Backpack A current holder or location">
+              <span class="bp-status-label">BP A</span>
+              <span class="bp-status-current" data-bp="A">-</span>
+              <span class="bp-status-source" data-bp="A"></span>
+            </button>
           </div>
           <div class="bp-status-card" data-bp="B">
-            <span class="bp-status-label">BP B</span>
-            <select class="bp-status-select" data-bp="B" aria-label="Backpack B current location or holder"></select>
-            <span class="bp-status-source" data-bp="B"></span>
+            <button class="bp-status-button" data-bp="B" type="button" aria-label="Change Backpack B current holder or location">
+              <span class="bp-status-label">BP B</span>
+              <span class="bp-status-current" data-bp="B">-</span>
+              <span class="bp-status-source" data-bp="B"></span>
+            </button>
           </div>
         </div>
         <div id="wx-cutoff-pill" title="Cloud cover threshold &mdash; slots at or below 50% are marked GO" style="margin-left:auto">
@@ -2316,6 +2342,14 @@ function _latestCompletedHolder(bp){
   return walks.length?walks[0]:null;
 }
 function _backpackLocationOptions(bp){return bp==='A'?['CCNY']:['LaGuardia','CCNY'];}
+function _backpackStatusLabel(status){
+  if(status.holder){
+    const id=String(status.holder).toUpperCase();
+    return `${CNAMES[id]||id} (${id})`;
+  }
+  if(status.location)return status.location;
+  return 'Set status';
+}
 function _backpackStatusFor(bp){
   const saved=RUNTIME_SCHEDULE&&RUNTIME_SCHEDULE.backpack_status&&RUNTIME_SCHEDULE.backpack_status[bp];
   if(saved&&saved.holder){
@@ -2339,36 +2373,82 @@ function _backpackStatusFor(bp){
     source:latest?'latest completed walk':'no completed walk'
   };
 }
+function _fillBackpackStatusOptions(selectEl,bp){
+  if(!selectEl)return;
+  const holderOptions=(SLOT_BACKPACK_COLLECTORS[bp]||[]).slice();
+  const staffOptions=holderOptions.filter(cid=>STAFF_COLLECTORS.includes(cid));
+  const teamOptions=holderOptions.filter(cid=>!STAFF_COLLECTORS.includes(cid));
+  const teamHtml=teamOptions.map(cid=>
+    `<option value="person:${_escHtml(cid)}">${_escHtml(CNAMES[cid]||cid)} (${_escHtml(cid)})</option>`
+  ).join('');
+  const locationHtml=_backpackLocationOptions(bp).map(location=>
+    `<option value="location:${_escHtml(location)}">${_escHtml(location)}</option>`
+  ).join('');
+  const staffHtml=staffOptions.map(cid=>
+    `<option value="person:${_escHtml(cid)}">${_escHtml(CNAMES[cid]||cid)} (${_escHtml(cid)})</option>`
+  ).join('');
+  selectEl.innerHTML=teamHtml+locationHtml+staffHtml;
+}
 function renderBackpackStatusPanel(){
   for(const bp of ['A','B']){
-    const statusSel=document.querySelector(`.bp-status-select[data-bp="${bp}"]`);
+    const currentEl=document.querySelector(`.bp-status-current[data-bp="${bp}"]`);
     const sourceEl=document.querySelector(`.bp-status-source[data-bp="${bp}"]`);
-    if(!statusSel)continue;
-    if(!statusSel.dataset.ready){
-      const holderOptions=(SLOT_BACKPACK_COLLECTORS[bp]||[]).slice();
-      const staffOptions=holderOptions.filter(cid=>STAFF_COLLECTORS.includes(cid));
-      const teamOptions=holderOptions.filter(cid=>!STAFF_COLLECTORS.includes(cid));
-      const teamHtml=teamOptions.map(cid=>
-        `<option value="person:${_escHtml(cid)}">${_escHtml(CNAMES[cid]||cid)} (${_escHtml(cid)})</option>`
-      ).join('');
-      const locationHtml=_backpackLocationOptions(bp).map(location=>
-        `<option value="location:${_escHtml(location)}">${_escHtml(location)}</option>`
-      ).join('');
-      const staffHtml=staffOptions.map(cid=>
-        `<option value="person:${_escHtml(cid)}">${_escHtml(CNAMES[cid]||cid)} (${_escHtml(cid)})</option>`
-      ).join('');
-      statusSel.innerHTML=teamHtml+locationHtml+staffHtml;
-      statusSel.dataset.ready='1';
-    }
+    const button=document.querySelector(`.bp-status-button[data-bp="${bp}"]`);
     const status=_backpackStatusFor(bp);
-    statusSel.value=status.value;
+    if(currentEl)currentEl.textContent=_backpackStatusLabel(status);
     if(sourceEl)sourceEl.textContent=status.source;
+    if(button)button.title=`Backpack ${bp}: ${_backpackStatusLabel(status)} (${status.source}). Click to change.`;
   }
 }
-async function saveBackpackStatus(bp){
-  const statusSel=document.querySelector(`.bp-status-select[data-bp="${bp}"]`);
-  if(!statusSel||!statusSel.value)return;
-  const [kind,...rest]=statusSel.value.split(':');
+let bpStatusModalState={bp:null};
+function _setBackpackStatusModalMsg(message){
+  const el=document.getElementById('bp-status-modal-msg');
+  if(!el)return;
+  if(!message){el.style.display='none';el.className='';el.textContent='';return;}
+  el.textContent=message;
+  el.className='err';
+}
+function openBackpackStatusModal(bp){
+  const bg=document.getElementById('bp-status-modal-bg');
+  const title=document.getElementById('bp-status-modal-title');
+  const currentLine=document.getElementById('bp-status-current-line');
+  const editor=document.getElementById('bp-status-editor');
+  const confirmActions=document.getElementById('bp-status-modal-actions');
+  const submitActions=document.getElementById('bp-status-submit-actions');
+  if(!bg)return;
+  bpStatusModalState={bp};
+  const status=_backpackStatusFor(bp);
+  if(title)title.textContent=`Change Backpack ${bp} Location`;
+  if(currentLine)currentLine.textContent=`Current: ${_backpackStatusLabel(status)} (${status.source})`;
+  if(editor)editor.classList.remove('open');
+  if(confirmActions)confirmActions.style.display='flex';
+  if(submitActions)submitActions.classList.remove('open');
+  _setBackpackStatusModalMsg('');
+  bg.classList.add('open');
+}
+function closeBackpackStatusModal(){
+  const bg=document.getElementById('bp-status-modal-bg');
+  if(bg)bg.classList.remove('open');
+  bpStatusModalState={bp:null};
+}
+function confirmBackpackStatusChange(){
+  const bp=bpStatusModalState.bp;
+  if(!bp)return;
+  const choice=document.getElementById('bp-status-choice');
+  const editor=document.getElementById('bp-status-editor');
+  const confirmActions=document.getElementById('bp-status-modal-actions');
+  const submitActions=document.getElementById('bp-status-submit-actions');
+  const status=_backpackStatusFor(bp);
+  _fillBackpackStatusOptions(choice,bp);
+  if(choice)choice.value=status.value;
+  if(editor)editor.classList.add('open');
+  if(confirmActions)confirmActions.style.display='none';
+  if(submitActions)submitActions.classList.add('open');
+  _setBackpackStatusModalMsg('');
+}
+async function saveBackpackStatusValue(bp,value){
+  if(!bp||!value)return;
+  const [kind,...rest]=value.split(':');
   const selectedValue=rest.join(':');
   const payload={
     backpack:bp,
@@ -2376,7 +2456,8 @@ async function saveBackpackStatus(bp){
     location:kind==='location'?selectedValue:'',
     updated_by:schedAuth.scheduler||(kind==='person'?selectedValue:'')
   };
-  statusSel.disabled=true;
+  const okBtn=document.getElementById('bp-status-ok');
+  if(okBtn)okBtn.disabled=true;
   try{
     const resp=await fetch('/api/backpack-status',{
       method:'POST',
@@ -2388,13 +2469,20 @@ async function saveBackpackStatus(bp){
     if(data.schedule)RUNTIME_SCHEDULE=data.schedule;
     if(RUNTIME_SCHEDULE&&RUNTIME_SCHEDULE.assignments)loadScheduleJSON(JSON.stringify(RUNTIME_SCHEDULE));
     renderBackpackStatusPanel();
+    closeBackpackStatusModal();
     toast(`Backpack ${bp} status updated`,'success');
   }catch(err){
-    toast(`Backpack ${bp} update failed: ${err.message}`,'');
+    _setBackpackStatusModalMsg(`Backpack ${bp} update failed: ${err.message}`);
     renderBackpackStatusPanel();
   }finally{
-    statusSel.disabled=false;
+    if(okBtn)okBtn.disabled=false;
   }
+}
+function submitBackpackStatusModal(){
+  const bp=bpStatusModalState.bp;
+  const choice=document.getElementById('bp-status-choice');
+  if(!bp||!choice||!choice.value)return;
+  saveBackpackStatusValue(bp,choice.value);
 }
 
 function renderCalendar(){
@@ -2785,9 +2873,19 @@ function bindEvents(){
   document.getElementById('cal-next').addEventListener('click',()=>{
     if(calWeekIdx>0){calWeekIdx--;renderCalendar();}
   });
-  document.querySelectorAll('.bp-status-select').forEach(sel=>{
-    sel.addEventListener('change',e=>saveBackpackStatus(e.currentTarget.dataset.bp));
+  document.querySelectorAll('.bp-status-button').forEach(btn=>{
+    btn.addEventListener('click',e=>openBackpackStatusModal(e.currentTarget.dataset.bp));
   });
+  const bpStatusNo=document.getElementById('bp-status-no');
+  const bpStatusYes=document.getElementById('bp-status-yes');
+  const bpStatusCancel=document.getElementById('bp-status-cancel');
+  const bpStatusOk=document.getElementById('bp-status-ok');
+  const bpStatusBg=document.getElementById('bp-status-modal-bg');
+  if(bpStatusNo)bpStatusNo.addEventListener('click',closeBackpackStatusModal);
+  if(bpStatusCancel)bpStatusCancel.addEventListener('click',closeBackpackStatusModal);
+  if(bpStatusYes)bpStatusYes.addEventListener('click',confirmBackpackStatusChange);
+  if(bpStatusOk)bpStatusOk.addEventListener('click',submitBackpackStatusModal);
+  if(bpStatusBg)bpStatusBg.addEventListener('click',e=>{if(e.target===bpStatusBg)closeBackpackStatusModal();});
   document.getElementById('close-panel').addEventListener('click',closePanel);
   document.querySelectorAll('.wtab').forEach(b=>b.addEventListener('click',()=>{
     document.querySelectorAll('.wtab').forEach(x=>x.classList.remove('active'));
@@ -3406,6 +3504,27 @@ document.addEventListener('DOMContentLoaded',function(){
     <div id="recal-modal-actions">
       <button id="recal-modal-cancel">Cancel</button>
       <button id="recal-modal-submit">Record</button>
+    </div>
+  </div>
+</div>
+<!--- Backpack holder/location modal --->
+<div id="bp-status-modal-bg">
+  <div id="bp-status-modal">
+    <h3 id="bp-status-modal-title">Change Backpack Location</h3>
+    <div id="bp-status-modal-question">Hey, you're about to change the location of the backpack! Are you sure you want to do that?</div>
+    <div id="bp-status-current-line"></div>
+    <div id="bp-status-editor">
+      <label for="bp-status-choice">New holder/location</label>
+      <select id="bp-status-choice"></select>
+    </div>
+    <div id="bp-status-modal-msg"></div>
+    <div id="bp-status-modal-actions">
+      <button class="bp-status-modal-btn" id="bp-status-no" type="button">No</button>
+      <button class="bp-status-modal-btn primary" id="bp-status-yes" type="button">Yes</button>
+    </div>
+    <div id="bp-status-submit-actions">
+      <button class="bp-status-modal-btn" id="bp-status-cancel" type="button">Cancel</button>
+      <button class="bp-status-modal-btn primary" id="bp-status-ok" type="button">OK</button>
     </div>
   </div>
 </div>

@@ -51,14 +51,16 @@ Self-scheduling is implemented in the dashboard and server:
 - weather is advisory only
 - uniqueness is enforced per `backpack + date + tod`
 - collector double-booking is blocked within the same `date + tod`
-- claim/unclaim writes go through `shared/schedule_store.py`
+- claim/unclaim writes go through `shared/schedule_store.py` and persist only
+  `schedule_output.json`; they must not write completed-walk entries to
+  `Walks_Log.txt`
 - backpack holder/location status is shown in the calendar nav and persists to
   `schedule_output.json` under `backpack_status`; when no manual status exists,
   the dashboard defaults to the collector from the most recent completed walk
   for each backpack
-- the backpack status control group has a visible "Current holder/location"
-  label and stronger dropdown affordance so it is easier to find in the calendar
-  nav
+- the backpack status control group uses two compact, symmetrical status
+  buttons; changing a backpack holder/location opens a confirmation modal before
+  showing the dropdown and OK submit action
 - Backpack A status options include the BP A team, Angy, and `CCNY`; Backpack B
   status options include the BP B team, `LaGuardia`, and `CCNY`; professor
   accounts are available and ordered at the bottom of relevant dropdowns

@@ -3,6 +3,7 @@
 Focused regression checks for self-scheduling behavior.
 
 Covers:
+- claim/unclaim endpoints do not write Walks_Log.txt
 - claim success
 - duplicate claim conflict
 - collector double-booking conflict
@@ -18,6 +19,7 @@ Covers:
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import tempfile
 from dataclasses import dataclass
@@ -42,6 +44,7 @@ from shared.registry import (
 from shared.schedule_store import ScheduleValidationError, load_schedule, save_schedule
 
 
+SERVER_SOURCE = REPO_ROOT / "app" / "server" / "serve.py"
 ALLOWED_ROUTES = sorted(ROUTE_CODES)
 ALLOWED_COLLECTORS = set(STUDENT_COLLECTOR_IDS)
 BACKPACK_TO_COLLECTORS = BACKPACK_TO_STUDENT_COLLECTORS
@@ -314,10 +317,51 @@ def _save_roundtrip(schedule_data: dict, path: Path) -> dict:
     return load_schedule(path, strict=True)
 
 
+def _extract_endpoint_branch(source: str, endpoint: str) -> str:
+    pattern = re.compile(
+        rf'^(?P<indent>\s*)elif endpoint == "{re.escape(endpoint)}":\s*$',
+        re.MULTILINE,
+    )
+    match = pattern.search(source)
+    if not match:
+        raise AssertionError(f"server endpoint branch not found: {endpoint}")
+
+    indent = match.group("indent")
+    branch_start = match.start()
+    next_branch = re.search(
+        rf'^{re.escape(indent)}(?:elif|else)\b|^    def ',
+        source[match.end():],
+        re.MULTILINE,
+    )
+    branch_end = match.end() + next_branch.start() if next_branch else len(source)
+    return source[branch_start:branch_end]
+
+
+def _assert_schedule_endpoints_do_not_write_walk_log() -> None:
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    forbidden = (
+        "WALKS_LOG",
+        "Walks_Log.txt",
+        "_rebuild_walk_log",
+        "_run_drive_poll",
+    )
+    for endpoint in ("/api/schedule/claim", "/api/schedule/unclaim"):
+        branch = _extract_endpoint_branch(source, endpoint)
+        found = [token for token in forbidden if token in branch]
+        if found:
+            raise AssertionError(
+                f"{endpoint} must not write or rebuild Walks_Log.txt; found {found}"
+            )
+
+
 def run_regression(schedule_path: Path, start_date: str | None) -> int:
     tmp_dir = tempfile.TemporaryDirectory(prefix="self_schedule_regression_")
     work_path = Path(tmp_dir.name) / "schedule_output.json"
     try:
+        # Calendar claims are reservations only. Completed walks enter Walks_Log.txt
+        # through the Drive poll/upload flow, not through schedule claim APIs.
+        _assert_schedule_endpoints_do_not_write_walk_log()
+
         if schedule_path.exists():
             shutil.copy2(schedule_path, work_path)
         schedule = load_schedule(work_path, strict=False)

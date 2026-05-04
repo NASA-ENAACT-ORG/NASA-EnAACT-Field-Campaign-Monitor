@@ -448,6 +448,10 @@ If a secret does not exist yet, create it first with `gcloud secrets create <NAM
 
 **Walk completions**: Drive sync handles this. Alternatively, manually append a line to `data/runtime/persisted/Walks_Log.txt` in format `A_SOT_MN_MT_20260314_AM`.
 
+**Calendar claims**: claims are reservations, not completed walks. Claim, unclaim,
+edit, and delete actions update `data/outputs/site/schedule_output.json` only;
+they must not append to `data/runtime/persisted/Walks_Log.txt`.
+
 ---
 
 ## API Reference
