@@ -2,7 +2,7 @@
 
 This document is the quickest way to re-establish the current project direction.
 
-Last scanned: 2026-05-03 on `main` at `db6b422`.
+Last scanned: 2026-05-04 on `main` at `fd825b1`.
 
 ## Project Goal
 
@@ -60,7 +60,8 @@ Self-scheduling is implemented in the dashboard and server:
   for each backpack
 - the backpack status control group uses two compact, symmetrical status
   buttons; changing a backpack holder/location opens a confirmation modal before
-  showing the dropdown and OK submit action
+  showing the dropdown and OK submit action; the warning text is red and the
+  displayed person labels use names only, not `NAME (ID)`
 - Backpack A status options include the BP A team, Angy, and `CCNY`; Backpack B
   status options include the BP B team, `LaGuardia`, and `CCNY`; professor
   accounts are available and ordered at the bottom of relevant dropdowns
@@ -96,8 +97,8 @@ These now return `410 Gone` and should not be used by active callers.
 Recently completed:
 
 - PR #8 merged self-scheduling into `main`
-- backpack status controls and the follow-up prominence polish are pushed on
-  `main`
+- backpack status controls, confirmation-modal guardrail, red warning text, and
+  name-only display labels are committed on `main`
 - shared collector/route/backpack registry extraction into `shared/registry.py`
 - scheduler runtime hooks retired from the active server flow
 - scheduler/map/transit scripts moved under `pipelines/_retired/`
@@ -143,17 +144,30 @@ Code-verifiable checks now pass with the repo-local sandbox Python:
 - `.codex-local\python39\python.exe scripts/ops/self_schedule_smoke.py --schedule ".tmp/schedule_output.test.json" --in-place` -> PASS
 - `git diff --check` -> PASS
 
-Manual checks still worth doing before merge:
+Most recent focused checks after the backpack status modal/name polish:
+
+- `.codex-local\python39\python.exe -m py_compile pipelines/dashboard/build_dashboard.py scripts/ops/self_schedule_regression.py` -> PASS
+- `.codex-local\python39\python.exe pipelines/dashboard/build_dashboard.py` -> PASS
+- `.codex-local\python39\python.exe scripts/ops/self_schedule_regression.py` -> PASS
+- `git diff --check` -> PASS
+
+GCP-owner/manual checks still worth doing before production release:
 
 - Cloud Run deploy sanity: deploy, trigger one rebuild, and confirm no scheduler
-  path regression
+  path regression; this requires access to the production Google Cloud project
 - browser UI sanity: claim, conflict rejection, unclaim/delete, and refresh
-  persistence; also verify Backpack A/B status dropdown persistence after
-  refresh/reopen
+  persistence; also verify Backpack A/B status-button/modal persistence after
+  refresh/reopen in production
 - production notification setup: Secret Manager SMTP values and
-  `NOTIFICATION_PREFERENCES_JSON`
+  `NOTIFICATION_PREFERENCES_JSON`; this requires Secret Manager access and is
+  handed off to the GCP owner
 - automation sanity: confirm no coworker-owned/external caller still depends on
   `/api/rerun*`
+- dashboard Reminders modal decision is intentionally deferred; do not remove
+  or redesign it until production access and notification ownership are clearer
+- Soteri has been asked for help with GCP/Cloud Run/Secret Manager validation;
+  use `docs/operations/guides/SOTERI_PRODUCTION_VALIDATION_CHECKLIST.md` as the
+  handoff checklist
 
 ## How To Resume Work
 
