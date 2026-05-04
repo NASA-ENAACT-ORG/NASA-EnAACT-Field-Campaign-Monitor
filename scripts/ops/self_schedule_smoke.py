@@ -23,11 +23,11 @@ if str(_REPO_ROOT) not in sys.path:
 
 from shared.paths import SCHEDULE_OUTPUT_JSON
 from shared.registry import (
-    BACKPACK_TO_STUDENT_COLLECTORS,
+    BACKPACK_TO_SCHEDULE_COLLECTORS,
     ROUTE_CODES,
     ROUTE_LABELS,
+    SCHEDULE_COLLECTOR_IDS,
     SLOT_TODS,
-    STUDENT_COLLECTOR_IDS,
     VALID_BACKPACKS,
 )
 from shared.schedule_store import (
@@ -37,8 +37,8 @@ from shared.schedule_store import (
 )
 
 ALLOWED_ROUTES = ROUTE_CODES
-ALLOWED_COLLECTORS = STUDENT_COLLECTOR_IDS
-BACKPACK_TO_COLLECTORS = BACKPACK_TO_STUDENT_COLLECTORS
+ALLOWED_COLLECTORS = SCHEDULE_COLLECTOR_IDS
+BACKPACK_TO_COLLECTORS = BACKPACK_TO_SCHEDULE_COLLECTORS
 TODS = SLOT_TODS
 
 
@@ -123,7 +123,6 @@ def _unclaim_assignment(schedule_data: dict, *, backpack: str, route: str, date_
     for idx, assignment in enumerate(schedule_data.get("assignments", [])):
         if (
             str(assignment.get("backpack", "")).upper() == backpack
-            and str(assignment.get("route", "")).upper() == route
             and str(assignment.get("date", "")) == date_str
             and str(assignment.get("tod", "")).upper() == tod
         ):

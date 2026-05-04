@@ -18,14 +18,13 @@ from shared.paths import (
 )
 from shared.gcs import pull_if_available as gcs_pull
 from shared.registry import (
-    BACKPACK_TO_STUDENT_COLLECTORS,
+    BACKPACK_TO_SCHEDULE_COLLECTORS,
     COLLECTOR_DISPLAY_NAMES,
     COLLECTOR_GROUPS,
     COLLECTOR_KML_NAME_TO_ID,
     COLLECTOR_PIN_COLORS,
     COLLECTOR_ROUTE_AFFINITY,
     DASHBOARD_COLLECTORS,
-    LAST_RESORT_BACKPACK,
     LAST_RESORT_COLLECTORS,
     NON_COLLECTOR_IDS,
     ROUTE_LABELS,
@@ -61,15 +60,15 @@ dashboard_collector_names_json = json.dumps({
     for cid in DASHBOARD_COLLECTORS + NON_COLLECTOR_IDS
 })
 slot_backpack_collectors_json = json.dumps({
-    bp: (
-        sorted(collectors)
-        + (
-            [cid for cid in LAST_RESORT_COLLECTORS if cid not in collectors]
-            if bp == LAST_RESORT_BACKPACK else []
-        )
-        + list(STAFF_COLLECTORS)
+    bp: sorted(
+        collectors,
+        key=lambda cid: (
+            cid in STAFF_COLLECTORS,
+            cid in LAST_RESORT_COLLECTORS,
+            cid,
+        ),
     )
-    for bp, collectors in BACKPACK_TO_STUDENT_COLLECTORS.items()
+    for bp, collectors in BACKPACK_TO_SCHEDULE_COLLECTORS.items()
 })
 upload_collector_options_html = "".join(
     f'<option value="{cid}">{COLLECTOR_DISPLAY_NAMES.get(cid, cid)} ({cid})</option>'

@@ -79,6 +79,7 @@ NON_COLLECTOR_IDS: tuple[str, ...] = ("ANG",)
 STUDENT_COLLECTOR_IDS: frozenset[str] = frozenset(STUDENT_COLLECTORS)
 VALID_BACKPACKS: tuple[str, ...] = ("A", "B")
 SLOT_TODS: tuple[str, ...] = ("AM", "MD", "PM")
+LAST_RESORT_BACKPACK = "A"
 
 COLLECTOR_DISPLAY_NAMES: dict[str, str] = {
     "SOT": "Soteri",
@@ -151,12 +152,22 @@ BACKPACK_TO_STUDENT_COLLECTORS: dict[str, frozenset[str]] = {
     bp: frozenset(cid.upper() for cid in members)
     for bp, members in BACKPACK_COLLECTORS.items()
 }
+BACKPACK_TO_SCHEDULE_COLLECTORS: dict[str, frozenset[str]] = {
+    bp: frozenset(
+        set(collectors)
+        | set(STAFF_COLLECTORS)
+        | (set(LAST_RESORT_COLLECTORS) if bp == LAST_RESORT_BACKPACK else set())
+    )
+    for bp, collectors in BACKPACK_TO_STUDENT_COLLECTORS.items()
+}
+SCHEDULE_COLLECTOR_IDS: frozenset[str] = frozenset().union(
+    *BACKPACK_TO_SCHEDULE_COLLECTORS.values()
+)
 COLLECTOR_GROUPS: tuple[dict[str, object], ...] = (
     {"id": "ccny", "cls": "ccny", "title": "CCNY", "sub": "Backpack A", "members": ("SOT", "AYA", "JEN", "TAH")},
     {"id": "lagcc", "cls": "lagcc", "title": "LaGCC", "sub": "Backpack B", "members": ("TER", "ALX", "SCT", "JAM")},
     {"id": "staff", "cls": "staff", "title": "Professors", "sub": "Non-scheduled", "members": ("NRS", "PRA", "NAT")},
 )
-LAST_RESORT_BACKPACK = "A"
 CAMPUS_PROXY_ROUTE: dict[str, str] = {"A": "MN_HT", "B": "QN_LA"}
 
 # Collector -> preferred route neighborhood codes used by dashboard analytics

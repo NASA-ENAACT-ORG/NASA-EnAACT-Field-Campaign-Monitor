@@ -71,13 +71,11 @@ from shared.notification_preferences import (
     load_notification_preferences,
 )
 from shared.registry import (
-    BACKPACK_TO_STUDENT_COLLECTORS,
-    LAST_RESORT_BACKPACK,
-    LAST_RESORT_COLLECTORS,
+    BACKPACK_TO_SCHEDULE_COLLECTORS,
     ROUTE_CODES,
     ROUTE_LABELS,
+    SCHEDULE_COLLECTOR_IDS,
     SLOT_TODS,
-    STAFF_COLLECTORS,
     VALID_BACKPACKS,
 )
 
@@ -91,14 +89,10 @@ SCHEDULE_OUTPUT    = SCHEDULE_OUTPUT_JSON
 NOTIFICATION_LOG   = PERSISTED_DIR / "notification_dispatch_log.jsonl"
 ALLOWED_ROUTES = ROUTE_CODES
 BACKPACK_TO_COLLECTORS = {
-    bp: (
-        set(collectors)
-        | set(STAFF_COLLECTORS)
-        | (set(LAST_RESORT_COLLECTORS) if bp == LAST_RESORT_BACKPACK else set())
-    )
-    for bp, collectors in BACKPACK_TO_STUDENT_COLLECTORS.items()
+    bp: set(collectors)
+    for bp, collectors in BACKPACK_TO_SCHEDULE_COLLECTORS.items()
 }
-ALLOWED_COLLECTORS = frozenset().union(*BACKPACK_TO_COLLECTORS.values())
+ALLOWED_COLLECTORS = SCHEDULE_COLLECTOR_IDS
 
 # "" Drive config """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
@@ -1328,7 +1322,7 @@ class Handler(BaseHTTPRequestHandler):
                            json.dumps({"error": "bad request"}).encode())
                 return
 
-            required = ["backpack", "route", "date", "tod"]
+            required = ["backpack", "date", "tod"]
             missing = [k for k in required if not payload.get(k)]
             if missing:
                 self._send(400, "application/json",
@@ -1336,7 +1330,6 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             backpack = str(payload.get("backpack", "")).upper().strip()
-            route = str(payload.get("route", "")).upper().strip()
             date_str = str(payload.get("date", "")).strip()
             tod = str(payload.get("tod", "")).upper().strip()
             collector = str(payload.get("collector", "")).upper().strip()
@@ -1354,7 +1347,6 @@ class Handler(BaseHTTPRequestHandler):
                 for idx, assignment in enumerate(schedule_data.get("assignments", [])):
                     if (
                         str(assignment.get("backpack", "")).upper() == backpack
-                        and str(assignment.get("route", "")).upper() == route
                         and str(assignment.get("date", "")) == date_str
                         and str(assignment.get("tod", "")).upper() == tod
                     ):
@@ -1910,6 +1902,8 @@ class Handler(BaseHTTPRequestHandler):
                 target["neigh"] = parts[1] if len(parts) > 1 else str(target.get("route", ""))
                 if "label" not in updates:
                     target["label"] = ROUTE_LABELS.get(route, route)
+            weather_key = f"{date_str}_{tod}"
+            target["weather_advisory"] = schedule_data.get("weather", {}).get(weather_key) is False
             target["updated_at"] = datetime.now().isoformat()
             explicit_id = str(target.get("id", "")).strip()
             if explicit_id:

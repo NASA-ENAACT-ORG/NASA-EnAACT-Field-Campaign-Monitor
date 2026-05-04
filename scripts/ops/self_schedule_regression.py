@@ -10,7 +10,9 @@ Covers:
 - unclaim success
 - patch success by fallback alias against explicit ID
 - patch route update keeps explicit ID and refreshes boro/neigh/label
+- patch date/tod update refreshes weather advisory state
 - patch conflict returns validation error
+- unclaim succeeds after route edits because slot identity excludes route
 - delete success by explicit ID
 - patch success by legacy pipe-delimited fallback ID
 - delete success by legacy pipe-delimited fallback ID
@@ -19,6 +21,7 @@ Covers:
 from __future__ import annotations
 
 import argparse
+import copy
 import re
 import shutil
 import tempfile
@@ -34,11 +37,11 @@ if str(REPO_ROOT) not in sys.path:
 
 from shared.paths import SCHEDULE_OUTPUT_JSON
 from shared.registry import (
-    BACKPACK_TO_STUDENT_COLLECTORS,
+    BACKPACK_TO_SCHEDULE_COLLECTORS,
     ROUTE_CODES,
     ROUTE_LABELS,
+    SCHEDULE_COLLECTOR_IDS,
     SLOT_TODS,
-    STUDENT_COLLECTOR_IDS,
     VALID_BACKPACKS,
 )
 from shared.schedule_store import ScheduleValidationError, load_schedule, save_schedule
@@ -46,8 +49,8 @@ from shared.schedule_store import ScheduleValidationError, load_schedule, save_s
 
 SERVER_SOURCE = REPO_ROOT / "app" / "server" / "serve.py"
 ALLOWED_ROUTES = sorted(ROUTE_CODES)
-ALLOWED_COLLECTORS = set(STUDENT_COLLECTOR_IDS)
-BACKPACK_TO_COLLECTORS = BACKPACK_TO_STUDENT_COLLECTORS
+ALLOWED_COLLECTORS = set(SCHEDULE_COLLECTOR_IDS)
+BACKPACK_TO_COLLECTORS = BACKPACK_TO_SCHEDULE_COLLECTORS
 TODS = SLOT_TODS
 
 
@@ -233,9 +236,9 @@ def _unclaim(schedule_data: dict, ref: AssignmentRef) -> None:
     for idx, assignment in enumerate(assignments):
         if (
             str(assignment.get("backpack", "")).upper() == ref.backpack
-            and str(assignment.get("route", "")).upper() == ref.route
             and str(assignment.get("date", "")) == ref.date_str
             and str(assignment.get("tod", "")).upper() == ref.tod
+            and str(assignment.get("collector", "")).upper() == ref.collector
         ):
             assignments.pop(idx)
             _refresh_schedule_week_bounds(schedule_data)
@@ -293,6 +296,8 @@ def _patch(schedule_data: dict, assignment_id: str, updates: dict) -> dict:
         target["neigh"] = parts[1] if len(parts) > 1 else route
         if "label" not in normalized_updates:
             target["label"] = ROUTE_LABELS.get(route, route)
+    weather_key = f"{date_str}_{tod}"
+    target["weather_advisory"] = schedule_data.get("weather", {}).get(weather_key) is False
     target["updated_at"] = datetime.now().isoformat()
     explicit_id = str(target.get("id", "")).strip()
     if explicit_id:
@@ -315,6 +320,71 @@ def _delete(schedule_data: dict, assignment_id: str) -> dict:
 def _save_roundtrip(schedule_data: dict, path: Path) -> dict:
     save_schedule(schedule_data, path, make_backup=False)
     return load_schedule(path, strict=True)
+
+
+def _sample_assignment(schedule_data: dict, *, assignment_id: str = "test-id") -> dict:
+    backpack, route, date_str, tod, collector = _find_open_slot(schedule_data)
+    parts = route.split("_", 1)
+    return {
+        "id": assignment_id,
+        "route": route,
+        "label": ROUTE_LABELS.get(route, route),
+        "boro": parts[0] if parts else "",
+        "neigh": parts[1] if len(parts) > 1 else route,
+        "tod": tod,
+        "backpack": backpack,
+        "collector": collector,
+        "date": date_str,
+        "status": "claimed",
+        "claimed_at": datetime.now().isoformat(),
+        "claimed_by": collector,
+        "updated_at": datetime.now().isoformat(),
+    }
+
+
+def _assert_validation_rejects(schedule_data: dict, path: Path, message: str, mutate) -> None:
+    bad_schedule = copy.deepcopy(schedule_data)
+    mutate(bad_schedule)
+    try:
+        save_schedule(bad_schedule, path, make_backup=False)
+    except ScheduleValidationError as exc:
+        if message not in str(exc):
+            raise AssertionError(
+                f"expected validation message containing {message!r}, got {exc!r}"
+            )
+        return
+    raise AssertionError(f"expected validation failure containing {message!r}")
+
+
+def _assert_storage_validation_guards(schedule_data: dict, path: Path) -> None:
+    """Catch corrupt schedule_output.json cases before API edits inherit them."""
+
+    def add_bad_route(data: dict) -> None:
+        assignment = _sample_assignment(data, assignment_id="bad-route")
+        assignment["route"] = "NOPE_ROUTE"
+        data.setdefault("assignments", []).append(assignment)
+
+    def add_bad_collector(data: dict) -> None:
+        assignment = _sample_assignment(data, assignment_id="bad-collector")
+        assignment["collector"] = "ZZZ"
+        data.setdefault("assignments", []).append(assignment)
+
+    def add_ineligible_collector(data: dict) -> None:
+        assignment = _sample_assignment(data, assignment_id="ineligible-collector")
+        assignment["backpack"] = "B"
+        assignment["collector"] = "ANG"
+        data.setdefault("assignments", []).append(assignment)
+
+    def add_duplicate_lookup_id(data: dict) -> None:
+        first = _sample_assignment(data, assignment_id="duplicate-id")
+        data.setdefault("assignments", []).append(first)
+        second = _sample_assignment(data, assignment_id="duplicate-id")
+        data.setdefault("assignments", []).append(second)
+
+    _assert_validation_rejects(schedule_data, path, "invalid route", add_bad_route)
+    _assert_validation_rejects(schedule_data, path, "invalid collector", add_bad_collector)
+    _assert_validation_rejects(schedule_data, path, "not eligible", add_ineligible_collector)
+    _assert_validation_rejects(schedule_data, path, "Duplicate assignment lookup id", add_duplicate_lookup_id)
 
 
 def _extract_endpoint_branch(source: str, endpoint: str) -> str:
@@ -365,6 +435,7 @@ def run_regression(schedule_path: Path, start_date: str | None) -> int:
         if schedule_path.exists():
             shutil.copy2(schedule_path, work_path)
         schedule = load_schedule(work_path, strict=False)
+        _assert_storage_validation_guards(schedule, work_path)
 
         # 1) Claim succeeds on open slot
         slot1 = _find_open_slot(schedule, start_date=start_date)
@@ -493,7 +564,32 @@ def run_regression(schedule_path: Path, start_date: str | None) -> int:
         )
         schedule = _save_roundtrip(schedule, work_path)
 
-        # 7) Patch conflict path (edit into occupied slot) -> API conflict
+        # 7) Date/tod patch refreshes weather advisory for the new slot.
+        weather_route, weather_date, weather_tod = _find_open_slot_for_collector(
+            schedule,
+            backpack=ref2.backpack,
+            collector=ref2.collector,
+            start_date=start_date,
+        )
+        schedule.setdefault("weather", {})[f"{weather_date}_{weather_tod}"] = False
+        patched_weather = _patch(
+            schedule,
+            custom_id,
+            {"route": weather_route, "date": weather_date, "tod": weather_tod},
+        )
+        if patched_weather.get("weather_advisory") is not True:
+            raise AssertionError("date/tod patch should refresh weather_advisory")
+        ref2 = AssignmentRef(
+            backpack=str(patched_weather.get("backpack", "")).upper(),
+            route=str(patched_weather.get("route", "")).upper(),
+            date_str=str(patched_weather.get("date", "")),
+            tod=str(patched_weather.get("tod", "")).upper(),
+            collector=str(patched_weather.get("collector", "")).upper(),
+            assignment_id=custom_id,
+        )
+        schedule = _save_roundtrip(schedule, work_path)
+
+        # 8) Patch conflict path (edit into occupied slot) -> API conflict
         slot3 = _find_open_slot(schedule, start_date=start_date)
         ref3 = _claim(
             schedule,
@@ -521,11 +617,28 @@ def run_regression(schedule_path: Path, start_date: str | None) -> int:
         except ApiConflictError:
             schedule = load_schedule(work_path, strict=True)
 
-        # 8) Delete succeeds for explicit ID
+        # 9) Unclaim uses the durable slot key, not stale route identity.
+        stale_route_slot = _find_open_slot(schedule, start_date=start_date)
+        stale_ref = _claim(
+            schedule,
+            backpack=stale_route_slot[0],
+            route=stale_route_slot[1],
+            date_str=stale_route_slot[2],
+            tod=stale_route_slot[3],
+            collector=stale_route_slot[4],
+        )
+        schedule = _save_roundtrip(schedule, work_path)
+        stale_new_route = next(r for r in ALLOWED_ROUTES if r != stale_ref.route)
+        _patch(schedule, stale_ref.assignment_id, {"route": stale_new_route})
+        schedule = _save_roundtrip(schedule, work_path)
+        _unclaim(schedule, stale_ref)
+        schedule = _save_roundtrip(schedule, work_path)
+
+        # 10) Delete succeeds for explicit ID
         _delete(schedule, ref3.assignment_id)
         schedule = _save_roundtrip(schedule, work_path)
 
-        # 9) Legacy assignment: patch succeeds via pipe-delimited fallback ID
+        # 11) Legacy assignment: patch succeeds via pipe-delimited fallback ID
         legacy_backpack, legacy_route, legacy_date, legacy_tod, legacy_collector = _find_open_slot(
             schedule, start_date=start_date
         )
@@ -553,7 +666,7 @@ def run_regression(schedule_path: Path, start_date: str | None) -> int:
             raise AssertionError("legacy pipe-id patch failed")
         schedule = _save_roundtrip(schedule, work_path)
 
-        # 10) Delete succeeds for legacy pipe-delimited fallback ID
+        # 12) Delete succeeds for legacy pipe-delimited fallback ID
         _delete(schedule, legacy_pipe_id)
         schedule = _save_roundtrip(schedule, work_path)
 

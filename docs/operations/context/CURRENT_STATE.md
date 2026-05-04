@@ -51,6 +51,13 @@ Self-scheduling is implemented in the dashboard and server:
 - weather is advisory only
 - uniqueness is enforced per `backpack + date + tod`
 - collector double-booking is blocked within the same `date + tod`
+- schedule storage validation rejects unknown route codes, unknown collectors,
+  backpack-ineligible collectors, and duplicate assignment lookup IDs before
+  saving `schedule_output.json`
+- unclaim/removal semantics follow the durable slot identity
+  `backpack + date + tod`, so a stale route value cannot strand a claim after a
+  route edit
+- assignment edits refresh `weather_advisory` when date/time-of-day changes
 - claim/unclaim writes go through `shared/schedule_store.py` and persist only
   `schedule_output.json`; they must not write completed-walk entries to
   `Walks_Log.txt`
@@ -112,6 +119,11 @@ Recently completed:
   Codex handoff moved to local-only `.codex-local/context/NEXT_CHAT_HANDOFF.md`
 - repo-owned caller audit found no active `/api/rerun*` callers outside the
   intentional `410 Gone` handlers and historical/context documentation
+- adversarial self-scheduling validation now guards against corrupt
+  `schedule_output.json` records with bad routes, fake collectors,
+  backpack-ineligible collectors, or duplicate lookup IDs
+- adversarial self-scheduling route/edit checks now cover stale-route unclaim
+  and weather-advisory refresh after assignment date/time edits
 
 Still true:
 
@@ -149,6 +161,14 @@ Most recent focused checks after the backpack status modal/name polish:
 - `.codex-local\python39\python.exe -m py_compile pipelines/dashboard/build_dashboard.py scripts/ops/self_schedule_regression.py` -> PASS
 - `.codex-local\python39\python.exe pipelines/dashboard/build_dashboard.py` -> PASS
 - `.codex-local\python39\python.exe scripts/ops/self_schedule_regression.py` -> PASS
+- `git diff --check` -> PASS
+
+Most recent adversarial self-scheduling hardening checks:
+
+- `.codex-local\python39\python.exe -m py_compile app/server/serve.py pipelines/dashboard/build_dashboard.py shared/registry.py shared/schedule_store.py scripts/ops/self_schedule_regression.py scripts/ops/self_schedule_smoke.py` -> PASS
+- `.codex-local\python39\python.exe scripts/ops/self_schedule_regression.py` -> PASS
+- `.codex-local\python39\python.exe scripts/ops/self_schedule_smoke.py --schedule ".tmp/schedule_output.test.json" --in-place` -> PASS
+- `.codex-local\python39\python.exe pipelines/dashboard/build_dashboard.py` -> PASS
 - `git diff --check` -> PASS
 
 GCP-owner/manual checks still worth doing before production release:

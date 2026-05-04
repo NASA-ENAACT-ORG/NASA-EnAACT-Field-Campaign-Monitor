@@ -12,6 +12,11 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from shared.paths import SCHEDULE_OUTPUT_JSON
+from shared.registry import (
+    BACKPACK_TO_SCHEDULE_COLLECTORS,
+    ROUTE_CODES,
+    SCHEDULE_COLLECTOR_IDS,
+)
 
 TODS = {"AM", "MD", "PM"}
 _REQUIRED_TOP_LEVEL = {
@@ -69,6 +74,19 @@ def _collector_slot_key(assignment: dict) -> tuple[str, str, str]:
     )
 
 
+def _assignment_lookup_aliases(assignment: dict) -> set[str]:
+    backpack, date_str, tod = _assignment_slot_key(assignment)
+    route = str(assignment.get("route", "")).upper()
+    aliases = {
+        f"{backpack}_{route}_{date_str}_{tod}",
+        f"{backpack}|{route}|{date_str}|{tod}",
+    }
+    explicit = str(assignment.get("id", "")).strip()
+    if explicit:
+        aliases.add(explicit)
+    return aliases
+
+
 def build_default_schedule(today: date | None = None) -> dict:
     """Return an empty schedule document with compatibility fields present."""
     today = today or date.today()
@@ -114,8 +132,9 @@ def validate_schedule(data: dict) -> None:
     if data.get("week_end"):
         _validate_date(str(data["week_end"]), "week_end")
 
-    seen_assignment_slots: set[tuple[str, str, str, str]] = set()
+    seen_assignment_slots: set[tuple[str, str, str]] = set()
     seen_collector_slots: set[tuple[str, str, str]] = set()
+    seen_lookup_aliases: set[str] = set()
 
     for idx, assignment in enumerate(data["assignments"]):
         if not isinstance(assignment, dict):
@@ -127,10 +146,10 @@ def validate_schedule(data: dict) -> None:
                 f"Assignment #{idx} missing fields: {', '.join(missing_fields)}"
             )
 
-        backpack = str(assignment["backpack"]).upper()
-        tod = str(assignment["tod"]).upper()
+        backpack = str(assignment["backpack"]).strip().upper()
+        tod = str(assignment["tod"]).strip().upper()
         collector = str(assignment["collector"]).strip().upper()
-        route = str(assignment["route"]).strip()
+        route = str(assignment["route"]).strip().upper()
         date_str = str(assignment["date"]).strip()
 
         if backpack not in {"A", "B"}:
@@ -145,6 +164,20 @@ def validate_schedule(data: dict) -> None:
             raise ScheduleValidationError(f"Assignment #{idx} collector cannot be empty")
         if not route:
             raise ScheduleValidationError(f"Assignment #{idx} route cannot be empty")
+        if route not in ROUTE_CODES:
+            raise ScheduleValidationError(
+                f"Assignment #{idx} has invalid route: {assignment['route']!r}"
+            )
+        if collector not in SCHEDULE_COLLECTOR_IDS:
+            raise ScheduleValidationError(
+                f"Assignment #{idx} has invalid collector: {assignment['collector']!r}"
+            )
+        allowed_collectors = BACKPACK_TO_SCHEDULE_COLLECTORS.get(backpack, frozenset())
+        if collector not in allowed_collectors:
+            raise ScheduleValidationError(
+                f"Assignment #{idx} collector {collector} is not eligible "
+                f"for Backpack {backpack}"
+            )
 
         _validate_date(date_str, f"assignments[{idx}].date")
 
@@ -153,6 +186,8 @@ def validate_schedule(data: dict) -> None:
         assignment["collector"] = collector
         assignment["route"] = route
         assignment["date"] = date_str
+        if "id" in assignment:
+            assignment["id"] = str(assignment.get("id", "")).strip()
 
         slot_key = _assignment_slot_key(assignment)
         if slot_key in seen_assignment_slots:
@@ -169,6 +204,15 @@ def validate_schedule(data: dict) -> None:
                 f"{collector_key[0]} {collector_key[1]} {collector_key[2]}"
             )
         seen_collector_slots.add(collector_key)
+
+        lookup_aliases = _assignment_lookup_aliases(assignment)
+        duplicate_aliases = lookup_aliases.intersection(seen_lookup_aliases)
+        if duplicate_aliases:
+            duplicate = sorted(duplicate_aliases)[0]
+            raise ScheduleValidationError(
+                f"Duplicate assignment lookup id: {duplicate}"
+            )
+        seen_lookup_aliases.update(lookup_aliases)
 
 
 def load_schedule(path: Path = SCHEDULE_OUTPUT_JSON, *, strict: bool = False) -> dict:
