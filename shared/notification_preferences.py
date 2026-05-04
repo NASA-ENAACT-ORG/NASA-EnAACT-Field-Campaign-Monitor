@@ -40,9 +40,10 @@ def load_notification_preferences(path: Path = COLLECTOR_NOTIFICATION_PREFS) -> 
     else:
         raw = {}
 
+    if not isinstance(raw, dict):
+        raise ValueError("notification preferences must be a JSON object")
+
     if raw:
-        if not isinstance(raw, dict):
-            raise ValueError("notification preferences must be a JSON object")
         for cid, config in raw.items():
             collector = str(cid).upper().strip()
             if not collector or not isinstance(config, dict):
