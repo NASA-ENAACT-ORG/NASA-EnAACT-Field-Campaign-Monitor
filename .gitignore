@@ -40,9 +40,13 @@ __pycache__/
 *.pyd
 
 # Virtual environments
+.codex-local/
 venv/
 .venv/
 env/
+
+# Local AI-agent instructions
+AGENTS.md
 
 # Claude Code IDE local config
 .claude/
