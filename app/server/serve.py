@@ -11,7 +11,6 @@ Endpoints:
   GET  /api/status              ' JSON with file mod times, Drive status
   GET  /api/schedule            ' JSON schedule document
   GET  /api/schedule/slots      ' slot-oriented schedule view
-  POST /api/backpack-status     ' update backpack holder/location state
   POST /api/rebuild             ' rebuild dashboard, stream output
   POST /api/schedule/rebuild-site ' weather + site rebuild (no scheduler)
   POST /api/notifications/preview ' preview next-day confirmation/advisory payload
@@ -72,12 +71,10 @@ from shared.notification_preferences import (
 )
 from shared.registry import (
     BACKPACK_TO_STUDENT_COLLECTORS,
-    LAST_RESORT_BACKPACK,
-    LAST_RESORT_COLLECTORS,
     ROUTE_CODES,
     ROUTE_LABELS,
     SLOT_TODS,
-    STAFF_COLLECTORS,
+    STUDENT_COLLECTOR_IDS,
     VALID_BACKPACKS,
 )
 
@@ -90,15 +87,8 @@ SEEN_FILES_PATH    = DRIVE_SEEN_FILES
 SCHEDULE_OUTPUT    = SCHEDULE_OUTPUT_JSON
 NOTIFICATION_LOG   = PERSISTED_DIR / "notification_dispatch_log.jsonl"
 ALLOWED_ROUTES = ROUTE_CODES
-BACKPACK_TO_COLLECTORS = {
-    bp: (
-        set(collectors)
-        | set(STAFF_COLLECTORS)
-        | (set(LAST_RESORT_COLLECTORS) if bp == LAST_RESORT_BACKPACK else set())
-    )
-    for bp, collectors in BACKPACK_TO_STUDENT_COLLECTORS.items()
-}
-ALLOWED_COLLECTORS = frozenset().union(*BACKPACK_TO_COLLECTORS.values())
+ALLOWED_COLLECTORS = STUDENT_COLLECTOR_IDS
+BACKPACK_TO_COLLECTORS = BACKPACK_TO_STUDENT_COLLECTORS
 
 # "" Drive config """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
@@ -1135,71 +1125,6 @@ class Handler(BaseHTTPRequestHandler):
                            json.dumps({"error": "wrong pin"}).encode())
                 return
             self._send(200, "application/json", json.dumps({"ok": True}).encode())
-
-        elif endpoint == "/api/backpack-status":
-            payload, err = self._read_json_body()
-            if err:
-                self._send(400, "application/json",
-                           json.dumps({"error": err}).encode())
-                return
-
-            backpack = str(payload.get("backpack", "")).upper().strip()
-            holder = str(payload.get("holder", "")).upper().strip()
-            location = str(payload.get("location", "")).strip()
-            updated_by = str(payload.get("updated_by", "")).upper().strip()
-
-            allowed_locations = {
-                "A": {"CCNY"},
-                "B": {"CCNY", "LaGuardia"},
-            }
-            if backpack not in VALID_BACKPACKS:
-                self._send(400, "application/json",
-                           json.dumps({"error": "backpack must be 'A' or 'B'"}).encode())
-                return
-            allowed_holders = BACKPACK_TO_COLLECTORS.get(backpack, set())
-            if holder and holder not in allowed_holders:
-                self._send(400, "application/json",
-                           json.dumps({"error": f"holder must be on Backpack {backpack} team"}).encode())
-                return
-            if location and location not in allowed_locations[backpack]:
-                self._send(400, "application/json",
-                           json.dumps({"error": f"location must be one of: {', '.join(sorted(allowed_locations[backpack]))}"}).encode())
-                return
-            if bool(holder) == bool(location):
-                self._send(400, "application/json",
-                           json.dumps({"error": "provide exactly one holder or location"}).encode())
-                return
-
-            with _schedule_write_lock:
-                _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
-                try:
-                    schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
-                except ScheduleValidationError as exc:
-                    self._send(500, "application/json",
-                               json.dumps({"error": f"invalid schedule data: {exc}"}).encode())
-                    return
-
-                status = schedule_data.setdefault("backpack_status", {})
-                status[backpack] = {
-                    "holder": holder,
-                    "location": location,
-                    "updated_at": datetime.now().isoformat(),
-                    "updated_by": updated_by,
-                    "source": "manual",
-                }
-
-                try:
-                    save_schedule(schedule_data, SCHEDULE_OUTPUT, make_backup=True)
-                except ScheduleValidationError as exc:
-                    self._send(409, "application/json",
-                               json.dumps({"error": f"validation failed: {exc}"}).encode())
-                    return
-
-                if _gcs_bucket:
-                    _upload_to_gcs(SCHEDULE_OUTPUT, "schedule_output.json")
-
-            self._send(200, "application/json",
-                       json.dumps({"ok": True, "schedule": schedule_data}).encode())
 
         elif endpoint == "/api/schedule/claim":
             try:
