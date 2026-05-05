@@ -8,8 +8,13 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+
+try:
+    from zoneinfo import ZoneInfo
+except Exception:  # pragma: no cover - Python/runtime compatibility fallback
+    ZoneInfo = None
 
 from shared.paths import SCHEDULE_OUTPUT_JSON
 from shared.registry import (
@@ -45,17 +50,86 @@ class ScheduleValidationError(ValueError):
     """Raised when schedule data fails schema or conflict checks."""
 
 
+SCHEDULE_TIMEZONE = "America/New_York"
+
+
+def _new_york_dst_bounds_utc(year: int) -> tuple[datetime, datetime]:
+    """Return UTC instants for US Eastern DST start/end in a given year."""
+
+    def nth_sunday(month: int, n: int) -> date:
+        first = date(year, month, 1)
+        offset = (6 - first.weekday()) % 7
+        return first + timedelta(days=offset + (7 * (n - 1)))
+
+    dst_start = nth_sunday(3, 2)
+    dst_end = nth_sunday(11, 1)
+    return (
+        datetime(year, 3, dst_start.day, 7, tzinfo=timezone.utc),
+        datetime(year, 11, dst_end.day, 6, tzinfo=timezone.utc),
+    )
+
+
+def _fallback_new_york_now() -> datetime:
+    """Best-effort New York time when zoneinfo/tzdata is unavailable."""
+    utc_now = datetime.now(timezone.utc)
+    dst_start, dst_end = _new_york_dst_bounds_utc(utc_now.year)
+    offset = timezone(timedelta(hours=-4 if dst_start <= utc_now < dst_end else -5))
+    return utc_now.astimezone(offset)
+
+
+def schedule_now(now: date | datetime | None = None) -> datetime:
+    """Return the current schedule clock time in America/New_York."""
+    if isinstance(now, datetime):
+        if now.tzinfo is not None:
+            if ZoneInfo is not None:
+                try:
+                    return now.astimezone(ZoneInfo(SCHEDULE_TIMEZONE))
+                except Exception:
+                    pass
+            return now
+        return now
+    if isinstance(now, date):
+        return datetime.combine(now, datetime.min.time())
+
+    if ZoneInfo is not None:
+        try:
+            return datetime.now(ZoneInfo(SCHEDULE_TIMEZONE))
+        except Exception:
+            pass
+    return _fallback_new_york_now()
+
+
+def schedule_today(now: date | datetime | None = None) -> date:
+    """Return the current schedule date in America/New_York."""
+    return schedule_now(now).date()
+
+
 def _iso_now() -> str:
-    return datetime.now().isoformat()
+    return schedule_now().isoformat()
 
 
-def _validate_date(value: str, field_name: str) -> None:
+def parse_schedule_date(value: str, field_name: str = "date") -> date:
     try:
-        date.fromisoformat(value)
+        return date.fromisoformat(value)
     except Exception as exc:  # pragma: no cover - defensive
         raise ScheduleValidationError(
             f"Invalid {field_name}: {value!r} (expected YYYY-MM-DD)"
         ) from exc
+
+
+def _validate_date(value: str, field_name: str) -> None:
+    parse_schedule_date(value, field_name)
+
+
+def is_past_schedule_date(value: str, today: date | datetime | None = None) -> bool:
+    """Return True when a schedule date is before the active schedule day."""
+    return parse_schedule_date(value) < schedule_today(today)
+
+
+def validate_schedule_date_not_past(value: str, today: date | datetime | None = None) -> None:
+    """Reject dates that are no longer claimable/editable."""
+    if is_past_schedule_date(value, today):
+        raise ScheduleValidationError("date must be today or later")
 
 
 def _assignment_slot_key(assignment: dict) -> tuple[str, str, str]:
@@ -89,7 +163,7 @@ def _assignment_lookup_aliases(assignment: dict) -> set[str]:
 
 def build_default_schedule(today: date | None = None) -> dict:
     """Return an empty schedule document with compatibility fields present."""
-    today = today or date.today()
+    today = today or schedule_today()
     week_start = today - timedelta(days=today.weekday())
     week_end = week_start + timedelta(days=6)
     return {
@@ -105,6 +179,60 @@ def build_default_schedule(today: date | None = None) -> dict:
         "assignments": [],
         "unassigned": [],
     }
+
+
+def refresh_schedule_week_bounds(schedule_data: dict, today: date | datetime | None = None) -> None:
+    """Keep week_start/week_end aligned to current/future assignment dates."""
+    parsed_dates: list[date] = []
+    for assignment in schedule_data.get("assignments", []) or []:
+        try:
+            parsed_dates.append(parse_schedule_date(str(assignment.get("date", ""))))
+        except ScheduleValidationError:
+            continue
+
+    if parsed_dates:
+        start = min(parsed_dates)
+        end = max(parsed_dates)
+    else:
+        current = schedule_today(today)
+        start = current - timedelta(days=current.weekday())
+        end = start + timedelta(days=6)
+
+    schedule_data["week_start"] = str(start)
+    schedule_data["week_end"] = str(end)
+
+
+def prune_expired_assignments(schedule_data: dict, today: date | datetime | None = None) -> int:
+    """Remove assignments dated before the current schedule day.
+
+    Completed walks are restored through Walks_Log.txt after upload/Drive polling;
+    schedule_output.json keeps only active reservations.
+    """
+    assignments = schedule_data.get("assignments")
+    if not isinstance(assignments, list):
+        return 0
+
+    current = schedule_today(today)
+    kept: list = []
+    removed = 0
+    for assignment in assignments:
+        if not isinstance(assignment, dict):
+            kept.append(assignment)
+            continue
+        try:
+            assignment_date = parse_schedule_date(str(assignment.get("date", "")))
+        except ScheduleValidationError:
+            kept.append(assignment)
+            continue
+        if assignment_date < current:
+            removed += 1
+        else:
+            kept.append(assignment)
+
+    if removed:
+        schedule_data["assignments"] = kept
+        refresh_schedule_week_bounds(schedule_data, today=current)
+    return removed
 
 
 def validate_schedule(data: dict) -> None:
@@ -235,6 +363,38 @@ def load_schedule(path: Path = SCHEDULE_OUTPUT_JSON, *, strict: bool = False) ->
     return data
 
 
+def load_schedule_pruning_expired(
+    path: Path = SCHEDULE_OUTPUT_JSON,
+    *,
+    strict: bool = False,
+    today: date | datetime | None = None,
+) -> tuple[dict, int]:
+    """Load a schedule, allowing expired rows to be pruned before validation.
+
+    This prevents old duplicate/corrupt reservations from blocking the cleanup
+    path when their dates are already outside the active scheduling window.
+    """
+    try:
+        data = load_schedule(path, strict=strict)
+    except ScheduleValidationError as original_exc:
+        if not path.exists():
+            raise
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            raise original_exc
+        removed = prune_expired_assignments(data, today=today)
+        if not removed:
+            raise original_exc
+        validate_schedule(data)
+        return data, removed
+
+    removed = prune_expired_assignments(data, today=today)
+    if removed:
+        validate_schedule(data)
+    return data, removed
+
+
 def _atomic_write_json(path: Path, payload: str) -> None:
     """Atomically replace a JSON file by writing to a temp file first."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -253,7 +413,7 @@ def _atomic_write_json(path: Path, payload: str) -> None:
 def save_schedule(data: dict, path: Path = SCHEDULE_OUTPUT_JSON, *, make_backup: bool = True) -> None:
     """Validate then persist schedule JSON using atomic write semantics."""
     validate_schedule(data)
-    data["generated"] = str(date.today())
+    data["generated"] = str(schedule_today())
     data["generated_at"] = _iso_now()
 
     if make_backup and path.exists():

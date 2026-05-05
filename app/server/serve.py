@@ -63,8 +63,11 @@ from shared.paths import (
 from shared import gcs
 from shared.schedule_store import (
     ScheduleValidationError,
-    load_schedule,
+    load_schedule_pruning_expired,
+    refresh_schedule_week_bounds,
     save_schedule,
+    schedule_now,
+    validate_schedule_date_not_past,
 )
 from shared.notification_preferences import (
     destinations_for_collector,
@@ -412,7 +415,7 @@ def _resolve_notification_date(date_value: str | None) -> str:
     """Resolve notification date, defaulting to tomorrow in local server time."""
     if date_value:
         return date_value
-    return str(datetime.now().date() + timedelta(days=1))
+    return str(schedule_now().date() + timedelta(days=1))
 
 
 def _normalize_notification_channels(raw: Any) -> list[str]:
@@ -488,29 +491,24 @@ def _send_email_notification(*, to_email: str, subject: str, body: str) -> dict:
         return {"ok": False, "status": "failed", "error": str(exc)}
 
 
-def _refresh_schedule_week_bounds(schedule_data: dict) -> None:
-    """Keep week_start/week_end aligned to the current assignment date span."""
-    assignments = schedule_data.get("assignments", []) or []
-    parsed_dates: list[date] = []
-    for assignment in assignments:
-        try:
-            parsed_dates.append(date.fromisoformat(str(assignment.get("date", ""))))
-        except Exception:
-            continue
+def _load_schedule_prune_and_persist(*, sync_from_gcs: bool = True, make_backup: bool = True) -> tuple[dict, int]:
+    """Load schedule_output.json and persist removal of expired reservations."""
+    if sync_from_gcs:
+        _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
 
-    if not parsed_dates:
-        return
-
-    start = min(parsed_dates)
-    end = max(parsed_dates)
-    schedule_data["week_start"] = str(start)
-    schedule_data["week_end"] = str(end)
+    schedule_data, removed = load_schedule_pruning_expired(SCHEDULE_OUTPUT, strict=False)
+    if removed:
+        save_schedule(schedule_data, SCHEDULE_OUTPUT, make_backup=make_backup)
+        if _gcs_bucket:
+            _upload_to_gcs(SCHEDULE_OUTPUT, "schedule_output.json")
+        print(f"[schedule] Pruned {removed} expired assignment(s) from schedule_output.json")
+    return schedule_data, removed
 
 
 def _build_notifications_preview(target_date: str, requested_channels: list[str] | None = None) -> dict:
     """Build a preview payload for assignments on one date."""
-    _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
-    schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
+    with _schedule_write_lock:
+        schedule_data, _ = _load_schedule_prune_and_persist(sync_from_gcs=True)
     weather = schedule_data.get("weather", {})
     preferences = load_notification_preferences()
     assignments = [
@@ -818,6 +816,13 @@ def _run_drive_poll(source: str = "background"):
     log_changed = drive_set != prev_entries
     _rebuild_walk_log(merged)
 
+    schedule_pruned = 0
+    try:
+        with _schedule_write_lock:
+            _, schedule_pruned = _load_schedule_prune_and_persist(sync_from_gcs=True)
+    except ScheduleValidationError as exc:
+        print(f"[drive] WARNING: Could not prune expired schedule assignments: {exc}")
+
     new_count = len(current_ids - seen_ids)
     _save_seen_ids(current_ids)
 
@@ -826,8 +831,9 @@ def _run_drive_poll(source: str = "background"):
         if new_count > 0:
             _drive_new_today += new_count
 
-    if log_changed:
-        print(f"[drive] Walk log changed -- triggering dashboard rebuild")
+    if log_changed or schedule_pruned:
+        reason = "walk log changed" if log_changed else "expired schedule assignments pruned"
+        print(f"[drive] {reason} -- triggering dashboard rebuild")
         _trigger_rebuild()
     else:
         print(f"[drive] Walk log unchanged ({len(merged)} entries)")
@@ -947,8 +953,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "api/schedule":
             try:
                 # Keep local disk synced with bucket-authoritative schedule when available.
-                _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
-                schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
+                with _schedule_write_lock:
+                    schedule_data, _ = _load_schedule_prune_and_persist(sync_from_gcs=True)
                 self._send(
                     200,
                     "application/json",
@@ -965,8 +971,8 @@ class Handler(BaseHTTPRequestHandler):
         # /api/schedule/slots?week_start=YYYY-MM-DD
         if path == "api/schedule/slots":
             try:
-                _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
-                schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
+                with _schedule_write_lock:
+                    schedule_data, _ = _load_schedule_prune_and_persist(sync_from_gcs=True)
             except ScheduleValidationError as exc:
                 self._send(
                     500,
@@ -1165,9 +1171,8 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             with _schedule_write_lock:
-                _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
                 try:
-                    schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
+                    schedule_data, _ = _load_schedule_prune_and_persist(sync_from_gcs=True)
                 except ScheduleValidationError as exc:
                     self._send(500, "application/json",
                                json.dumps({"error": f"invalid schedule data: {exc}"}).encode())
@@ -1177,7 +1182,7 @@ class Handler(BaseHTTPRequestHandler):
                 status[backpack] = {
                     "holder": holder,
                     "location": location,
-                    "updated_at": datetime.now().isoformat(),
+                    "updated_at": schedule_now().isoformat(),
                     "updated_by": updated_by,
                     "source": "manual",
                 }
@@ -1230,6 +1235,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(400, "application/json",
                            json.dumps({"error": "date must be YYYY-MM-DD"}).encode())
                 return
+            try:
+                validate_schedule_date_not_past(date_str)
+            except ScheduleValidationError as exc:
+                self._send(400, "application/json",
+                           json.dumps({"error": str(exc)}).encode())
+                return
             if route not in ALLOWED_ROUTES:
                 self._send(400, "application/json",
                            json.dumps({"error": f"route must be one of: {', '.join(sorted(ALLOWED_ROUTES))}"}).encode())
@@ -1250,9 +1261,8 @@ class Handler(BaseHTTPRequestHandler):
             label = str(payload.get("label") or ROUTE_LABELS.get(route, route))
 
             with _schedule_write_lock:
-                _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
                 try:
-                    schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
+                    schedule_data, _ = _load_schedule_prune_and_persist(sync_from_gcs=True)
                 except ScheduleValidationError as exc:
                     self._send(500, "application/json",
                                json.dumps({"error": f"invalid schedule data: {exc}"}).encode())
@@ -1279,7 +1289,7 @@ class Handler(BaseHTTPRequestHandler):
 
                 weather_key = f"{date_str}_{tod}"
                 weather_advisory = schedule_data.get("weather", {}).get(weather_key) is False
-                now_iso = datetime.now().isoformat()
+                now_iso = schedule_now().isoformat()
                 assignment = {
                     "id": f"{backpack}_{route}_{date_str}_{tod}",
                     "route": route,
@@ -1297,7 +1307,7 @@ class Handler(BaseHTTPRequestHandler):
                     "weather_advisory": weather_advisory,
                 }
                 schedule_data.setdefault("assignments", []).append(assignment)
-                _refresh_schedule_week_bounds(schedule_data)
+                refresh_schedule_week_bounds(schedule_data)
 
                 try:
                     save_schedule(schedule_data, SCHEDULE_OUTPUT, make_backup=True)
@@ -1335,9 +1345,8 @@ class Handler(BaseHTTPRequestHandler):
             collector = str(payload.get("collector", "")).upper().strip()
 
             with _schedule_write_lock:
-                _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
                 try:
-                    schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
+                    schedule_data, _ = _load_schedule_prune_and_persist(sync_from_gcs=True)
                 except ScheduleValidationError as exc:
                     self._send(500, "application/json",
                                json.dumps({"error": f"invalid schedule data: {exc}"}).encode())
@@ -1361,7 +1370,7 @@ class Handler(BaseHTTPRequestHandler):
                     return
 
                 removed = schedule_data["assignments"].pop(match_idx)
-                _refresh_schedule_week_bounds(schedule_data)
+                refresh_schedule_week_bounds(schedule_data)
                 try:
                     save_schedule(schedule_data, SCHEDULE_OUTPUT, make_backup=True)
                 except ScheduleValidationError as exc:
@@ -1816,9 +1825,8 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         with _schedule_write_lock:
-            _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
             try:
-                schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
+                schedule_data, _ = _load_schedule_prune_and_persist(sync_from_gcs=True)
             except ScheduleValidationError as exc:
                 self._send(500, "application/json",
                            json.dumps({"error": f"invalid schedule data: {exc}"}).encode())
@@ -1855,6 +1863,12 @@ class Handler(BaseHTTPRequestHandler):
             if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_str):
                 self._send(400, "application/json",
                            json.dumps({"error": "date must be YYYY-MM-DD"}).encode())
+                return
+            try:
+                validate_schedule_date_not_past(date_str)
+            except ScheduleValidationError as exc:
+                self._send(400, "application/json",
+                           json.dumps({"error": str(exc)}).encode())
                 return
             if route not in ALLOWED_ROUTES:
                 self._send(400, "application/json",
@@ -1904,12 +1918,13 @@ class Handler(BaseHTTPRequestHandler):
                     target["label"] = ROUTE_LABELS.get(route, route)
             weather_key = f"{date_str}_{tod}"
             target["weather_advisory"] = schedule_data.get("weather", {}).get(weather_key) is False
-            target["updated_at"] = datetime.now().isoformat()
+            target["updated_at"] = schedule_now().isoformat()
             explicit_id = str(target.get("id", "")).strip()
             if explicit_id:
                 target["id"] = explicit_id
             else:
                 target["id"] = self._assignment_fallback_id(target, sep="_")
+            refresh_schedule_week_bounds(schedule_data)
 
             try:
                 save_schedule(schedule_data, SCHEDULE_OUTPUT, make_backup=True)
@@ -1945,9 +1960,8 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         with _schedule_write_lock:
-            _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
             try:
-                schedule_data = load_schedule(SCHEDULE_OUTPUT, strict=False)
+                schedule_data, _ = _load_schedule_prune_and_persist(sync_from_gcs=True)
             except ScheduleValidationError as exc:
                 self._send(500, "application/json",
                            json.dumps({"error": f"invalid schedule data: {exc}"}).encode())
@@ -1962,6 +1976,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(404, "application/json",
                            json.dumps({"error": "assignment not found"}).encode())
                 return
+            refresh_schedule_week_bounds(schedule_data)
 
             try:
                 save_schedule(schedule_data, SCHEDULE_OUTPUT, make_backup=True)
@@ -2055,7 +2070,11 @@ def _restore_gcs_state():
 
     # Weather and schedule JSON
     _download_from_gcs("weather.json", WEATHER_JSON)
-    _download_from_gcs("schedule_output.json", SCHEDULE_OUTPUT)
+    with _schedule_write_lock:
+        try:
+            _load_schedule_prune_and_persist(sync_from_gcs=True, make_backup=False)
+        except ScheduleValidationError as exc:
+            print(f"[gcs-restore] WARNING: schedule_output.json invalid after restore: {exc}")
 
     # Recal_Log.txt -- calibration entries survive across redeploys only via GCS
     _download_from_gcs("Recal_Log.txt", RECAL_LOG)
@@ -2090,7 +2109,11 @@ def main():
         # Recal_Log.txt " calibration history survives redeploys only via GCS
         _download_from_gcs("Recal_Log.txt", RECAL_LOG)
 
-        # schedule_output.json is already
+        with _schedule_write_lock:
+            try:
+                _load_schedule_prune_and_persist(sync_from_gcs=True, make_backup=False)
+            except ScheduleValidationError as exc:
+                print(f"[startup] WARNING: schedule_output.json invalid after restore: {exc}")
 
         print("[startup] GCS state restored")
 

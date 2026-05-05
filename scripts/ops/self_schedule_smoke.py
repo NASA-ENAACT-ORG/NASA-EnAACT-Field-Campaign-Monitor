@@ -11,7 +11,7 @@ from __future__ import annotations
 import argparse
 import shutil
 import tempfile
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 
 # Add repo root to sys.path so shared package is importable
@@ -33,7 +33,11 @@ from shared.registry import (
 from shared.schedule_store import (
     ScheduleValidationError,
     load_schedule,
+    refresh_schedule_week_bounds,
     save_schedule,
+    schedule_now,
+    schedule_today,
+    validate_schedule_date_not_past,
 )
 
 ALLOWED_ROUTES = ROUTE_CODES
@@ -43,17 +47,7 @@ TODS = SLOT_TODS
 
 
 def _refresh_schedule_week_bounds(schedule_data: dict) -> None:
-    assignments = schedule_data.get("assignments", []) or []
-    parsed_dates: list[date] = []
-    for assignment in assignments:
-        try:
-            parsed_dates.append(date.fromisoformat(str(assignment.get("date", ""))))
-        except Exception:
-            continue
-    if not parsed_dates:
-        return
-    schedule_data["week_start"] = str(min(parsed_dates))
-    schedule_data["week_end"] = str(max(parsed_dates))
+    refresh_schedule_week_bounds(schedule_data)
 
 
 def _validate_inputs(backpack: str, route: str, date_str: str, tod: str, collector: str) -> None:
@@ -71,6 +65,7 @@ def _validate_inputs(backpack: str, route: str, date_str: str, tod: str, collect
         date.fromisoformat(date_str)
     except Exception as exc:
         raise ValueError("date must be YYYY-MM-DD") from exc
+    validate_schedule_date_not_past(date_str)
 
 
 def _claim_assignment(schedule_data: dict, *, backpack: str, route: str, date_str: str, tod: str, collector: str) -> dict:
@@ -96,7 +91,7 @@ def _claim_assignment(schedule_data: dict, *, backpack: str, route: str, date_st
     label = ROUTE_LABELS.get(route, route)
     weather_key = f"{date_str}_{tod}"
     weather_advisory = schedule_data.get("weather", {}).get(weather_key) is False
-    now_iso = datetime.now().isoformat()
+    now_iso = schedule_now().isoformat()
     assignment = {
         "id": f"{backpack}_{route}_{date_str}_{tod}",
         "route": route,
@@ -138,7 +133,8 @@ def _unclaim_assignment(schedule_data: dict, *, backpack: str, route: str, date_
 
 
 def _pick_open_slot(schedule_data: dict, start_date: str | None) -> tuple[str, str, str, str, str]:
-    d0 = date.fromisoformat(start_date) if start_date else date.today()
+    d0 = date.fromisoformat(start_date) if start_date else schedule_today()
+    d0 = max(d0, schedule_today())
     existing = schedule_data.get("assignments", [])
     routes = sorted(ALLOWED_ROUTES)
     backpacks = ("A", "B")

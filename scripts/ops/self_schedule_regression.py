@@ -4,6 +4,9 @@ Focused regression checks for self-scheduling behavior.
 
 Covers:
 - claim/unclaim endpoints do not write Walks_Log.txt
+- expired schedule assignments prune without touching completed-walk state
+- past-date claims and edits are rejected
+- dashboard past cells are non-clickable while completed walks still render
 - claim success
 - duplicate claim conflict
 - collector double-booking conflict
@@ -22,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import json
 import re
 import shutil
 import tempfile
@@ -44,10 +48,20 @@ from shared.registry import (
     SLOT_TODS,
     VALID_BACKPACKS,
 )
-from shared.schedule_store import ScheduleValidationError, load_schedule, save_schedule
+from shared.schedule_store import (
+    ScheduleValidationError,
+    build_default_schedule,
+    load_schedule,
+    load_schedule_pruning_expired,
+    refresh_schedule_week_bounds,
+    save_schedule,
+    schedule_today,
+    validate_schedule_date_not_past,
+)
 
 
 SERVER_SOURCE = REPO_ROOT / "app" / "server" / "serve.py"
+DASHBOARD_SOURCE = REPO_ROOT / "pipelines" / "dashboard" / "build_dashboard.py"
 ALLOWED_ROUTES = sorted(ROUTE_CODES)
 ALLOWED_COLLECTORS = set(SCHEDULE_COLLECTOR_IDS)
 BACKPACK_TO_COLLECTORS = BACKPACK_TO_SCHEDULE_COLLECTORS
@@ -102,24 +116,16 @@ def _validate_inputs(backpack: str, route: str, date_str: str, tod: str, collect
         date.fromisoformat(date_str)
     except Exception as exc:
         raise ValueError("date must be YYYY-MM-DD") from exc
+    validate_schedule_date_not_past(date_str)
 
 
 def _refresh_schedule_week_bounds(schedule_data: dict) -> None:
-    assignments = schedule_data.get("assignments", []) or []
-    parsed_dates: list[date] = []
-    for assignment in assignments:
-        try:
-            parsed_dates.append(date.fromisoformat(str(assignment.get("date", ""))))
-        except Exception:
-            continue
-    if not parsed_dates:
-        return
-    schedule_data["week_start"] = str(min(parsed_dates))
-    schedule_data["week_end"] = str(max(parsed_dates))
+    refresh_schedule_week_bounds(schedule_data)
 
 
 def _find_open_slot(schedule_data: dict, *, start_date: str | None = None) -> tuple[str, str, str, str, str]:
-    d0 = date.fromisoformat(start_date) if start_date else date.today()
+    d0 = date.fromisoformat(start_date) if start_date else schedule_today()
+    d0 = max(d0, schedule_today())
     existing = schedule_data.get("assignments", [])
     for offset in range(0, 21):
         date_str = str(d0 + timedelta(days=offset))
@@ -153,7 +159,8 @@ def _find_open_slot_for_collector(
     collector: str,
     start_date: str | None = None,
 ) -> tuple[str, str, str]:
-    d0 = date.fromisoformat(start_date) if start_date else date.today()
+    d0 = date.fromisoformat(start_date) if start_date else schedule_today()
+    d0 = max(d0, schedule_today())
     existing = schedule_data.get("assignments", [])
     for offset in range(0, 21):
         date_str = str(d0 + timedelta(days=offset))
@@ -424,6 +431,62 @@ def _assert_schedule_endpoints_do_not_write_walk_log() -> None:
             )
 
 
+def _assert_dashboard_past_slot_guards() -> None:
+    source = DASHBOARD_SOURCE.read_text(encoding="utf-8")
+    required = (
+        "function isPastDateStr(dateStr)",
+        "Past dates cannot be claimed. Completed walks reappear after upload.",
+        "Date must be today or later.",
+        "isPast?'cal-slot-past':'cal-slot-click'",
+        "addWeekRange(schedData.weather_week_start,schedData.weather_week_end,'weather')",
+        "for(let i=-1;i<=1;i++)",
+        "w.source==='completed'?' completed':''",
+    )
+    missing = [token for token in required if token not in source]
+    if missing:
+        raise AssertionError(f"dashboard past-slot guard missing expected source tokens: {missing}")
+
+
+def _assert_expired_pruning_preserves_state(path: Path) -> None:
+    current = schedule_today()
+    yesterday = current - timedelta(days=1)
+    schedule = build_default_schedule(current)
+    expired = _sample_assignment(schedule, assignment_id="expired-claim")
+    expired["date"] = str(yesterday)
+    expired["id"] = _compose_id(expired["backpack"], expired["route"], str(yesterday), expired["tod"])
+    duplicate_expired = copy.deepcopy(expired)
+    duplicate_expired["id"] = "expired-duplicate"
+    duplicate_expired["route"] = next(r for r in ALLOWED_ROUTES if r != expired["route"])
+    active = _sample_assignment(schedule, assignment_id="active-claim")
+    active["date"] = str(current)
+    active["id"] = _compose_id(active["backpack"], active["route"], str(current), active["tod"])
+    schedule["assignments"] = [expired, duplicate_expired, active]
+    schedule["weather"][f"{yesterday}_AM"] = False
+    schedule["weather"][f"{current}_AM"] = True
+    schedule["backpack_status"] = {
+        "A": {
+            "holder": "AYA",
+            "location": "",
+            "updated_at": "2026-05-04T00:00:00",
+            "updated_by": "AYA",
+            "source": "manual",
+        }
+    }
+
+    path.write_text(json.dumps(schedule, indent=2), encoding="utf-8")
+    schedule, removed = load_schedule_pruning_expired(path, strict=True, today=current)
+    if removed != 2:
+        raise AssertionError(f"expected two expired assignments to be pruned, got {removed}")
+    remaining_ids = {a.get("id") for a in schedule.get("assignments", [])}
+    if {expired["id"], duplicate_expired["id"]}.intersection(remaining_ids) or active["id"] not in remaining_ids:
+        raise AssertionError("expired pruning removed the wrong assignment")
+    if f"{yesterday}_AM" not in schedule.get("weather", {}):
+        raise AssertionError("expired pruning should preserve weather history")
+    if schedule.get("backpack_status", {}).get("A", {}).get("holder") != "AYA":
+        raise AssertionError("expired pruning should preserve backpack_status")
+    _save_roundtrip(schedule, path)
+
+
 def run_regression(schedule_path: Path, start_date: str | None) -> int:
     tmp_dir = tempfile.TemporaryDirectory(prefix="self_schedule_regression_")
     work_path = Path(tmp_dir.name) / "schedule_output.json"
@@ -431,11 +494,15 @@ def run_regression(schedule_path: Path, start_date: str | None) -> int:
         # Calendar claims are reservations only. Completed walks enter Walks_Log.txt
         # through the Drive poll/upload flow, not through schedule claim APIs.
         _assert_schedule_endpoints_do_not_write_walk_log()
+        _assert_dashboard_past_slot_guards()
 
         if schedule_path.exists():
             shutil.copy2(schedule_path, work_path)
         schedule = load_schedule(work_path, strict=False)
         _assert_storage_validation_guards(schedule, work_path)
+        _assert_expired_pruning_preserves_state(work_path)
+
+        yesterday = schedule_today() - timedelta(days=1)
 
         # 1) Claim succeeds on open slot
         slot1 = _find_open_slot(schedule, start_date=start_date)
@@ -448,6 +515,24 @@ def run_regression(schedule_path: Path, start_date: str | None) -> int:
             collector=slot1[4],
         )
         schedule = _save_roundtrip(schedule, work_path)
+
+        # Past-date claims are rejected; today remains claimable.
+        past_route = next(r for r in ALLOWED_ROUTES if r != ref1.route)
+        try:
+            _claim(
+                copy.deepcopy(schedule),
+                backpack=ref1.backpack,
+                route=past_route,
+                date_str=str(yesterday),
+                tod=ref1.tod,
+                collector=ref1.collector,
+            )
+            raise AssertionError("expected past-date claim rejection")
+        except ScheduleValidationError as exc:
+            if "date must be today or later" not in str(exc):
+                raise
+        if date.fromisoformat(ref1.date_str) < schedule_today():
+            raise AssertionError("today/future claim regression picked a past date")
 
         # 2) Same-backpack same-slot conflict (even on different route)
         alt_route = next(r for r in ALLOWED_ROUTES if r != ref1.route)
@@ -534,6 +619,13 @@ def run_regression(schedule_path: Path, start_date: str | None) -> int:
         if str(patched.get("id", "")).strip() != custom_id:
             raise AssertionError("patch should preserve explicit id")
         schedule = _save_roundtrip(schedule, work_path)
+
+        try:
+            _patch(copy.deepcopy(schedule), custom_id, {"date": str(yesterday)})
+            raise AssertionError("expected past-date patch rejection")
+        except ScheduleValidationError as exc:
+            if "date must be today or later" not in str(exc):
+                raise
 
         # 6) Route patch updates boro/neigh/label while preserving explicit ID
         route_after_patch = next(r for r in ALLOWED_ROUTES if r != ref2.route)

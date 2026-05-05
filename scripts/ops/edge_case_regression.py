@@ -8,7 +8,7 @@ import os
 import sys
 import tempfile
 import warnings
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 warnings.filterwarnings("ignore", category=FutureWarning, module=r"google\..*")
@@ -27,6 +27,7 @@ from shared.schedule_store import (
     build_default_schedule,
     load_schedule,
     save_schedule,
+    schedule_today,
     validate_schedule,
 )
 
@@ -244,15 +245,16 @@ def _check_server_helper_edges() -> None:
     with tempfile.TemporaryDirectory() as td:
         tmp_schedule = Path(td) / "schedule.json"
         backpack, collector = _student_for_schedule()
-        schedule = build_default_schedule(date(2026, 5, 4))
-        schedule["weather"]["2026-05-05_AM"] = False
+        target_date = str(schedule_today() + timedelta(days=1))
+        schedule = build_default_schedule(schedule_today())
+        schedule["weather"][f"{target_date}_AM"] = False
         schedule["assignments"] = [
             _valid_assignment(
                 id="notify-one",
                 backpack=backpack,
                 collector=collector,
                 route=ROUTES[0],
-                date="2026-05-05",
+                date=target_date,
             )
         ]
         save_schedule(schedule, tmp_schedule, make_backup=False)
@@ -275,7 +277,7 @@ def _check_server_helper_edges() -> None:
                     }
                 }
             )
-            preview = serve._build_notifications_preview("2026-05-05", ["email", "slack"])
+            preview = serve._build_notifications_preview(target_date, ["email", "slack"])
             assert preview["assignment_count"] == 1
             msg = preview["messages"][0]
             assert msg["weather_advisory"] is True

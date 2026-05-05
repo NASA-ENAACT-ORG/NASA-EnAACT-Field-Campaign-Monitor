@@ -17,6 +17,11 @@ from shared.paths import (
     DASHBOARD_HTML,
 )
 from shared.gcs import pull_if_available as gcs_pull
+from shared.schedule_store import (
+    ScheduleValidationError,
+    load_schedule_pruning_expired,
+    save_schedule,
+)
 from shared.registry import (
     BACKPACK_TO_SCHEDULE_COLLECTORS,
     COLLECTOR_DISPLAY_NAMES,
@@ -97,8 +102,16 @@ collector_homes_json = json.dumps(_collector_homes)
 
 # -- Bake schedule_output.json into the dashboard ---
 if SCHEDULE_OUTPUT_JSON.exists():
-    with open(SCHEDULE_OUTPUT_JSON, encoding="utf-8") as _sf:
-        baked_schedule_json = _sf.read()
+    try:
+        _baked_schedule, _expired_count = load_schedule_pruning_expired(SCHEDULE_OUTPUT_JSON, strict=True)
+        if _expired_count:
+            save_schedule(_baked_schedule, SCHEDULE_OUTPUT_JSON, make_backup=True)
+            print(f"[dashboard] pruned {_expired_count} expired schedule assignment(s)")
+        baked_schedule_json = json.dumps(_baked_schedule)
+    except (ScheduleValidationError, OSError, json.JSONDecodeError) as _exc:
+        print(f"[dashboard] schedule bake warning: {_exc}")
+        with open(SCHEDULE_OUTPUT_JSON, encoding="utf-8") as _sf:
+            baked_schedule_json = _sf.read()
 else:
     baked_schedule_json = "null"
 
@@ -558,6 +571,7 @@ select option{background:var(--bg3)}
 .cal-tod-lbl.am{color:var(--tod-am)}.cal-tod-lbl.md{color:var(--tod-md)}.cal-tod-lbl.pm{color:var(--tod-pm)}
 .cal-cell{border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:5px;display:flex;flex-direction:column;gap:4px;background:var(--bg);position:relative}
 .cal-slot-click{cursor:pointer}
+.cal-slot-past{cursor:default}
 .cloud-pct-badge{position:absolute;top:4px;right:4px;font-size:9px;font-weight:700;letter-spacing:.2px;padding:1px 5px;border-radius:10px;pointer-events:none;z-index:3;opacity:.9}
 .cloud-pct-badge.good{color:#3fb950;background:rgba(63,185,80,.12);border:1px solid rgba(63,185,80,.28)}
 .cloud-pct-badge.bad{color:#ef4444;background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.28)}
@@ -1197,6 +1211,8 @@ let routeGroupLayers=[], routeGroupLabels=[], routeGroupsVisible=false;
 function getSeason(d){const m=d.getMonth()+1;return m>=3&&m<=5?'Spring':m>=6&&m<=8?'Summer':m>=9&&m<=11?'Fall':'Winter';}
 function today(){return new Date();}
 function fmtDate(d){return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+function todayDateStr(){const t=today();return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;}
+function isPastDateStr(dateStr){return /^\d{4}-\d{2}-\d{2}$/.test(dateStr)&&dateStr<todayDateStr();}
 function isL2W(d){const t=today(),c=new Date(t);c.setDate(t.getDate()-14);return d>=c&&d<=t;}
 function isThisMo(d){const t=today();return d.getMonth()===t.getMonth()&&d.getFullYear()===t.getFullYear();}
 function isThisSea(d){return getSeason(d)===getSeason(today());}
@@ -1621,6 +1637,27 @@ function toWeekSunday(d){
 // -- Build sorted list of distinct Sun-Sat weeks across completed+scheduled walks --
 function buildTlWeeks(){
   const byWeek={};
+  const addWeekForDate=(dateStr,source='empty')=>{
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr||'')))return;
+    const d=new Date(dateStr+'T00:00:00');
+    if(Number.isNaN(d.getTime()))return;
+    const key=toWeekSunday(d).toISOString().slice(0,10);
+    if(!byWeek[key])byWeek[key]={weekStart:key,walks:[],source};
+  };
+  const addWeekRange=(startStr,endStr,source='empty')=>{
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(startStr||'')))return;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(endStr||'')))return;
+    const start=new Date(startStr+'T00:00:00');
+    const end=new Date(endStr+'T00:00:00');
+    if(Number.isNaN(start.getTime())||Number.isNaN(end.getTime())||start>end)return;
+    const cursor=toWeekSunday(start);
+    const last=toWeekSunday(end);
+    while(cursor<=last){
+      const key=cursor.toISOString().slice(0,10);
+      if(!byWeek[key])byWeek[key]={weekStart:key,walks:[],source};
+      cursor.setDate(cursor.getDate()+7);
+    }
+  };
   // Completed walks from log - key by the Sunday of the walk's week
   for(const w of allWalks){
     const d=new Date(w.date.getFullYear(),w.date.getMonth(),w.date.getDate());
@@ -1665,10 +1702,22 @@ function buildTlWeeks(){
       if(!byWeek[key])byWeek[key]={weekStart:key,walks:[],source:'weather'};
     }
   }
+  // Schedule/window metadata keeps local calendar navigation useful even when
+  // old reservations have been pruned and the local Walks_Log mirror is empty.
+  if(schedData){
+    addWeekRange(schedData.week_start,schedData.week_end,'schedule');
+    addWeekRange(schedData.weather_week_start,schedData.weather_week_end,'weather');
+    if(schedData.weather_history_start&&schedData.weather_week_end){
+      addWeekRange(schedData.weather_history_start,schedData.weather_week_end,'weather');
+    }
+  }
+  if(RUNTIME_WEATHER){
+    addWeekRange(RUNTIME_WEATHER.current_week_start,RUNTIME_WEATHER.current_week_end,'weather');
+  }
   // Always include the current week plus the next claimable week so the
   // calendar can move one empty week ahead before anyone has claimed slots.
   const _todaySun=toWeekSunday(new Date());
-  for(let i=0;i<=1;i++){
+  for(let i=-1;i<=1;i++){
     const weekDate=new Date(_todaySun);
     weekDate.setDate(_todaySun.getDate()+(i*7));
     const weekKey=weekDate.toISOString().slice(0,10);
@@ -2055,6 +2104,10 @@ function renderSlotSchedulerClaims(){
   }).join('');
 }
 function openSlotScheduler(dateStr,tod){
+  if(isPastDateStr(dateStr)){
+    toast('Past dates cannot be claimed. Completed walks reappear after upload.','error');
+    return;
+  }
   _ensureSlotSchedulerInputs();
   slotSchedState={date:dateStr,tod:tod};
   const bg=document.getElementById('slot-sched-bg');
@@ -2085,6 +2138,10 @@ async function claimCalendarSlot(){
   };
   if(!payload.backpack||!payload.route||!payload.date||!payload.tod||!payload.collector){
     _setSlotSchedMsg('Please complete all fields.','err');
+    return;
+  }
+  if(isPastDateStr(payload.date)){
+    _setSlotSchedMsg('Date must be today or later.','err');
     return;
   }
   _setSlotSchedMsg('Claiming slot...','');
@@ -2592,12 +2649,13 @@ function renderCalendar(){
       }
 
       const cls=['cal-cell',
+        isPast?'cal-slot-past':'cal-slot-click',
         isToday?'cal-today-col':'',
         isPast?'cal-past-col':'',
         isWeekend?'cal-weekend':'',
         isBadWeather?'bad-weather':''
       ].filter(Boolean).join(' ');
-      html+=`<div class="${cls} cal-slot-click" data-date="${dateStr}" data-tod="${ctod}">${cellContent}</div>`;
+      html+=`<div class="${cls}" data-date="${dateStr}" data-tod="${ctod}">${cellContent}</div>`;
     }
   }
 
@@ -3058,11 +3116,11 @@ async function init(){
   }catch(e){}
   await loadRecalLog();
   let schedLoaded=false;
+  allWalks=parseLog(logText);
   if(RUNTIME_SCHEDULE&&RUNTIME_SCHEDULE.assignments){
     schedData=RUNTIME_SCHEDULE;schedLoaded=true;loadScheduleJSON(JSON.stringify(RUNTIME_SCHEDULE));
   }
   try{
-    allWalks=parseLog(logText);
     applyFilters();
     updateStatus(src);
     initMap();
