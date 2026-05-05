@@ -89,10 +89,30 @@ Fields:
 2. Collector cannot be assigned to multiple backpacks in the same `date + tod`.
 3. `tod` must be one of `AM`, `MD`, `PM`.
 4. `date` must match `YYYY-MM-DD`.
-5. Weather is advisory only: bad weather may coexist with claimed assignments.
+5. New claims and assignment edits must use today or a future date.
+6. Weather is advisory only: bad weather may coexist with claimed assignments.
+
+## Lifecycle Rule
+
+`schedule_output.json` stores current and future reservations. Once an
+assignment date is before the current America/New_York schedule day, the server
+prunes that reservation from `assignments`. Completed walks come back into the
+dashboard from `Walks_Log.txt` after upload and Drive polling.
+
+Calendar navigation must not depend only on active assignments. When old
+reservations have been pruned, the dashboard should still build navigable weeks
+from completed-walk log entries and from schedule/weather window metadata such
+as `week_start`, `week_end`, `weather_week_start`, and `weather_week_end`. This
+keeps local previews usable when GCS is disabled and the local `Walks_Log.txt`
+mirror is empty.
 
 ## API Implications
 
 - Claim endpoint must reject multiple assignments for the same `backpack + date + tod` slot.
 - Claim endpoint must reject collector double-booking on `date + tod`.
+- Claim and edit endpoints must reject assignment dates before today.
+- Schedule read endpoints may prune expired assignments before returning data.
+- Dashboard builds may prune expired baked assignments, but they must preserve
+  calendar navigation for past/history weeks from walk-log or schedule/weather
+  metadata.
 - Weather advisory should be returned for clients, but never block claims.

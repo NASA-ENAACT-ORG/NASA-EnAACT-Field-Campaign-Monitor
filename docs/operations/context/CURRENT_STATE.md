@@ -2,7 +2,8 @@
 
 This document is the quickest way to re-establish the current project direction.
 
-Last scanned: 2026-05-04 on `main` at `fd825b1`.
+Last scanned: 2026-05-05 on `main` with uncommitted past-schedule guard work
+after `fd825b1`.
 
 ## Project Goal
 
@@ -47,7 +48,10 @@ Related runtime artifacts:
 Self-scheduling is implemented in the dashboard and server:
 
 - calendar slot -> modal -> claim/unclaim workflow exists
-- calendar navigation includes current week plus one upcoming claimable empty week
+- calendar navigation includes one recent empty/history week, the current week,
+  and one upcoming claimable empty week even when no claims exist
+- past dates are visible as history but cannot be claimed or edited; yesterday
+  and older are rejected by the API
 - weather is advisory only
 - uniqueness is enforced per `backpack + date + tod`
 - collector double-booking is blocked within the same `date + tod`
@@ -61,6 +65,13 @@ Self-scheduling is implemented in the dashboard and server:
 - claim/unclaim writes go through `shared/schedule_store.py` and persist only
   `schedule_output.json`; they must not write completed-walk entries to
   `Walks_Log.txt`
+- `schedule_output.json` is current/future reservation state only; expired
+  assignments are pruned, and completed walks reappear after upload/Drive poll
+  rebuilds `Walks_Log.txt`
+- local dashboard builds may have an empty `Walks_Log.txt` mirror when GCS is
+  disabled; the calendar must still keep past/week-window navigation available
+  from schedule and weather metadata, while completed walk cards only appear
+  once the walk log mirror has entries
 - backpack holder/location status is shown in the calendar nav and persists to
   `schedule_output.json` under `backpack_status`; when no manual status exists,
   the dashboard defaults to the collector from the most recent completed walk

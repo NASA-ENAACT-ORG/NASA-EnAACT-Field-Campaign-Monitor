@@ -23,10 +23,14 @@ Main code paths:
 
 Main production state:
 
-- `data/outputs/site/schedule_output.json`: active schedule claims plus
-  `backpack_status`.
+- `data/outputs/site/schedule_output.json`: current/future schedule claims plus
+  `backpack_status`. Expired claims are pruned from this file.
 - `data/runtime/persisted/Walks_Log.txt`: completed walk log. Normal claim and
-  unclaim actions should not add completed-walk records here.
+  unclaim actions should not add completed-walk records here. Completed walks
+  reappear in the dashboard after upload/Drive poll rebuilds this log.
+- Local previews with GCS disabled may have an empty `Walks_Log.txt`; in that
+  case, completed walk cards will be absent, but calendar week navigation should
+  still include recent/history windows from schedule/weather metadata.
 - `data/runtime/persisted/Recal_Log.txt`: recalibration/runtime log state.
 - `data/outputs/site/weather.json`: weather advisory data for the dashboard.
 - `data/outputs/site/dashboard.html`: generated dashboard served to users.
@@ -54,6 +58,9 @@ Request-flow quick reference:
   `POST /api/schedule/unclaim`; `app/server/serve.py` delegates schedule
   validation/persistence to `shared/schedule_store.py`; production state should
   land in `schedule_output.json` and then GCS.
+- Expired reservations: yesterday and older cannot be newly claimed or edited,
+  and old reservations are removed from `schedule_output.json`; uploaded data
+  restores the walk through `Walks_Log.txt`.
 - Backpack status change: browser calls `POST /api/backpack-status`; the server
   writes the selected holder/location under `schedule_output.json`
   `backpack_status`.
@@ -152,18 +159,23 @@ Expected result:
 Using the production dashboard:
 
 1. Claim one open slot.
-2. Try to create a conflicting claim for the same backpack/date/time-of-day.
-3. Confirm the conflict is rejected.
-4. Unclaim/delete the test claim.
-5. Refresh the dashboard.
-6. Confirm the test claim remains removed.
+2. Try to claim a past date and confirm the UI/API rejects it.
+3. Try to create a conflicting claim for the same backpack/date/time-of-day.
+4. Confirm the conflict is rejected.
+5. Unclaim/delete the test claim.
+6. Refresh the dashboard.
+7. Confirm the test claim remains removed.
+8. Navigate backward in the calendar after expired claims have been pruned.
 
 Expected result:
 
 - uniqueness is enforced by `backpack + date + tod`
 - collector double-booking is rejected for the same `date + tod`
+- past dates are not claimable or editable
 - claim/unclaim persists through refresh
 - no completed-walk entry is added to `Walks_Log.txt` for a claim/unclaim
+- past/week-window navigation remains available even if the local walk-log
+  mirror is empty; completed walk cards require `Walks_Log.txt` entries
 
 ## Backpack Status Browser Check
 
