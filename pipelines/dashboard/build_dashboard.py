@@ -654,25 +654,35 @@ select option{background:var(--bg3)}
 /* CALENDAR SLOT SCHEDULER */
 #slot-sched-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9200;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
 #slot-sched-bg.open{display:flex}
-#slot-sched-modal{width:min(920px,94vw);max-height:86vh;overflow:auto;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px}
-#slot-sched-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
-#slot-sched-title{font-size:15px;font-weight:700;font-family:'Space Grotesk',sans-serif}
-#slot-sched-sub{font-size:11px;color:var(--text2)}
-#slot-sched-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+#slot-sched-modal{width:min(680px,94vw);max-height:84vh;overflow:auto;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;box-shadow:0 18px 54px rgba(0,0,0,.72)}
+#slot-sched-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+#slot-sched-title{font-size:14px;font-weight:700;font-family:'Space Grotesk',sans-serif;line-height:1.2}
+#slot-sched-sub{font-size:10.5px;color:var(--text2);margin-top:2px}
+#slot-sched-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;align-items:end}
+#slot-sched-grid .slot-date-field{grid-column:1/4}
+#slot-sched-grid .slot-tod-field{grid-column:4/7}
+#slot-sched-grid .slot-bag-field{grid-column:1/3}
+#slot-sched-grid .slot-route-field{grid-column:3/5}
+#slot-sched-grid .slot-collector-field{grid-column:5/7}
+#slot-sched-grid .claim-action{grid-column:1/-1}
 #slot-sched-grid .ss-field{display:flex;flex-direction:column;gap:4px}
 #slot-sched-grid label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;font-weight:700}
 #slot-sched-grid input,#slot-sched-grid select{height:32px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:12px}
-.ss-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px}
+.ss-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:9px}
 .ss-btn{height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;font-size:12px;font-weight:600;font-family:'Space Grotesk',sans-serif}
 .ss-btn:hover{color:var(--text);border-color:var(--accent)}
-.ss-btn.primary{background:rgba(56,139,253,.15);border-color:rgba(56,139,253,.45);color:#60a5fa}
+.ss-btn.primary{background:rgba(56,139,253,.28);border-color:rgba(56,139,253,.65);color:#8ec5ff}
+.ss-btn.primary:hover{background:rgba(56,139,253,.36);border-color:rgba(56,139,253,.78);color:#c6e2ff}
 .ss-btn.warn{background:rgba(248,81,73,.1);border-color:rgba(248,81,73,.35);color:#f87171}
+.ss-btn:disabled{opacity:.5;cursor:not-allowed}
+.ss-btn:disabled:hover{color:var(--text2);border-color:var(--border)}
+#slot-sched-grid .claim-action .ss-btn{width:100%}
 #slot-sched-msg{font-size:11px;color:var(--text2)}
 #slot-sched-msg.err{color:var(--red)}
 #slot-sched-msg.ok{color:var(--green)}
 #ss-table-wrap{overflow:auto}
 #ss-table{width:100%;border-collapse:collapse}
-#ss-table th,#ss-table td{padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px;text-align:left}
+#ss-table th,#ss-table td{padding:6px 8px;border-bottom:1px solid var(--border);font-size:12px;text-align:left}
 #ss-table th{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.6px}
 .ss-pill{display:inline-block;border-radius:999px;padding:2px 8px;font-size:10px;font-weight:700}
 .ss-pill.a{background:rgba(248,81,73,.16);color:#f87171}
@@ -831,6 +841,10 @@ select option{background:var(--bg3)}
   select,input[type=date]{font-size:11px;padding:4px 6px}
   .btn{font-size:10px;padding:3px 8px}
   #slot-sched-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #slot-sched-grid .slot-date-field{grid-column:1/2}
+  #slot-sched-grid .slot-tod-field{grid-column:2/3}
+  #slot-sched-grid .slot-bag-field,#slot-sched-grid .slot-route-field,#slot-sched-grid .slot-collector-field{grid-column:auto}
+  #slot-sched-grid .ss-field.claim-action{grid-column:1/-1}
 }
 @media(max-width:480px){
   #header h1{font-size:12px;font-family:'Space Grotesk',sans-serif;letter-spacing:-.3px}
@@ -2026,31 +2040,71 @@ function _setSlotSchedMsg(msg,kind=''){
   el.textContent=msg;
   el.className=kind?kind:'ss-muted';
 }
+function _updateSlotClaimButton(){
+  const btn=document.getElementById('slot-claim-btn');
+  const backpackSel=document.getElementById('slot-backpack');
+  const routeSel=document.getElementById('slot-route');
+  const collectorSel=document.getElementById('slot-collector');
+  if(!btn)return;
+  btn.disabled=!(
+    backpackSel&&backpackSel.value&&
+    routeSel&&routeSel.value&&
+    collectorSel&&collectorSel.value
+  );
+}
 function _ensureSlotSchedulerInputs(){
   const backpackSel=document.getElementById('slot-backpack');
   const routeSel=document.getElementById('slot-route');
   const collectorSel=document.getElementById('slot-collector');
   if(routeSel&&!routeSel.dataset.ready){
-    routeSel.innerHTML=Object.keys(ROUTE_LABELS).sort()
+    routeSel.innerHTML='<option value="">--select--</option>'+Object.keys(ROUTE_LABELS).sort()
       .map(r=>`<option value="${r}">${r} - ${ROUTE_LABELS[r]}</option>`)
       .join('');
     routeSel.dataset.ready='1';
   }
   const renderCollectors=()=>{
     if(!collectorSel)return;
-    const bp=(backpackSel&&backpackSel.value)||'A';
+    const bp=(backpackSel&&backpackSel.value)||'';
+    if(!bp){
+      collectorSel.innerHTML='<option value="">--select--</option>';
+      collectorSel.value='';
+      _updateSlotClaimButton();
+      return;
+    }
     const scoped=(SLOT_BACKPACK_COLLECTORS[bp]||SLOT_SCHEDULE_COLLECTORS);
-    collectorSel.innerHTML=scoped
+    collectorSel.innerHTML='<option value="">--select--</option>'+scoped
       .map(cid=>`<option value="${cid}">${CNAMES[cid]||cid} (${cid})</option>`)
       .join('');
-    if(!collectorSel.value&&scoped.length)collectorSel.value=scoped[0];
+    collectorSel.value='';
+    _updateSlotClaimButton();
   };
   if(backpackSel&&!backpackSel.dataset.slotCollectorBound){
     backpackSel.addEventListener('change',renderCollectors);
     backpackSel.dataset.slotCollectorBound='1';
   }
+  if(routeSel&&!routeSel.dataset.slotClaimBound){
+    routeSel.addEventListener('change',_updateSlotClaimButton);
+    routeSel.dataset.slotClaimBound='1';
+  }
+  if(collectorSel&&!collectorSel.dataset.slotClaimBound){
+    collectorSel.addEventListener('change',_updateSlotClaimButton);
+    collectorSel.dataset.slotClaimBound='1';
+  }
   renderCollectors();
   if(collectorSel)collectorSel.dataset.ready='1';
+  _updateSlotClaimButton();
+}
+function _resetSlotSchedulerSelections(){
+  const backpackSel=document.getElementById('slot-backpack');
+  const routeSel=document.getElementById('slot-route');
+  const collectorSel=document.getElementById('slot-collector');
+  if(backpackSel){
+    backpackSel.value='';
+    backpackSel.dispatchEvent(new Event('change'));
+  }
+  if(routeSel)routeSel.value='';
+  if(collectorSel)collectorSel.value='';
+  _updateSlotClaimButton();
 }
 function _slotClaims(dateStr,tod){
   if(!schedData||!Array.isArray(schedData.assignments))return [];
@@ -2124,6 +2178,7 @@ function openSlotScheduler(dateStr,tod){
   const t=document.getElementById('slot-tod');
   if(d)d.value=dateStr;
   if(t)t.value=tod;
+  _resetSlotSchedulerSelections();
   renderSlotSchedulerClaims();
   _setSlotSchedMsg('Select backpack, route, and collector, then claim.','');
   if(bg)bg.classList.add('open');
@@ -2160,6 +2215,7 @@ async function claimCalendarSlot(){
       renderCalendar();
     }
     renderSlotSchedulerClaims();
+    _resetSlotSchedulerSelections();
     _setSlotSchedMsg('Slot claimed successfully.','ok');
   }catch(err){
     _setSlotSchedMsg('Claim failed: '+err.message,'err');
@@ -3617,30 +3673,31 @@ document.addEventListener('DOMContentLoaded',function(){
     </div>
     <div class="ss-card">
       <div id="slot-sched-grid">
-        <div class="ss-field">
+        <div class="ss-field slot-date-field">
           <label for="slot-date">Date</label>
           <input id="slot-date" type="date" readonly>
         </div>
-        <div class="ss-field">
+        <div class="ss-field slot-tod-field">
           <label for="slot-tod">TOD</label>
           <input id="slot-tod" type="text" readonly>
         </div>
-        <div class="ss-field">
-          <label for="slot-backpack">Backpack</label>
+        <div class="ss-field slot-bag-field">
+          <label for="slot-backpack">Bag</label>
           <select id="slot-backpack">
+            <option value="">--select--</option>
             <option value="A">A (CCNY)</option>
             <option value="B">B (LaGCC)</option>
           </select>
         </div>
-        <div class="ss-field">
+        <div class="ss-field slot-route-field">
           <label for="slot-route">Route</label>
           <select id="slot-route"></select>
         </div>
-        <div class="ss-field">
+        <div class="ss-field slot-collector-field">
           <label for="slot-collector">Collector</label>
           <select id="slot-collector"></select>
         </div>
-        <div class="ss-field" style="align-self:end">
+        <div class="ss-field claim-action">
           <button class="ss-btn primary" id="slot-claim-btn" type="button">Claim Slot</button>
         </div>
       </div>
