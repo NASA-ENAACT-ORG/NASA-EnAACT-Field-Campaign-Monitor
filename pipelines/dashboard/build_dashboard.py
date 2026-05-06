@@ -14,7 +14,7 @@ if str(_REPO_ROOT) not in sys.path:
 from shared.paths import (
     ROUTES_DATA_JSON, WALKS_LOG, ROUTES_KML_DIR, PERSISTED_DIR,
     SCHEDULE_OUTPUT_JSON, WEATHER_JSON, ROUTE_GROUPS,
-    DASHBOARD_HTML,
+    DASHBOARD_HTML, DASHBOARD_FAVICON_PNG,
 )
 from shared.gcs import pull_if_available as gcs_pull
 from shared.schedule_store import (
@@ -271,6 +271,7 @@ for g in _GROUP_DEFS:
         print(f"[build_dashboard] Warning: skipping route group '{g['name']}': {_e}")
 
 route_groups_json=json.dumps(_route_groups)
+TEMPO_LOGO_PNG = BASE / "assets" / "tempo_logo.png"
 
 HTML_TEMPLATE = """\
 <!DOCTYPE html>
@@ -279,6 +280,7 @@ HTML_TEMPLATE = """\
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NASA EnAACT Field Campaign Data Desk</title>
+<link rel="icon" type="image/png" href="favicon.png">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3838,6 +3840,7 @@ HTML_TEMPLATE = HTML_TEMPLATE.replace(
 
 def build():
     DASHBOARD_HTML.parent.mkdir(parents=True, exist_ok=True)
+    DASHBOARD_FAVICON_PNG.write_bytes(TEMPO_LOGO_PNG.read_bytes())
     with open(DASHBOARD_HTML, 'w', encoding='utf-8') as f:
         f.write(HTML_TEMPLATE)
     size = DASHBOARD_HTML.stat().st_size

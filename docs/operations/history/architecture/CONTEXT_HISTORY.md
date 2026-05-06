@@ -118,6 +118,30 @@ Recent `main` commits hardened the active self-scheduling lifecycle:
   the claim button until all required choices exist, and resets after a claim
   to avoid accidental stale-default submissions
 
+### Phase 8: EFD collector dashboard restoration
+
+Commit `78353c2` restored `EFD` to the dashboard Collectors tab:
+
+- `EFD` is included in the dashboard-visible student collector list
+- `EFD` renders as its own student-team group in the lower auxiliary row next
+  to Professors, not beside the CCNY/LaGCC backpack groups
+- backpack claim eligibility was intentionally unchanged; `EFD` is not in
+  `BACKPACK_TO_SCHEDULE_COLLECTORS`
+- `scripts/ops/edge_case_regression.py` now guards that visibility/eligibility
+  split so future registry edits do not accidentally make `EFD` claimable
+
+### Phase 9: Dashboard favicon asset
+
+The dashboard browser-tab/bookmark icon now uses the TEMPO mission logo:
+
+- `pipelines/dashboard/assets/tempo_logo.png` is the tracked source asset
+- `build_dashboard.py` links `favicon.png` in the dashboard head and copies the
+  TEMPO PNG into `data/outputs/site/favicon.png` during each dashboard build
+- `shared/paths.py` exposes `DASHBOARD_FAVICON_PNG` so code does not hard-code
+  the generated favicon path
+- `serve.py` serves PNG assets with the correct MIME type and includes
+  `favicon.png` in the same GCS upload/restore flow as `dashboard.html`
+
 ## Superseded Temporary Source Files
 
 These files have now been condensed into the current context docs plus this

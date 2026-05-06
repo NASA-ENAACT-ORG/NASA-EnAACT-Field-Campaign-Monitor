@@ -28,6 +28,7 @@ COLLECTOR_NOTIFICATION_PREFS = COLLECTOR_SCHEDULE_DIR / "notification_preference
 # ── Outputs — site artifacts (generated HTML/JSON served by the app) ──────────
 SITE_DIR                  = REPO_ROOT / "data" / "outputs" / "site"
 DASHBOARD_HTML            = SITE_DIR / "dashboard.html"
+DASHBOARD_FAVICON_PNG     = SITE_DIR / "favicon.png"
 COLLECTOR_MAP_HTML        = SITE_DIR / "collector_map.html"
 AVAILABILITY_HEATMAP_HTML = SITE_DIR / "availability_heatmap.html"
 STUDENT_SCHEDULE_HTML     = SITE_DIR / "student_schedule.html"

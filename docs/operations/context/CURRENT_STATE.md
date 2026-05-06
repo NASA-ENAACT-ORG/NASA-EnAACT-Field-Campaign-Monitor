@@ -2,7 +2,7 @@
 
 This document is the quickest way to re-establish the current project direction.
 
-Last scanned: 2026-05-05 on `main` at `11dfbdf`.
+Last scanned: 2026-05-06 on `main` after the TEMPO favicon update.
 
 ## Project Goal
 
@@ -41,6 +41,7 @@ Related runtime artifacts:
 - `data/outputs/site/schedule_output.json`
 - `data/outputs/site/weather.json`
 - `data/outputs/site/dashboard.html`
+- `data/outputs/site/favicon.png`
 
 ## Self-Scheduling Status
 
@@ -129,7 +130,15 @@ Recently completed:
 - local agent workspace files are ignored through `.gitignore`, keeping
   `.codex-local/` and related sandbox artifacts out of commits
 - `EFD` is restored to the dashboard Collectors tab as a visible student-team
-  collector tile without changing backpack claim eligibility
+  collector tile in the lower auxiliary row next to Professors, without
+  changing backpack claim eligibility
+- `scripts/ops/edge_case_regression.py` now guards that `EFD` stays visible in
+  the dashboard collector groups but remains excluded from backpack schedule
+  claim eligibility
+- the browser tab/bookmark favicon now uses the TEMPO mission logo: the source
+  asset lives at `pipelines/dashboard/assets/tempo_logo.png`, dashboard builds
+  copy it to `data/outputs/site/favicon.png`, and GCS restore/upload paths keep
+  it with `dashboard.html`
 - backpack status controls, confirmation-modal guardrail, red warning text, and
   name-only display labels are committed on `main`
 - shared collector/route/backpack registry extraction into `shared/registry.py`
@@ -191,6 +200,24 @@ Most recent focused checks after the backpack status modal/name polish:
 - `.codex-local\python39\python.exe -m py_compile pipelines/dashboard/build_dashboard.py scripts/ops/self_schedule_regression.py` -> PASS
 - `.codex-local\python39\python.exe pipelines/dashboard/build_dashboard.py` -> PASS
 - `.codex-local\python39\python.exe scripts/ops/self_schedule_regression.py` -> PASS
+- `git diff --check` -> PASS
+
+Most recent EFD collector dashboard checks after `78353c2`:
+
+- `.codex-local\python39\python.exe -m compileall -q app shared scripts pipelines` -> PASS
+- `.codex-local\python39\python.exe scripts\ops\edge_case_regression.py` -> PASS
+- `.codex-local\python39\python.exe scripts\ops\self_schedule_regression.py` -> PASS
+- `.codex-local\python39\python.exe scripts\ops\self_schedule_smoke.py --schedule ".tmp\schedule_output.test.json" --in-place` -> PASS
+- `.codex-local\python39\python.exe pipelines\dashboard\build_dashboard.py` -> PASS
+- `.codex-local\python39\python.exe pipelines\dashboard\build_availability_heatmap.py` -> PASS
+- `git diff --check` -> PASS
+
+Most recent TEMPO favicon checks:
+
+- `.codex-local\python39\python.exe -m py_compile app\server\serve.py pipelines\dashboard\build_dashboard.py shared\paths.py` -> PASS
+- `.codex-local\python39\python.exe pipelines\dashboard\build_dashboard.py` -> PASS
+- source `pipelines/dashboard/assets/tempo_logo.png` and generated
+  `data/outputs/site/favicon.png` SHA-256 hashes match
 - `git diff --check` -> PASS
 
 Most recent adversarial self-scheduling hardening checks:

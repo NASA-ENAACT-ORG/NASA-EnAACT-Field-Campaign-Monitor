@@ -58,6 +58,7 @@ from shared.paths import (
     DRIVE_SEEN_FILES,
     SCHEDULE_OUTPUT_JSON,
     DASHBOARD_HTML,
+    DASHBOARD_FAVICON_PNG,
     WEATHER_JSON,
 )
 from shared import gcs
@@ -359,6 +360,7 @@ def _rebuild_dashboard_and_upload():
     if _gcs_bucket:
         for html_path, blob_name in (
             (DASHBOARD_HTML, "dashboard.html"),
+            (DASHBOARD_FAVICON_PNG, "favicon.png"),
         ):
             if html_path.exists():
                 _upload_to_gcs(html_path, blob_name)
@@ -654,7 +656,7 @@ def _ensure_site_artifacts():
     global _bootstrap_errors
     with _bootstrap_build_lock:
         _bootstrap_errors = []
-        required = [DASHBOARD_HTML]
+        required = [DASHBOARD_HTML, DASHBOARD_FAVICON_PNG]
         missing = [p for p in required if not p.exists()]
         if not missing:
             return
@@ -1065,6 +1067,8 @@ class Handler(BaseHTTPRequestHandler):
             ".txt":  "text/plain; charset=utf-8",
             ".js":   "application/javascript",
             ".css":  "text/css",
+            ".png":  "image/png",
+            ".svg":  "image/svg+xml",
             ".kml":  "application/vnd.google-earth.kml+xml",
             ".pdf":  "application/pdf",
         }
@@ -2082,6 +2086,7 @@ def _restore_gcs_state():
     # Pre-built dashboard HTML -- restore so server can serve immediately even if rebuild fails
     for _blob, _local in (
         ("dashboard.html",            DASHBOARD_HTML),
+        ("favicon.png",               DASHBOARD_FAVICON_PNG),
     ):
         _download_from_gcs(_blob, _local)
 

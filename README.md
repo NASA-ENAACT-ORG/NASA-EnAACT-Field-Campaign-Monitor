@@ -104,6 +104,7 @@ python app/server/serve.py                     # start HTTP server on $PORT (808
 │   ├── outputs/
 │   │   ├── site/                  # Generated files served by the web server
 │   │   │   ├── dashboard.html
+│   │   │   ├── favicon.png
 │   │   │   ├── collector_map.html
 │   │   │   ├── availability_heatmap.html
 │   │   │   ├── student_schedule.html
@@ -164,8 +165,9 @@ data/outputs/site/weather.json
     │
     ▼
 data/outputs/site/dashboard.html   (served at /)
+data/outputs/site/favicon.png      (browser tab/bookmark icon)
     │
-    ▼ GCS upload (dashboard.html)
+    ▼ GCS upload (dashboard.html, favicon.png)
 ```
 
 ```
@@ -229,7 +231,7 @@ These scripts are preserved for history/fallback but are not part of the active 
 - Module-level code (not a function) — runs top-to-bottom when invoked
 - Bakes `schedule_output.json`, `weather.json`, `Walks_Log.txt`, route KML data, and collector info into a single self-contained HTML file
 - Imports `load_availability()` from `build_availability_heatmap.py` and bakes availability data directly into the dashboard
-- Output: `data/outputs/site/dashboard.html`
+- Outputs: `data/outputs/site/dashboard.html` and `data/outputs/site/favicon.png`
 
 **`build_availability_heatmap.py`**:
 - Reads `data/inputs/availability/Availability.xlsx`
@@ -299,6 +301,7 @@ To add a new canonical path, edit only `shared/paths.py`. All consumers pick it 
 | `schedule_output.json` | `data/outputs/site/schedule_output.json` | Latest schedule |
 | `drive_seen_files.json` | `data/runtime/persisted/drive_seen_files.json` | Drive poll dedup state |
 | `dashboard.html` | `data/outputs/site/dashboard.html` | Rebuilt HTML |
+| `favicon.png` | `data/outputs/site/favicon.png` | TEMPO browser tab/bookmark icon |
 | `Recal_Log.txt` | `data/runtime/persisted/Recal_Log.txt` | Calibration history |
 | `notification_dispatch_log.jsonl` | `data/runtime/persisted/notification_dispatch_log.jsonl` | Notification send audit log |
 
@@ -403,13 +406,13 @@ The container is stateless. Durable state is stored in GCS and restored on start
 **Restore flow** (`--restore-only` on startup):
 1. Download `Walks_Log.txt` from GCS → `data/runtime/persisted/Walks_Log.txt`
 2. Download `weather.json` from GCS → `data/outputs/site/weather.json`
-3. Download `schedule_output.json`, `Recal_Log.txt`, and `dashboard.html`
+3. Download `schedule_output.json`, `Recal_Log.txt`, `dashboard.html`, and `favicon.png`
 4. Exit — `build_dashboard.py` runs next with fresh data
 
 **Persist flow** (after any pipeline run):
 - After `build_weather.py`: upload `weather.json`
 - After schedule claim/unclaim/update APIs: upload `schedule_output.json`
-- After `build_dashboard.py`: upload `dashboard.html` (in weather-triggered rebuild path)
+- After `build_dashboard.py`: upload `dashboard.html` and `favicon.png` (in weather-triggered rebuild path)
 - After Drive poll: upload `Walks_Log.txt`, `drive_seen_files.json`
 
 GCS blob names intentionally match the original filenames (e.g. `Walks_Log.txt`, not `data/runtime/persisted/Walks_Log.txt`) for backward compatibility with any external tooling.
