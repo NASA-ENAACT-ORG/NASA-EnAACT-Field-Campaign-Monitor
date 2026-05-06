@@ -706,6 +706,10 @@ select option{background:var(--bg3)}
 .cgroup.lagcc .cgroup-head{background:rgba(220,38,38,.08);border-bottom-color:rgba(220,38,38,.25)}
 .cgroup.lagcc .cg-dot{background:#dc2626}
 .cgroup.lagcc .cg-title{color:#f87171}
+.cgroup.efd{border-color:rgba(251,191,36,.35)}
+.cgroup.efd .cgroup-head{background:rgba(251,191,36,.08);border-bottom-color:rgba(251,191,36,.25)}
+.cgroup.efd .cg-dot{background:#fbbf24}
+.cgroup.efd .cg-title{color:#fbbf24}
 .cgroup.staff{border-color:rgba(107,114,128,.3)}
 .cgroup.staff .cgroup-head{background:rgba(107,114,128,.07);border-bottom-color:rgba(107,114,128,.2)}
 .cgroup.staff .cg-dot{background:#6b7280}
@@ -714,21 +718,24 @@ select option{background:var(--bg3)}
 .campus-pair{display:flex;gap:14px;width:100%}
 .campus-pair .cgroup{flex:1;min-width:0}
 .campus-pair .cgroup-tiles{grid-template-columns:repeat(2,1fr)!important}
-/* Professors row sits below */
-.prof-row{width:100%}
-.prof-row .cgroup-tiles{grid-template-columns:repeat(auto-fit,minmax(0,1fr))!important}
+/* Auxiliary groups sit below */
+.aux-row{display:flex;gap:14px;width:100%}
+.aux-row .cgroup{flex:1;min-width:0}
+.aux-row .cgroup-tiles{grid-template-columns:repeat(auto-fit,minmax(0,1fr))!important}
 .cgroup-tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:10px}
 .cc{height:120px;padding:10px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:all .15s;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:visible}
 .cc:hover{border-color:var(--accent);background:var(--bg4)}
 .cc.active{border-color:var(--accent);background:rgba(56,139,253,.12)}
 .cgroup.ccny .cc.active{border-color:#7c3aed;background:rgba(124,58,237,.15)}
 .cgroup.lagcc .cc.active{border-color:#dc2626;background:rgba(220,38,38,.12)}
+.cgroup.efd .cc.active{border-color:#fbbf24;background:rgba(251,191,36,.12)}
 .cgroup.staff .cc.active{border-color:var(--text3);background:rgba(107,114,128,.12)}
 .cc .cn{font-size:12px;font-weight:700;white-space:normal;overflow:visible;line-height:1.2;max-width:100%;word-break:break-word}
 .cc .ci{font-size:9px;color:var(--text3);margin-top:2px;font-family:'Space Grotesk',sans-serif;letter-spacing:.5px}
 .cc .cw{font-size:26px;font-weight:700;line-height:1.1;margin-top:4px}
 .cgroup.ccny .cc .cw{color:#a78bfa}
 .cgroup.lagcc .cc .cw{color:#f87171}
+.cgroup.efd .cc .cw{color:#fbbf24}
 .cgroup.staff .cc .cw{color:var(--text2)}
 .cc.active .cw{color:var(--accent)!important}
 .cc .cwl{font-size:9px;color:var(--text3);margin-top:2px}
@@ -828,7 +835,7 @@ select option{background:var(--bg3)}
   .cal-day-head{padding:4px 2px}
   .cal-dname{font-size:9px}
   #collector-view{padding:10px 10px;gap:10px}
-  .campus-pair{flex-direction:column}
+  .campus-pair,.aux-row{flex-direction:column}
   .cgroup-tiles{gap:6px;padding:8px}
   .cc{height:100px;padding:8px 6px}
   .cc .cw{font-size:26px}
@@ -1512,10 +1519,10 @@ function _buildGroupHTML(g){
 }
 function renderCollectorSelector(){
   const el=document.getElementById('cselector');
-  const campus=COLLECTOR_GROUPS.filter(g=>g.id!=='staff');
-  const profs=COLLECTOR_GROUPS.find(g=>g.id==='staff');
+  const campus=COLLECTOR_GROUPS.filter(g=>g.id==='ccny'||g.id==='lagcc');
+  const aux=COLLECTOR_GROUPS.filter(g=>g.id==='efd'||g.id==='staff');
   el.innerHTML=`<div class="campus-pair">${campus.map(_buildGroupHTML).join('')}</div>`
-    +(profs?`<div class="prof-row">${_buildGroupHTML(profs)}</div>`:'');
+    +(aux.length?`<div class="aux-row">${aux.map(_buildGroupHTML).join('')}</div>`:'');
   el.querySelectorAll('.cc').forEach(c=>c.addEventListener('click',()=>{
     currentCollector=c.dataset.cid;renderCV();
   }));

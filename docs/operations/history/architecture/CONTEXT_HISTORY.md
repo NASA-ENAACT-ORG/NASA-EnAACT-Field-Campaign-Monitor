@@ -100,6 +100,23 @@ holder/location controls in the calendar nav:
 - professor/staff accounts kept at the bottom of relevant dropdowns
 - a more prominent "Current holder/location" control-group treatment so the
   status box is easier to find during calendar use
+- later refined into compact status buttons with a confirmation modal before
+  changing the saved holder/location value
+
+### Phase 7: Schedule lifecycle and claim-modal guardrails
+
+Recent `main` commits hardened the active self-scheduling lifecycle:
+
+- `schedule_output.json` is treated as current/future reservation state, not a
+  permanent completed-walk log
+- expired reservations are pruned after the America/New_York schedule day passes
+- past dates remain visible for history but are not claimable or editable
+- dashboard calendar navigation is built from schedule/weather window metadata
+  as well as completed-walk logs, so local previews do not collapse when GCS is
+  disabled and `Walks_Log.txt` is empty
+- the claim modal now starts from blank bag/route/collector choices, disables
+  the claim button until all required choices exist, and resets after a claim
+  to avoid accidental stale-default submissions
 
 ## Superseded Temporary Source Files
 

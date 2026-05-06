@@ -2,8 +2,7 @@
 
 This document is the quickest way to re-establish the current project direction.
 
-Last scanned: 2026-05-05 on `main` with uncommitted past-schedule guard work
-after `fd825b1`.
+Last scanned: 2026-05-05 on `main` at `11dfbdf`.
 
 ## Project Goal
 
@@ -52,6 +51,9 @@ Self-scheduling is implemented in the dashboard and server:
   and one upcoming claimable empty week even when no claims exist
 - past dates are visible as history but cannot be claimed or edited; yesterday
   and older are rejected by the API
+- the claim modal now requires explicit bag, route, and collector selections
+  before enabling the claim action, then resets those selections after opening
+  or completing a claim so stale defaults are not accidentally submitted
 - weather is advisory only
 - uniqueness is enforced per `backpack + date + tod`
 - collector double-booking is blocked within the same `date + tod`
@@ -115,6 +117,19 @@ These now return `410 Gone` and should not be used by active callers.
 Recently completed:
 
 - PR #8 merged self-scheduling into `main`
+- past schedule lifecycle guards are committed on `main`: schedule reads/builds
+  prune expired reservations from `schedule_output.json`, reject past
+  claim/edit targets, and preserve calendar navigation from schedule/weather
+  window metadata when local walk-log mirrors are empty
+- the calendar claim modal was tightened so bag/route/collector are explicit
+  choices and the claim button stays disabled until all required values exist
+- `scripts/ops/edge_case_regression.py` now covers broad offline edge cases for
+  schedule validation, notification preferences/preview, multipart parsing,
+  upload-buffer staging, weather parsing, and student-scheduler helpers
+- local agent workspace files are ignored through `.gitignore`, keeping
+  `.codex-local/` and related sandbox artifacts out of commits
+- `EFD` is restored to the dashboard Collectors tab as a visible student-team
+  collector tile without changing backpack claim eligibility
 - backpack status controls, confirmation-modal guardrail, red warning text, and
   name-only display labels are committed on `main`
 - shared collector/route/backpack registry extraction into `shared/registry.py`
@@ -161,10 +176,14 @@ instead of falling back to the blocked user-profile path.
 
 Code-verifiable checks now pass with the repo-local sandbox Python:
 
+- `.codex-local\python39\python.exe -m compileall -q app shared scripts pipelines` -> PASS
+- `.codex-local\python39\python.exe scripts\ops\edge_case_regression.py` -> PASS
 - `.codex-local\python39\python.exe -m py_compile app/server/serve.py pipelines/dashboard/build_dashboard.py shared/schedule_store.py` -> PASS
 - `.codex-local\python39\python.exe pipelines/dashboard/build_dashboard.py` -> PASS
+- `.codex-local\python39\python.exe pipelines/dashboard/build_availability_heatmap.py` -> PASS
 - `.codex-local\python39\python.exe scripts/ops/self_schedule_regression.py` -> PASS
 - `.codex-local\python39\python.exe scripts/ops/self_schedule_smoke.py --schedule ".tmp/schedule_output.test.json" --in-place` -> PASS
+- `.codex-local\python39\python.exe scripts\ops\backfill_assignment_ids.py` -> PASS dry-run; no missing assignment IDs
 - `git diff --check` -> PASS
 
 Most recent focused checks after the backpack status modal/name polish:

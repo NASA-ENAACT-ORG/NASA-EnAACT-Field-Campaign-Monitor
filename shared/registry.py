@@ -69,7 +69,7 @@ KML_NAME_TO_ROUTE: dict[str, str] = {
 
 # Collector definitions
 STUDENT_COLLECTORS: tuple[str, ...] = (
-    "SOT", "AYA", "ALX", "TAH", "JAM", "JEN", "SCT", "TER",
+    "SOT", "AYA", "ALX", "TAH", "JAM", "JEN", "SCT", "TER", "EFD",
 )
 LAST_RESORT_COLLECTORS: tuple[str, ...] = ("ANG",)
 ACTIVE_COLLECTORS: tuple[str, ...] = STUDENT_COLLECTORS + LAST_RESORT_COLLECTORS
@@ -90,6 +90,7 @@ COLLECTOR_DISPLAY_NAMES: dict[str, str] = {
     "JEN": "Jennifer",
     "SCT": "Scott",
     "TER": "Terra",
+    "EFD": "EFD",
     "ANG": "Angy",
     "PRA": "Prof. Prathap Ramamurthy",
     "NAT": "Prof. Nathan",
@@ -166,6 +167,7 @@ SCHEDULE_COLLECTOR_IDS: frozenset[str] = frozenset().union(
 COLLECTOR_GROUPS: tuple[dict[str, object], ...] = (
     {"id": "ccny", "cls": "ccny", "title": "CCNY", "sub": "Backpack A", "members": ("SOT", "AYA", "JEN", "TAH")},
     {"id": "lagcc", "cls": "lagcc", "title": "LaGCC", "sub": "Backpack B", "members": ("TER", "ALX", "SCT", "JAM")},
+    {"id": "efd", "cls": "efd", "title": "EFD", "sub": "Student team", "members": ("EFD",)},
     {"id": "staff", "cls": "staff", "title": "Professors", "sub": "Non-scheduled", "members": ("NRS", "PRA", "NAT")},
 )
 CAMPUS_PROXY_ROUTE: dict[str, str] = {"A": "MN_HT", "B": "QN_LA"}
@@ -180,6 +182,7 @@ COLLECTOR_ROUTE_AFFINITY: dict[str, tuple[str, ...]] = {
     "JEN": ("HP", "HT", "WH", "UE", "MT", "LE", "DT", "WB", "BS", "FU", "LI", "JH", "FH", "LA", "EE"),
     "SCT": ("HT", "WH", "FU", "LI", "JH", "FH", "LA", "EE"),
     "TER": ("HT", "MT", "LE", "DT", "WB", "BS", "CH", "LI", "LA"),
+    "EFD": (),
     "PRA": (),
     "NAT": (),
     "NRS": (),

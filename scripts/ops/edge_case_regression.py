@@ -21,7 +21,7 @@ if str(server_path) not in sys.path:
     sys.path.insert(0, str(server_path))
 
 from shared.notification_preferences import destinations_for_collector, load_notification_preferences
-from shared.registry import BACKPACK_TO_SCHEDULE_COLLECTORS, ROUTE_CODES, STUDENT_COLLECTORS
+from shared.registry import BACKPACK_TO_SCHEDULE_COLLECTORS, COLLECTOR_GROUPS, ROUTE_CODES, STUDENT_COLLECTORS
 from shared.schedule_store import (
     ScheduleValidationError,
     build_default_schedule,
@@ -170,6 +170,14 @@ def _check_schedule_store_edges() -> None:
         out = Path(td) / "schedule.json"
         save_schedule(_schedule_with([_valid_assignment()]), out, make_backup=False)
         assert len(load_schedule(out, strict=True)["assignments"]) == 1
+
+
+def _check_collector_registry_edges() -> None:
+    assert "EFD" in STUDENT_COLLECTORS
+    efd_groups = [group for group in COLLECTOR_GROUPS if "EFD" in group.get("members", ())]
+    assert len(efd_groups) == 1
+    assert efd_groups[0]["id"] == "efd"
+    assert all("EFD" not in collectors for collectors in BACKPACK_TO_SCHEDULE_COLLECTORS.values())
 
 
 def _check_notification_edges() -> None:
@@ -408,6 +416,7 @@ def _check_student_scheduler_edges() -> None:
 def main() -> int:
     checks = [
         ("schedule_store schema/conflict edges", _check_schedule_store_edges),
+        ("collector registry edges", _check_collector_registry_edges),
         ("notification preference edges", _check_notification_edges),
         ("server helper/preview/multipart edges", _check_server_helper_edges),
         ("upload buffer local backend edges", _check_upload_buffer_edges),
