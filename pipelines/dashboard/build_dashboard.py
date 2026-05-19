@@ -45,7 +45,34 @@ gcs_pull("upload_failures.json", PERSISTED_DIR / "upload_failures.json")
 
 # Read sources
 with open(ROUTES_DATA_JSON, encoding="utf-8") as f:
-    routes_json = f.read()
+    _routes_geo = json.load(f)
+_routes_geo = {code: geo for code, geo in _routes_geo.items() if code in ROUTE_LABELS}
+routes_json = json.dumps(_routes_geo)
+
+def _route_length_miles(route_geo: dict) -> float:
+    radius_miles = 3958.7613
+
+    def haversine(p1: list[float], p2: list[float]) -> float:
+        lat1, lon1 = map(_math.radians, p1)
+        lat2, lon2 = map(_math.radians, p2)
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        h = (
+            _math.sin(dlat / 2) ** 2
+            + _math.cos(lat1) * _math.cos(lat2) * _math.sin(dlon / 2) ** 2
+        )
+        return 2 * radius_miles * _math.asin(_math.sqrt(h))
+
+    return sum(
+        haversine(p1, p2)
+        for line in route_geo.get("lines", [])
+        for p1, p2 in zip(line, line[1:])
+    )
+
+route_miles_json = json.dumps({
+    code: round(_route_length_miles(geo), 2)
+    for code, geo in _routes_geo.items()
+})
 
 with open(WALKS_LOG, encoding="utf-8") as f:
     sample_log_raw = f.read()
@@ -191,12 +218,11 @@ def _splice_waypoints(hull, cx, cy, waypoints):
     result.sort(key=ang)
     return result
 
-_routes_geo=json.loads(routes_json)
 _suffix_map={k.split('_')[1]:k for k in _routes_geo}
 
 _GROUP_DEFS=[
     {"name":"Group 1","codes":["NW","WH","HT","UE","HP"],"color":"#ffd700"},
-    {"name":"Group 2","codes":["JA","FH","FU","EE","JH","LI","LA","WB"],"color":"#ff69b4"},
+    {"name":"Group 2","codes":["JA","FH","FU","JH","LI","LA","WB"],"color":"#ff69b4"},
     {
         "name":"Group 3","codes":["UE","MT","LI","LA","WB","LE","DT"],"color":"#39d353",
         "north_clamp":40.796,
@@ -474,6 +500,11 @@ select option{background:var(--bg3)}
 #rpb{flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:12px}
 .psec{background:var(--bg3);border-radius:7px;padding:11px}
 .psec h3{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:9px}
+.detail-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.detail-card{background:var(--bg4);border-radius:5px;padding:8px 9px}
+.detail-value{font-size:18px;font-weight:700;line-height:1.1;color:var(--text)}
+.detail-label{font-size:9px;color:var(--text2);margin-top:3px}
+.detail-note{font-size:9px;color:var(--text3);margin-top:6px}
 .srow{display:flex;gap:7px}
 .schip{flex:1;min-width:60px;background:var(--bg4);border-radius:5px;padding:7px 8px;text-align:center}
 .schip .sv{font-size:20px;font-weight:700;line-height:1}
@@ -1007,6 +1038,20 @@ setTimeout(function(){
         </div>
         <div id="rpb">
           <div class="psec">
+            <h3>Route Details</h3>
+            <div class="detail-row">
+              <div class="detail-card">
+                <div class="detail-value" id="pd-miles">0.00 mi</div>
+                <div class="detail-label">Length</div>
+              </div>
+              <div class="detail-card">
+                <div class="detail-value" id="pd-time">0 min</div>
+                <div class="detail-label">Estimated completion</div>
+              </div>
+            </div>
+            <div class="detail-note">Based on a 3 mph walking speed.</div>
+          </div>
+          <div class="psec">
             <h3>Completions (current filter)</h3>
             <div class="srow">
               <div class="schip"><div class="sv" id="ps-tot">0</div><div class="sl">Total</div></div>
@@ -1209,6 +1254,7 @@ async function refreshRuntimeData(){
 // Campus affiliation -> pin color  (purple = CCNY, red = LaGCC, amber = staff)
 const COLLECTOR_PIN_COLOR = __COLLECTOR_PIN_COLORS_JSON__;
 const ROUTE_LABELS = __ROUTE_LABELS_JSON__;
+const ROUTE_MILES = __ROUTE_MILES_JSON__;
 const ALL_ROUTES = new Set(Object.keys(ROUTE_LABELS));
 const COLLECTORS = __DASHBOARD_COLLECTORS_JSON__;
 const STUDENT_COLLECTORS = __STUDENT_COLLECTORS_JSON__;
@@ -1441,10 +1487,22 @@ function closePanel(){
   document.getElementById('route-panel').classList.remove('open');
   for(const c of Object.keys(routeLayers))styleRoute(c);
 }
+function formatDurationMinutes(minutes){
+  const rounded=Math.max(1,Math.round(minutes));
+  if(rounded<60)return `${rounded} min`;
+  const h=Math.floor(rounded/60),m=rounded%60;
+  return m?`${h} hr ${m} min`:`${h} hr`;
+}
+function estimatedWalkTime(miles){
+  return formatDurationMinutes(60*miles/3);
+}
 function updateRoutePanel(code){
   const lbl=ROUTE_LABELS[code]||code;
   document.getElementById('pname').textContent=lbl;
   document.getElementById('pcode').textContent=code+'  |  '+ROUTE_LABELS[code]?.split('-')[0]?.trim();
+  const miles=ROUTE_MILES[code]??0;
+  document.getElementById('pd-miles').textContent=`${miles.toFixed(2)} mi`;
+  document.getElementById('pd-time').textContent=estimatedWalkTime(miles);
   const rw=filteredWalks.filter(w=>w.route===code);
   const byTod={AM:0,MD:0,PM:0};
   for(const w of rw)byTod[w.tod]++;
@@ -3323,7 +3381,7 @@ var _umRoutes = {
   MN:[['HT','Harlem'],['WH','Washington Heights'],['UE','Upper East Side'],['MT','Midtown'],['LE','Union Sq / LES']],
   BX:[['HP','Hunts Point'],['NW','Norwood']],
   BK:[['DT','Downtown BK'],['WB','Williamsburg'],['BS','Bed Stuy'],['CH','Crown Heights'],['SP','Sunset Park'],['CI','Coney Island']],
-  QN:[['FU','Flushing'],['LI','Astoria / LIC'],['JH','Jackson Heights'],['JA','Jamaica'],['FH','Forest Hills'],['LA','LaGuardia CC'],['EE','East Elmhurst']]
+  QN:[['FU','Flushing'],['LI','Astoria / LIC'],['JH','Jackson Heights'],['JA','Jamaica'],['FH','Forest Hills'],['LA','LaGuardia CC']]
 };
 function openUploadModal(){
   var t=new Date(),m=String(t.getMonth()+1).padStart(2,'0'),d=String(t.getDate()).padStart(2,'0');
@@ -3768,6 +3826,7 @@ HTML_TEMPLATE = HTML_TEMPLATE.replace('__AVAIL_CELLS_B__', avail_cells_b_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__MAX_A__', str(avail_max_a))
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__MAX_B__', str(avail_max_b))
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__ROUTE_LABELS_JSON__', route_labels_json)
+HTML_TEMPLATE = HTML_TEMPLATE.replace('__ROUTE_MILES_JSON__', route_miles_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__COLLECTOR_PIN_COLORS_JSON__', collector_pin_colors_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__DASHBOARD_COLLECTORS_JSON__', dashboard_collectors_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__STUDENT_COLLECTORS_JSON__', student_collectors_json)

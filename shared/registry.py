@@ -10,7 +10,7 @@ ROUTES_BY_BOROUGH: dict[str, tuple[str, ...]] = {
     "MN": ("HT", "WH", "UE", "MT", "LE"),
     "BX": ("HP", "NW"),
     "BK": ("DT", "WB", "BS", "CH", "SP", "CI"),
-    "QN": ("FU", "LI", "JH", "JA", "FH", "LA", "EE"),
+    "QN": ("FU", "LI", "JH", "JA", "FH", "LA"),
 }
 
 ALL_ROUTES: tuple[str, ...] = tuple(
@@ -39,7 +39,6 @@ ROUTE_LABELS: dict[str, str] = {
     "QN_JA": "Queens - Jamaica",
     "QN_FH": "Queens - Forest Hills",
     "QN_LA": "Queens - LaGuardia CC",
-    "QN_EE": "Queens - East Elmhurst",
 }
 ROUTE_CODES: frozenset[str] = frozenset(ROUTE_LABELS)
 
@@ -64,7 +63,6 @@ KML_NAME_TO_ROUTE: dict[str, str] = {
     "Jamaica": "QN_JA",
     "Forest Hills": "QN_FH",
     "LaGuardia Community College": "QN_LA",
-    "East Elmhurst": "QN_EE",
 }
 
 # Collector definitions
@@ -177,10 +175,10 @@ COLLECTOR_ROUTE_AFFINITY: dict[str, tuple[str, ...]] = {
     "SOT": (),
     "AYA": ("MT", "LE", "DT", "WB", "BS", "CH", "SP", "CI"),
     "ALX": ("LE", "WB", "BS", "JA", "FH", "LA"),
-    "TAH": ("HT", "MT", "LE", "FU", "LI", "JH", "JA", "FH", "LA", "EE"),
+    "TAH": ("HT", "MT", "LE", "FU", "LI", "JH", "JA", "FH", "LA"),
     "JAM": ("JH", "FH"),
-    "JEN": ("HP", "HT", "WH", "UE", "MT", "LE", "DT", "WB", "BS", "FU", "LI", "JH", "FH", "LA", "EE"),
-    "SCT": ("HT", "WH", "FU", "LI", "JH", "FH", "LA", "EE"),
+    "JEN": ("HP", "HT", "WH", "UE", "MT", "LE", "DT", "WB", "BS", "FU", "LI", "JH", "FH", "LA"),
+    "SCT": ("HT", "WH", "FU", "LI", "JH", "FH", "LA"),
     "TER": ("HT", "MT", "LE", "DT", "WB", "BS", "CH", "LI", "LA"),
     "EFD": (),
     "PRA": (),
