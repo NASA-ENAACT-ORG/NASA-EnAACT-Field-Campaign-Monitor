@@ -24,6 +24,7 @@ Covers:
 from __future__ import annotations
 
 import argparse
+import ast
 import copy
 import json
 import re
@@ -447,6 +448,155 @@ def _assert_dashboard_past_slot_guards() -> None:
         raise AssertionError(f"dashboard past-slot guard missing expected source tokens: {missing}")
 
 
+def _assert_backpack_status_refresh_guards() -> None:
+    server_source = SERVER_SOURCE.read_text(encoding="utf-8")
+    server_required = (
+        "_refresh_backpack_status_from_walk_entries",
+        "_latest_walk_status_by_backpack",
+        '"source": "completed_walk"',
+        '"walk_log_mark": latest["walk_log_mark"]',
+        'latest_walk.get("walk_log_mark", "")',
+    )
+    missing_server = [token for token in server_required if token not in server_source]
+    if missing_server:
+        raise AssertionError(f"server backpack-status refresh missing expected source tokens: {missing_server}")
+
+    dashboard_source = DASHBOARD_SOURCE.read_text(encoding="utf-8")
+    dashboard_required = (
+        "function _walkLogMark(w)",
+        "saved.walk_log_mark",
+        "source==='manual'&&(!savedMark||savedMark!==latestMark)",
+        "await refreshRuntimeData();",
+        "renderBackpackStatusPanel();",
+    )
+    missing_dashboard = [token for token in dashboard_required if token not in dashboard_source]
+    if missing_dashboard:
+        raise AssertionError(f"dashboard backpack-status refresh missing expected source tokens: {missing_dashboard}")
+
+
+def _server_status_refresh_helpers() -> dict:
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    wanted = {
+        "_latest_walk_status_by_backpack",
+        "_status_should_follow_completed_walk",
+        "_refresh_backpack_status_from_walk_entries",
+    }
+    functions = [
+        node for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name in wanted
+    ]
+    if {node.name for node in functions} != wanted:
+        raise AssertionError("could not load all server backpack-status refresh helpers")
+    future_annotations = ast.parse("from __future__ import annotations").body
+    module = ast.Module(body=future_annotations + functions, type_ignores=[])
+    ast.fix_missing_locations(module)
+
+    class _FixedScheduleNow:
+        def isoformat(self) -> str:
+            return "2026-05-22T12:00:00-04:00"
+
+    namespace = {
+        "_WALK_LOG_RE": re.compile(
+            r'^([ABX])_([A-Z]{2,4})_([A-Z]{2})_([A-Z]{2,3})_(\d{8})_(AM|MD|PM)$',
+            re.IGNORECASE,
+        ),
+        "_WALK_TOD_ORDER": {"AM": 0, "MD": 1, "PM": 2},
+        "VALID_BACKPACKS": ("A", "B"),
+        "schedule_now": lambda: _FixedScheduleNow(),
+    }
+    exec(compile(module, str(SERVER_SOURCE), "exec"), namespace)
+    return namespace
+
+
+def _assert_completed_walk_refreshes_backpack_status() -> None:
+    helpers = _server_status_refresh_helpers()
+    refresh = helpers["_refresh_backpack_status_from_walk_entries"]
+
+    older_b = "B_TER_QN_LA_20260520_AM"
+    latest_b = "B_JEN_QN_LA_20260522_MD"
+    newer_b = "B_ALX_QN_LA_20260523_AM"
+
+    schedule = {
+        "backpack_status": {
+            "B": {
+                "holder": "TER",
+                "location": "",
+                "updated_at": "2026-05-22T09:00:00-04:00",
+                "updated_by": "TER",
+                "source": "manual",
+                "walk_log_mark": older_b,
+            }
+        }
+    }
+    changed = refresh(schedule, {older_b, latest_b}, {older_b})
+    status = schedule["backpack_status"]["B"]
+    if changed != 1 or status.get("holder") != "JEN" or status.get("source") != "completed_walk":
+        raise AssertionError("new completed walk should replace older manual Backpack B holder")
+    if status.get("walk_log_mark") != latest_b:
+        raise AssertionError("completed-walk status should persist the latest walk marker")
+
+    schedule = {
+        "backpack_status": {
+            "B": {
+                "holder": "TER",
+                "location": "",
+                "source": "manual",
+                "walk_log_mark": latest_b,
+            }
+        }
+    }
+    changed = refresh(schedule, {older_b, latest_b}, {older_b, latest_b})
+    if changed != 0 or schedule["backpack_status"]["B"].get("holder") != "TER":
+        raise AssertionError("manual holder set after latest completed walk should remain manual")
+
+    schedule = {
+        "backpack_status": {
+            "B": {
+                "holder": "",
+                "location": "LaGuardia",
+                "source": "manual",
+                "walk_log_mark": latest_b,
+            }
+        }
+    }
+    changed = refresh(schedule, {older_b, latest_b}, {older_b, latest_b})
+    if changed != 0 or schedule["backpack_status"]["B"].get("location") != "LaGuardia":
+        raise AssertionError("manual location should remain until a newer completed walk appears")
+
+    changed = refresh(schedule, {older_b, latest_b, newer_b}, {older_b, latest_b})
+    status = schedule["backpack_status"]["B"]
+    if changed != 1 or status.get("holder") != "ALX" or status.get("location"):
+        raise AssertionError("newer completed walk should replace an older manual location")
+
+    schedule = {
+        "backpack_status": {
+            "B": {
+                "holder": "TER",
+                "location": "",
+                "source": "manual",
+            }
+        }
+    }
+    changed = refresh(schedule, {older_b, latest_b}, {older_b})
+    status = schedule["backpack_status"]["B"]
+    if changed != 1 or status.get("holder") != "JEN":
+        raise AssertionError("legacy manual holder without walk marker should be corrected by a new completed walk")
+
+    schedule = {
+        "backpack_status": {
+            "B": {
+                "holder": "",
+                "location": "LaGuardia",
+                "source": "manual",
+            }
+        }
+    }
+    changed = refresh(schedule, {older_b, latest_b}, {older_b, latest_b})
+    if changed != 0 or schedule["backpack_status"]["B"].get("location") != "LaGuardia":
+        raise AssertionError("legacy manual location should not change when no newer walk is discovered")
+
+
 def _assert_expired_pruning_preserves_state(path: Path) -> None:
     current = schedule_today()
     yesterday = current - timedelta(days=1)
@@ -495,6 +645,8 @@ def run_regression(schedule_path: Path, start_date: str | None) -> int:
         # through the Drive poll/upload flow, not through schedule claim APIs.
         _assert_schedule_endpoints_do_not_write_walk_log()
         _assert_dashboard_past_slot_guards()
+        _assert_backpack_status_refresh_guards()
+        _assert_completed_walk_refreshes_backpack_status()
 
         if schedule_path.exists():
             shutil.copy2(schedule_path, work_path)

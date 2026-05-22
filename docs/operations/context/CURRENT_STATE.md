@@ -76,9 +76,10 @@ Self-scheduling is implemented in the dashboard and server:
   from schedule and weather metadata, while completed walk cards only appear
   once the walk log mirror has entries
 - backpack holder/location status is shown in the calendar nav and persists to
-  `schedule_output.json` under `backpack_status`; when no manual status exists,
-  the dashboard defaults to the collector from the most recent completed walk
-  for each backpack
+  `schedule_output.json` under `backpack_status`; manual holder/location values
+  are temporary corrections and are replaced when a later completed walk is
+  discovered for that backpack; without a manual override, the dashboard defaults
+  to the collector from the most recent completed walk for each backpack
 - the backpack status control group uses two compact, symmetrical status
   buttons; changing a backpack holder/location opens a confirmation modal before
   showing the dropdown and OK submit action; the warning text is red and the

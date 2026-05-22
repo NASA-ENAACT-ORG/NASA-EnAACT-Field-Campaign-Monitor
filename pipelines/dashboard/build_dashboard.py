@@ -2520,6 +2520,15 @@ function _latestCompletedHolder(bp){
     });
   return walks.length?walks[0]:null;
 }
+function _walkLogMark(w){
+  if(!w||!w.date||!w.collector||!w.bp||!w.route||!w.tod)return'';
+  const y=w.date.getFullYear();
+  const m=String(w.date.getMonth()+1).padStart(2,'0');
+  const d=String(w.date.getDate()).padStart(2,'0');
+  const parts=String(w.route).split('_');
+  if(parts.length!==2)return'';
+  return `${String(w.bp).toUpperCase()}_${String(w.collector).toUpperCase()}_${parts[0].toUpperCase()}_${parts[1].toUpperCase()}_${y}${m}${d}_${String(w.tod).toUpperCase()}`;
+}
 function _backpackLocationOptions(bp){return bp==='A'?['CCNY']:['LaGuardia','CCNY'];}
 function _backpackStatusLabel(status){
   if(status.holder){
@@ -2531,26 +2540,36 @@ function _backpackStatusLabel(status){
 }
 function _backpackStatusFor(bp){
   const saved=RUNTIME_SCHEDULE&&RUNTIME_SCHEDULE.backpack_status&&RUNTIME_SCHEDULE.backpack_status[bp];
+  const latest=_latestCompletedHolder(bp);
+  const latestMark=_walkLogMark(latest);
+  const fromLatest=()=>{
+    return {
+      value:latest?'person:'+latest.collector:'',
+      holder:latest?latest.collector:'',
+      source:latest?'latest completed walk':'no completed walk'
+    };
+  };
   if(saved&&saved.holder){
+    const savedMark=String(saved.walk_log_mark||'').toUpperCase();
+    const source=String(saved.source||'').toLowerCase();
+    if(latest&&source==='manual'&&(!savedMark||savedMark!==latestMark))return fromLatest();
+    if(latest&&source==='completed_walk'&&savedMark!==latestMark)return fromLatest();
     return {
       value:'person:'+String(saved.holder).toUpperCase(),
       holder:String(saved.holder).toUpperCase(),
-      source:'manual'
+      source:source==='completed_walk'?'latest completed walk':'manual'
     };
   }
   if(saved&&saved.location){
+    const savedMark=String(saved.walk_log_mark||'').toUpperCase();
+    if(latest&&savedMark&&savedMark!==latestMark)return fromLatest();
     return {
       value:'location:'+saved.location,
       location:saved.location,
       source:'manual'
     };
   }
-  const latest=_latestCompletedHolder(bp);
-  return {
-    value:latest?'person:'+latest.collector:'',
-    holder:latest?latest.collector:'',
-    source:latest?'latest completed walk':'no completed walk'
-  };
+  return fromLatest();
 }
 function _fillBackpackStatusOptions(selectEl,bp){
   if(!selectEl)return;
@@ -3301,7 +3320,18 @@ document.addEventListener('DOMContentLoaded',()=>{
           toast(d.new_files?`Drive: ${d.new_files} new file(s) found`:'Drive: no new files','success');
           if(d.new_files>0){
             const lr=await fetch('Walks_Log.txt?t='+Date.now());
-            if(lr.ok){logText=await lr.text();allWalks=parseLog(logText);applyFilters();updateStatus('Walks_Log.txt');}
+            if(lr.ok){
+              logText=await lr.text();
+              allWalks=parseLog(logText);
+              await refreshRuntimeData();
+              if(RUNTIME_SCHEDULE&&RUNTIME_SCHEDULE.assignments){
+                schedData=RUNTIME_SCHEDULE;
+                loadScheduleJSON(JSON.stringify(RUNTIME_SCHEDULE));
+              }
+              applyFilters();
+              updateStatus('Walks_Log.txt');
+              renderBackpackStatusPanel();
+            }
           }
         }else{toast('Drive sync error: '+(d.message||'unknown'),'');}
       }catch(e){toast('Drive sync failed: '+e.message,'');}

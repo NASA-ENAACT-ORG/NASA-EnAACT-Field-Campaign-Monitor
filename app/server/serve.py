@@ -677,6 +677,7 @@ _WALK_LOG_RE = re.compile(
     r'^([ABX])_([A-Z]{2,4})_([A-Z]{2})_([A-Z]{2,3})_(\d{8})_(AM|MD|PM)$',
     re.IGNORECASE,
 )
+_WALK_TOD_ORDER = {"AM": 0, "MD": 1, "PM": 2}
 
 
 def _parse_filename_to_log_entry(name: str) -> str | None:
@@ -686,6 +687,109 @@ def _parse_filename_to_log_entry(name: str) -> str | None:
     if m:
         return stem
     return None
+
+
+def _latest_walk_status_by_backpack(entries: set[str] | list[str] | tuple[str, ...]) -> dict[str, dict[str, str]]:
+    latest: dict[str, tuple[tuple[str, int, str], dict[str, str]]] = {}
+    for entry in entries:
+        line = str(entry).strip().upper()
+        m = _WALK_LOG_RE.match(line)
+        if not m:
+            continue
+        backpack, collector, _boro, _neigh, walk_date, tod = m.groups()
+        backpack = backpack.upper()
+        if backpack not in VALID_BACKPACKS:
+            continue
+        tod = tod.upper()
+        key = (walk_date, _WALK_TOD_ORDER.get(tod, -1), line)
+        status = {
+            "holder": collector.upper(),
+            "location": "",
+            "walk_log_mark": line,
+        }
+        if backpack not in latest or key > latest[backpack][0]:
+            latest[backpack] = (key, status)
+    return {backpack: status for backpack, (_key, status) in latest.items()}
+
+
+def _read_walk_log_entries() -> set[str]:
+    if not WALKS_LOG.exists():
+        return set()
+    return {
+        line.strip().upper()
+        for line in WALKS_LOG.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.strip().upper().startswith("RECAL_")
+    }
+
+
+def _status_should_follow_completed_walk(
+    existing: object,
+    latest: dict[str, str],
+    previous: dict[str, str] | None,
+) -> bool:
+    if not isinstance(existing, dict):
+        return True
+
+    latest_mark = str(latest.get("walk_log_mark", "")).upper()
+    previous_mark = str((previous or {}).get("walk_log_mark", "")).upper()
+    existing_mark = str(existing.get("walk_log_mark", "")).upper()
+    existing_holder = str(existing.get("holder", "")).upper()
+    existing_location = str(existing.get("location", ""))
+    source = str(existing.get("source", "")).lower()
+
+    if source == "manual":
+        if existing_mark:
+            return existing_mark != latest_mark
+        return latest_mark != previous_mark
+
+    if source == "completed_walk":
+        return (
+            existing_mark != latest_mark
+            or existing_holder != latest.get("holder", "")
+            or bool(existing_location)
+        )
+
+    if existing_mark:
+        return existing_mark != latest_mark
+    return latest_mark != previous_mark
+
+
+def _refresh_backpack_status_from_walk_entries(
+    schedule_data: dict,
+    current_entries: set[str],
+    previous_entries: set[str] | None = None,
+) -> int:
+    current_latest = _latest_walk_status_by_backpack(current_entries)
+    previous_latest = _latest_walk_status_by_backpack(previous_entries or set())
+    if not current_latest:
+        return 0
+
+    status = schedule_data.setdefault("backpack_status", {})
+    if not isinstance(status, dict):
+        status = {}
+        schedule_data["backpack_status"] = status
+
+    changed = 0
+    now = schedule_now().isoformat()
+    for backpack, latest in current_latest.items():
+        existing = status.get(backpack)
+        if not _status_should_follow_completed_walk(
+            existing,
+            latest,
+            previous_latest.get(backpack),
+        ):
+            continue
+        status[backpack] = {
+            "holder": latest["holder"],
+            "location": "",
+            "updated_at": now,
+            "updated_by": latest["holder"],
+            "source": "completed_walk",
+            "walk_log_mark": latest["walk_log_mark"],
+        }
+        changed += 1
+
+    return changed
 
 
 def _load_seen_ids() -> set:
@@ -819,9 +923,23 @@ def _run_drive_poll(source: str = "background"):
     _rebuild_walk_log(merged)
 
     schedule_pruned = 0
+    status_refreshed = 0
     try:
         with _schedule_write_lock:
-            _, schedule_pruned = _load_schedule_prune_and_persist(sync_from_gcs=True)
+            schedule_data, schedule_pruned = _load_schedule_prune_and_persist(sync_from_gcs=True)
+            status_refreshed = _refresh_backpack_status_from_walk_entries(
+                schedule_data,
+                drive_set,
+                prev_entries,
+            )
+            if status_refreshed:
+                save_schedule(schedule_data, SCHEDULE_OUTPUT, make_backup=True)
+                if _gcs_bucket:
+                    _upload_to_gcs(SCHEDULE_OUTPUT, "schedule_output.json")
+                print(
+                    "[drive] Updated backpack status from "
+                    f"{status_refreshed} completed walk(s)"
+                )
     except ScheduleValidationError as exc:
         print(f"[drive] WARNING: Could not prune expired schedule assignments: {exc}")
 
@@ -833,8 +951,14 @@ def _run_drive_poll(source: str = "background"):
         if new_count > 0:
             _drive_new_today += new_count
 
-    if log_changed or schedule_pruned:
-        reason = "walk log changed" if log_changed else "expired schedule assignments pruned"
+    if log_changed or schedule_pruned or status_refreshed:
+        reason = (
+            "walk log changed"
+            if log_changed
+            else "backpack status refreshed"
+            if status_refreshed
+            else "expired schedule assignments pruned"
+        )
         print(f"[drive] {reason} -- triggering dashboard rebuild")
         _trigger_rebuild()
     else:
@@ -1183,12 +1307,17 @@ class Handler(BaseHTTPRequestHandler):
                     return
 
                 status = schedule_data.setdefault("backpack_status", {})
+                if not isinstance(status, dict):
+                    status = {}
+                    schedule_data["backpack_status"] = status
+                latest_walk = _latest_walk_status_by_backpack(_read_walk_log_entries()).get(backpack, {})
                 status[backpack] = {
                     "holder": holder,
                     "location": location,
                     "updated_at": schedule_now().isoformat(),
                     "updated_by": updated_by,
                     "source": "manual",
+                    "walk_log_mark": latest_walk.get("walk_log_mark", ""),
                 }
 
                 try:
