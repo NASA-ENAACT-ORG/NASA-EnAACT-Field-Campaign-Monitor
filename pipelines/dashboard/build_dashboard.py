@@ -1710,19 +1710,32 @@ let tlWeekIdx=0;   // index into tlWeeks array (0 = most recent)
 
 const TOD_ORDER={AM:0,MD:1,PM:2};
 
+function dateKey(d){
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
 // -- Helper: snap any date to the Sunday that starts its week ---
 function toWeekSunday(d){
   const s=new Date(d); s.setDate(d.getDate()-d.getDay()); s.setHours(0,0,0,0); return s;
 }
 
-// -- Build sorted list of distinct Sun-Sat weeks across completed+scheduled walks --
-function buildTlWeeks(){
+// -- Helper: snap any date to the rolling calendar window that starts yesterday ---
+function toRollingCalendarStart(d){
+  const anchor=new Date(); anchor.setHours(0,0,0,0); anchor.setDate(anchor.getDate()-1);
+  const s=new Date(d); s.setHours(0,0,0,0);
+  const offset=(s.getDay()-anchor.getDay()+7)%7;
+  s.setDate(s.getDate()-offset);
+  return s;
+}
+
+function buildWalkWindows(windowStartForDate){
   const byWeek={};
+  const keyForDate=(d)=>dateKey(windowStartForDate(d));
   const addWeekForDate=(dateStr,source='empty')=>{
     if(!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr||'')))return;
     const d=new Date(dateStr+'T00:00:00');
     if(Number.isNaN(d.getTime()))return;
-    const key=toWeekSunday(d).toISOString().slice(0,10);
+    const key=keyForDate(d);
     if(!byWeek[key])byWeek[key]={weekStart:key,walks:[],source};
   };
   const addWeekRange=(startStr,endStr,source='empty')=>{
@@ -1731,33 +1744,31 @@ function buildTlWeeks(){
     const start=new Date(startStr+'T00:00:00');
     const end=new Date(endStr+'T00:00:00');
     if(Number.isNaN(start.getTime())||Number.isNaN(end.getTime())||start>end)return;
-    const cursor=toWeekSunday(start);
-    const last=toWeekSunday(end);
+    const cursor=windowStartForDate(start);
+    const last=windowStartForDate(end);
     while(cursor<=last){
-      const key=cursor.toISOString().slice(0,10);
+      const key=dateKey(cursor);
       if(!byWeek[key])byWeek[key]={weekStart:key,walks:[],source};
       cursor.setDate(cursor.getDate()+7);
     }
   };
-  // Completed walks from log - key by the Sunday of the walk's week
+  // Completed walks from log - key by the start of the display window
   for(const w of allWalks){
     const d=new Date(w.date.getFullYear(),w.date.getMonth(),w.date.getDate());
-    const sun=toWeekSunday(d);
-    const key=sun.toISOString().slice(0,10);
+    const key=keyForDate(d);
     if(!byWeek[key])byWeek[key]={weekStart:key,walks:[],source:'log'};
     byWeek[key].walks.push({
-      date:w.date.toISOString().slice(0,10),
+      date:dateKey(w.date),
       tod:w.tod, backpack:w.bp||'X', route:w.route,
       collector:w.collector, source:'completed'
     });
   }
-  // Scheduled assignments - each assignment keyed to the Sunday of ITS OWN date
-  // (schedule week_start may span multiple Sun-Sat weeks)
+  // Scheduled assignments - each assignment keyed to its own display window
+  // (schedule week_start may span multiple display windows)
   if(schedData&&schedData.assignments&&schedData.assignments.length){
     for(const a of schedData.assignments){
       const ad=new Date(a.date+'T00:00:00');
-      const sun=toWeekSunday(ad);
-      const key=sun.toISOString().slice(0,10);
+      const key=keyForDate(ad);
       if(!byWeek[key])byWeek[key]={weekStart:key,walks:[],source:'schedule'};
       else if(byWeek[key].source==='log')byWeek[key].source='schedule';
       if(!byWeek[key].walks.find(w=>w.date===a.date&&w.tod===a.tod&&w.route===a.route))
@@ -1766,7 +1777,7 @@ function buildTlWeeks(){
     // Tag recal_day to the week it falls in
     if(schedData.recal_day){
       const rd=new Date(schedData.recal_day+'T00:00:00');
-      const key=toWeekSunday(rd).toISOString().slice(0,10);
+      const key=keyForDate(rd);
       if(byWeek[key])byWeek[key].recal_day=schedData.recal_day;
     }
   }
@@ -1779,7 +1790,7 @@ function buildTlWeeks(){
       const dateStr=weatherKey.slice(0,cut);
       const wd=new Date(dateStr+'T00:00:00');
       if(Number.isNaN(wd.getTime()))continue;
-      const key=toWeekSunday(wd).toISOString().slice(0,10);
+      const key=keyForDate(wd);
       if(!byWeek[key])byWeek[key]={weekStart:key,walks:[],source:'weather'};
     }
   }
@@ -1797,26 +1808,35 @@ function buildTlWeeks(){
   }
   // Always include the current week plus the next claimable week so the
   // calendar can move one empty week ahead before anyone has claimed slots.
-  const _todaySun=toWeekSunday(new Date());
+  const _currentStart=windowStartForDate(new Date());
   for(let i=-1;i<=1;i++){
-    const weekDate=new Date(_todaySun);
-    weekDate.setDate(_todaySun.getDate()+(i*7));
-    const weekKey=weekDate.toISOString().slice(0,10);
+    const weekDate=new Date(_currentStart);
+    weekDate.setDate(_currentStart.getDate()+(i*7));
+    const weekKey=dateKey(weekDate);
     if(!byWeek[weekKey])byWeek[weekKey]={weekStart:weekKey,walks:[],source:i===0?'log':'empty'};
   }
   // Sort descending (index 0 = most recent / furthest future)
   return Object.values(byWeek).sort((a,b)=>b.weekStart.localeCompare(a.weekStart));
 }
 
-// Returns the index of the current (this week's Sunday) entry in a weeks array
-function findCurrentWeekIdx(weeks){
+// -- Build sorted list of distinct Sun-Sat weeks across completed+scheduled walks --
+function buildTlWeeks(){
+  return buildWalkWindows(toWeekSunday);
+}
+
+// -- Build sorted list of rolling calendar windows that start the day before today --
+function buildCalendarWeeks(){
+  return buildWalkWindows(toRollingCalendarStart);
+}
+
+// Returns the index of the current display window in a weeks array
+function findCurrentWeekIdx(weeks,windowStartForDate=toWeekSunday){
   const today=new Date(); today.setHours(0,0,0,0);
-  const sun=toWeekSunday(today);
-  const key=sun.toISOString().slice(0,10);
+  const key=dateKey(windowStartForDate(today));
   const exact=weeks.findIndex(w=>w.weekStart===key);
   if(exact>=0)return exact;
   // Fallback: most-recent week that isn't strictly in the future
-  return Math.max(0,weeks.findIndex(w=>w.weekStart<=today.toISOString().slice(0,10)));
+  return Math.max(0,weeks.findIndex(w=>w.weekStart<=dateKey(today)));
 }
 
 function getTlWeek(){
@@ -2083,7 +2103,11 @@ function highlightSchedRoute(code,bp){
 function loadScheduleJSON(text){
   try{
     schedData=JSON.parse(text);
-    schedStep=-1;const _initW=buildTlWeeks();tlWeekIdx=findCurrentWeekIdx(_initW);calWeekIdx=findCurrentWeekIdx(_initW);
+    schedStep=-1;
+    const _initW=buildTlWeeks();
+    const _initCalW=buildCalendarWeeks();
+    tlWeekIdx=findCurrentWeekIdx(_initW);
+    calWeekIdx=findCurrentWeekIdx(_initCalW,toRollingCalendarStart);
     if(schedPlaying){schedPlaying=false;if(schedPlayTimer){clearInterval(schedPlayTimer);schedPlayTimer=null;}}
     applyScheduleColors();
     renderSchedulePanel();
@@ -2691,7 +2715,7 @@ function renderCalendar(){
   updateCalibrationBars();
   renderBackpackStatusPanel();
 
-  const weeks=buildTlWeeks();
+  const weeks=buildCalendarWeeks();
   if(!weeks.length){
     grid.innerHTML='<div class="cal-empty-week">No walk data or schedule loaded yet - claim a slot or load a log file.</div>';
     if(title)title.textContent='-';
@@ -2993,7 +3017,7 @@ function bindEvents(){
          &&_schedStamp(RUNTIME_SCHEDULE)!==_schedStamp(schedData)){
         loadScheduleJSON(JSON.stringify(RUNTIME_SCHEDULE));
       }
-      calWeekIdx=tlWeekIdx;
+      calWeekIdx=findCurrentWeekIdx(buildCalendarWeeks(),toRollingCalendarStart);
       renderCalendar();
     } else if(b.dataset.view==='availability-view'){
       renderAvailHeatmap();
@@ -3066,7 +3090,7 @@ function bindEvents(){
       e.target.value='';};r.readAsText(f);})();
   });
   document.getElementById('cal-prev').addEventListener('click',()=>{
-    const weeks=buildTlWeeks();
+    const weeks=buildCalendarWeeks();
     if(calWeekIdx<weeks.length-1){calWeekIdx++;renderCalendar();}
   });
   document.getElementById('cal-next').addEventListener('click',()=>{
