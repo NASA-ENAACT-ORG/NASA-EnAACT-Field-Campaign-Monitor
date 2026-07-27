@@ -22,6 +22,18 @@ The active direction is:
 - centralize stable metadata in shared modules
 - retire scheduler-era code from the active runtime path
 
+## Public Dashboard Feature Visibility
+
+The public dashboard currently exposes only the Map, Filters, Collector
+dashboard, and Collector Areas controls. Calendar scheduling, backpack status,
+calibration logs, route groups, availability, reminders, and data upload are
+dormant: they remain implemented, but their controls and modals are hidden from
+generated dashboard pages.
+
+Visibility is controlled centrally in `shared/dashboard_features.py`. To
+restore a dormant feature, set its named flag to `True` and rebuild the
+dashboard; no endpoint, data migration, or code restoration is required.
+
 ## Active Runtime Path
 
 The smallest current active path is centered on:

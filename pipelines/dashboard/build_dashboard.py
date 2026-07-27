@@ -36,6 +36,47 @@ from shared.registry import (
     STAFF_COLLECTORS,
     STUDENT_COLLECTORS,
 )
+from shared.dashboard_features import dashboard_feature_enabled
+
+
+# Optional controls remain in the generated markup so their event bindings and
+# supporting code stay exercised. This CSS is the public feature gate: set the
+# corresponding flag in shared/dashboard_features.py to True, rebuild, and the
+# existing feature returns without code restoration.
+_DORMANT_FEATURE_SELECTORS = {
+    "calendar": (
+        "#calendar-view",
+        "#slot-sched-bg",
+        "#bp-status-modal-bg",
+    ),
+    "backpack_status": ("#backpack-status-panel", "#bp-status-modal-bg"),
+    "calibration_logs": ("#cal-bars",),
+    "route_groups": ("#route-groups-btn",),
+    "availability": ("button[data-view='availability-view']", "#availability-view"),
+    "reminders": ("#notify-btn", "#notify-modal-bg"),
+    "data_upload": (".upload-data-btn", "#upload-modal-bg", "#upload-failure-banner"),
+}
+
+
+def _dormant_feature_css() -> str:
+    """Return CSS that removes disabled optional features from the public UI."""
+    selectors = [
+        selector
+        for feature, feature_selectors in _DORMANT_FEATURE_SELECTORS.items()
+        if not dashboard_feature_enabled(feature)
+        for selector in feature_selectors
+    ]
+    if not (
+        dashboard_feature_enabled("calendar")
+        or dashboard_feature_enabled("availability")
+    ):
+        selectors.extend(("#scheduling-tab-separator", "#scheduling-tab-group"))
+    if not selectors:
+        return ""
+    return ",\n".join(selectors) + "{display:none !important}"
+
+
+dormant_feature_css = _dormant_feature_css()
 
 # Pull the latest bucket copies before reading — the bucket is authoritative.
 gcs_pull("Walks_Log.txt",        WALKS_LOG)
@@ -314,6 +355,7 @@ HTML_TEMPLATE = """\
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
+__DORMANT_FEATURE_STYLES__
 :root{
   --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--bg4:#30363d;
   --border:#30363d;--text:#e6edf3;--text2:#8b949e;--text3:#6e7681;
@@ -1004,8 +1046,8 @@ setTimeout(function(){
           <button id="filters-btn" class="tab-btn filters-toggle-btn" title="Toggle walk filters">&#x2699; Filters &#x25BE;</button>
         </div>
       </div>
-      <div class="tab-sep"></div>
-      <div class="tab-group">
+      <div class="tab-sep" id="scheduling-tab-separator"></div>
+      <div class="tab-group" id="scheduling-tab-group">
         <span class="tab-group-label scheduling">Scheduling</span>
         <div class="tab-group-btns">
           <button class="tab-btn" data-view="calendar-view">&#x1F4C6; Calendar</button>
@@ -3868,6 +3910,7 @@ document.addEventListener('DOMContentLoaded',function(){
 
 # Replace placeholders
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__ROUTES_JSON__', routes_json)
+HTML_TEMPLATE = HTML_TEMPLATE.replace('__DORMANT_FEATURE_STYLES__', dormant_feature_css)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__AFFINITY_JSON__', affinity_json)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__SAMPLE_LOG__', sample_log_js)
 HTML_TEMPLATE = HTML_TEMPLATE.replace('__COLLECTOR_HOMES__', collector_homes_json)

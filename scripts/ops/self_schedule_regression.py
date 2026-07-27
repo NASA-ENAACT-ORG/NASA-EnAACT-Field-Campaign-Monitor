@@ -63,6 +63,7 @@ from shared.schedule_store import (
 
 SERVER_SOURCE = REPO_ROOT / "app" / "server" / "serve.py"
 DASHBOARD_SOURCE = REPO_ROOT / "pipelines" / "dashboard" / "build_dashboard.py"
+FEATURES_SOURCE = REPO_ROOT / "shared" / "dashboard_features.py"
 ALLOWED_ROUTES = sorted(ROUTE_CODES)
 ALLOWED_COLLECTORS = set(SCHEDULE_COLLECTOR_IDS)
 BACKPACK_TO_COLLECTORS = BACKPACK_TO_SCHEDULE_COLLECTORS
@@ -448,6 +449,22 @@ def _assert_dashboard_past_slot_guards() -> None:
         raise AssertionError(f"dashboard past-slot guard missing expected source tokens: {missing}")
 
 
+def _assert_dormant_dashboard_features() -> None:
+    source = FEATURES_SOURCE.read_text(encoding="utf-8")
+    expected_disabled = (
+        "\"calendar\": False",
+        "\"backpack_status\": False",
+        "\"calibration_logs\": False",
+        "\"route_groups\": False",
+        "\"availability\": False",
+        "\"reminders\": False",
+        "\"data_upload\": False",
+    )
+    missing = [token for token in expected_disabled if token not in source]
+    if missing:
+        raise AssertionError(f"dormant dashboard feature flags missing: {missing}")
+
+
 def _assert_backpack_status_refresh_guards() -> None:
     server_source = SERVER_SOURCE.read_text(encoding="utf-8")
     server_required = (
@@ -645,6 +662,7 @@ def run_regression(schedule_path: Path, start_date: str | None) -> int:
         # through the Drive poll/upload flow, not through schedule claim APIs.
         _assert_schedule_endpoints_do_not_write_walk_log()
         _assert_dashboard_past_slot_guards()
+        _assert_dormant_dashboard_features()
         _assert_backpack_status_refresh_guards()
         _assert_completed_walk_refreshes_backpack_status()
 
