@@ -465,6 +465,17 @@ def _assert_dormant_dashboard_features() -> None:
         raise AssertionError(f"dormant dashboard feature flags missing: {missing}")
 
 
+def _assert_dashboard_default_season_filter() -> None:
+    source = DASHBOARD_SOURCE.read_text(encoding="utf-8")
+    required = (
+        "let filters={season:getSeason(new Date())",
+        "seasonSelect.value=filters.season",
+    )
+    missing = [token for token in required if token not in source]
+    if missing:
+        raise AssertionError(f"dashboard current-season default missing: {missing}")
+
+
 def _assert_backpack_status_refresh_guards() -> None:
     server_source = SERVER_SOURCE.read_text(encoding="utf-8")
     server_required = (
@@ -663,6 +674,7 @@ def run_regression(schedule_path: Path, start_date: str | None) -> int:
         _assert_schedule_endpoints_do_not_write_walk_log()
         _assert_dashboard_past_slot_guards()
         _assert_dormant_dashboard_features()
+        _assert_dashboard_default_season_filter()
         _assert_backpack_status_refresh_guards()
         _assert_completed_walk_refreshes_backpack_status()
 

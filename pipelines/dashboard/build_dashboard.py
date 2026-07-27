@@ -387,6 +387,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .tab-btn.active{background:var(--bg3);border-color:var(--border);color:var(--text)}
 .tab-group:first-child .tab-btn.active{border-color:rgba(96,165,250,.5);color:#60a5fa}
 .tab-group:last-child .tab-btn.active{border-color:rgba(167,139,250,.5);color:#a78bfa}
+#campaign-tab-group .tab-btn{min-height:36px;padding:7px 16px;background:rgba(56,139,253,.08);border-color:rgba(96,165,250,.3);color:#c9d1e1;font-size:13px;font-weight:700;box-shadow:0 1px 0 rgba(255,255,255,.04)}
+#campaign-tab-group .tab-btn:hover{background:rgba(56,139,253,.18);border-color:rgba(96,165,250,.7);color:#fff}
+#campaign-tab-group .tab-btn.active{background:rgba(56,139,253,.2);border-color:#60a5fa;color:#fff;box-shadow:0 0 0 1px rgba(96,165,250,.14)}
 .force-rebuild-btn{padding:4px 11px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:11px;font-weight:600;transition:all .15s;font-family:'Space Grotesk',sans-serif;margin-right:4px;display:flex;align-items:center;gap:3px;white-space:nowrap}
 .force-rebuild-btn:hover{background:#4f3a0f;border-color:#d29922;color:#d29922}
 .force-rebuild-btn.rebuilding{opacity:.5;cursor:wait;pointer-events:none}
@@ -1312,7 +1315,7 @@ const TODS=["AM","MD","PM"];
 // --- STATE ---
 let allWalks=[], filteredWalks=[], logText=SAMPLE_LOG;
 let currentRoute=null, currentCollector=COLLECTORS[0], currentWin='2w';
-let filters={season:'',tod:'',backpack:'',from:null,to:null};
+let filters={season:getSeason(new Date()),tod:'',backpack:'',from:null,to:null};
 let visibleBackpacks={A:true,B:true,X:true};
 let map=null, routeLayers={}, routeCentroids={}, charts={};
 let collectorHomeLayer=null, collectorHomesVisible=false, collectorHomeMarkers={};
@@ -3325,6 +3328,8 @@ async function init(){
   await loadRecalLog();
   let schedLoaded=false;
   allWalks=parseLog(logText);
+  const seasonSelect=document.getElementById('fseason');
+  if(seasonSelect)seasonSelect.value=filters.season;
   if(RUNTIME_SCHEDULE&&RUNTIME_SCHEDULE.assignments){
     schedData=RUNTIME_SCHEDULE;schedLoaded=true;loadScheduleJSON(JSON.stringify(RUNTIME_SCHEDULE));
   }
