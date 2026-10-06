@@ -1,6 +1,10 @@
 # Static Showcase Site: Plan
 
-Status: proposal (2026-10-06). Nothing here is deployed yet.
+Status (2026-10-06): steps 2 to 4 are built. Demo mode is in `build_dashboard.py`
+(`DASHBOARD_DEMO=1`), and `scripts/showcase/package_static_app.py` produces
+`enaact-dashboard.zip`, a folder whose `index.html` works by double-click or on any static
+host. It uses today's code with every feature on, pseudonyms, activity-centre pins and no
+logos. Nothing is deployed yet; hosting (steps 5 and 6) is still open.
 
 Goal: keep a free, always-available copy of the dashboard at its most complete,
 filled with clearly labeled made-up data, so the project can be shown as a

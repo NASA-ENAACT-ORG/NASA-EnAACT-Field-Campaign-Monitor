@@ -12,13 +12,12 @@ Writes (inside <repo_root>):
 
 "Now" is frozen at Wed 2026-05-06 10:30 America/New_York. Real historical
 values are kept where git history had them (8 walk-log lines, Mar 16 - Apr 15
-cloud cover, Mar 1 / Apr 21 calibrations); everything else is invented.
+cloud cover in fixtures/, Mar 1 / Apr 21 calibrations); everything else is invented.
 """
 from __future__ import annotations
 
 import json
 import random
-import subprocess
 import sys
 from datetime import date, timedelta
 from pathlib import Path
@@ -42,11 +41,8 @@ X_SOT_MN_MT_20260318_AM
 X_JEN_BK_SP_20260314_PM""".splitlines()
 
 
-def git_show(rev_path: str) -> str:
-    return subprocess.check_output(["git", "-C", str(ROOT), "show", rev_path], text=True)
-
-
-real_weather = json.loads(git_show("30f3762:weather.json"))
+FIXTURE = Path(__file__).resolve().parent / "fixtures" / "weather_real_2026-03-16_to_04-15.json"
+real_weather = json.loads(FIXTURE.read_text(encoding="utf-8"))
 
 # ── Weather ─────────────────────────────────────────────────────────────────
 weather: dict[str, bool] = {}

@@ -56,3 +56,6 @@ AGENTS.md
 Thumbs.db
 
 .tmp/
+
+# Static showcase app build output (scripts/showcase/package_static_app.py)
+dist/

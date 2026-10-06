@@ -39,6 +39,57 @@ from shared.registry import (
 from shared.dashboard_features import dashboard_feature_enabled
 
 
+# -- Static demo mode ---
+# DASHBOARD_DEMO=1 builds a self-contained archive copy of the dashboard (see
+# docs/showcase/STATIC_SITE_PLAN.md): every optional feature is on, the clock is
+# pinned to Wed May 6 2026, server calls are answered inside the browser,
+# collectors get pseudonyms, and home locations are replaced by walk-activity
+# centres. Normal builds are unaffected.
+import os as _os
+from datetime import date as _date
+
+DEMO_MODE = _os.environ.get("DASHBOARD_DEMO") == "1"
+DEMO_TODAY = _date(2026, 5, 6)
+DEMO_REAL_NAMES = _os.environ.get("DASHBOARD_DEMO_REAL_NAMES") == "1"
+DEMO_KEEP_LOGOS = _os.environ.get("DASHBOARD_DEMO_KEEP_LOGOS") == "1"
+DEMO_VENDOR_DIR = _os.environ.get("DASHBOARD_DEMO_VENDOR", "")  # inline libraries + font from here
+DEMO_PSEUDONYMS = {
+    "SOT": "Sonia", "AYA": "Aylin", "ALX": "Alma", "TAH": "Tariq", "JAM": "Jamal",
+    "JEN": "Jesse", "SCT": "Scarlett", "TER": "Teo", "ANG": "Anika",
+    "PRA": "Prof. P.", "NAT": "Prof. N.", "NRS": "Prof. R.",
+}
+DEMO_USE_PSEUDONYMS = DEMO_MODE and not DEMO_REAL_NAMES
+if DEMO_USE_PSEUDONYMS:
+    COLLECTOR_DISPLAY_NAMES = {**COLLECTOR_DISPLAY_NAMES, **DEMO_PSEUDONYMS}
+
+
+def _demo_activity_centres(log_text: str, routes_geo: dict, non_collectors: set) -> dict:
+    """Pin each collector at the average centre of the routes they walked.
+
+    Demo builds use this instead of Collector_Locs.kml so no home locations ship.
+    """
+    centres = {}
+    for code, geo in routes_geo.items():
+        pts = [p for line in geo.get("lines", []) for p in line]
+        if pts:
+            centres[code] = (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
+    walked: dict = {}
+    for raw in log_text.splitlines():
+        parts = raw.split("->")[-1].strip().split("_")
+        if len(parts) == 6 and f"{parts[2]}_{parts[3]}" in centres:
+            walked.setdefault(parts[1], []).append(centres[f"{parts[2]}_{parts[3]}"])
+    return {
+        cid: {
+            "lat": round(sum(p[0] for p in pts) / len(pts), 5),
+            "lng": round(sum(p[1] for p in pts) / len(pts), 5),
+            "name": COLLECTOR_DISPLAY_NAMES.get(cid, cid),
+            "non_collector": cid in non_collectors,
+        }
+        for cid, pts in walked.items()
+        if cid in COLLECTOR_DISPLAY_NAMES
+    }
+
+
 # Optional controls remain in the generated markup so their event bindings and
 # supporting code stay exercised. This CSS is the public feature gate: set the
 # corresponding flag in shared/dashboard_features.py to True, rebuild, and the
@@ -60,6 +111,8 @@ _DORMANT_FEATURE_SELECTORS = {
 
 def _dormant_feature_css() -> str:
     """Return CSS that removes disabled optional features from the public UI."""
+    if DEMO_MODE:
+        return ""  # the archive shows every feature
     selectors = [
         selector
         for feature, feature_selectors in _DORMANT_FEATURE_SELECTORS.items()
@@ -79,10 +132,12 @@ def _dormant_feature_css() -> str:
 dormant_feature_css = _dormant_feature_css()
 
 # Pull the latest bucket copies before reading — the bucket is authoritative.
-gcs_pull("Walks_Log.txt",        WALKS_LOG)
-gcs_pull("schedule_output.json", SCHEDULE_OUTPUT_JSON)
-gcs_pull("weather.json",         WEATHER_JSON)
-gcs_pull("upload_failures.json", PERSISTED_DIR / "upload_failures.json")
+# Demo builds never touch the bucket: they use the local demo dataset only.
+if not DEMO_MODE:
+    gcs_pull("Walks_Log.txt",        WALKS_LOG)
+    gcs_pull("schedule_output.json", SCHEDULE_OUTPUT_JSON)
+    gcs_pull("weather.json",         WEATHER_JSON)
+    gcs_pull("upload_failures.json", PERSISTED_DIR / "upload_failures.json")
 
 # Read sources
 with open(ROUTES_DATA_JSON, encoding="utf-8") as f:
@@ -153,7 +208,9 @@ upload_collector_options_html = "".join(
 _NON_COLLECTORS = set(NON_COLLECTOR_IDS)
 _collector_homes = {}
 _kml_path = ROUTES_KML_DIR / "Collector_Locs.kml"
-if _kml_path.exists():
+if DEMO_MODE:
+    _collector_homes = _demo_activity_centres(sample_log_raw, _routes_geo, _NON_COLLECTORS)
+elif _kml_path.exists():
     _ns = {"k": "http://www.opengis.net/kml/2.2"}
     for _pm in ET.parse(_kml_path).findall(".//k:Placemark", _ns):
         _nm  = (_pm.findtext("k:name", "", _ns) or "").strip()
@@ -171,8 +228,10 @@ collector_homes_json = json.dumps(_collector_homes)
 # -- Bake schedule_output.json into the dashboard ---
 if SCHEDULE_OUTPUT_JSON.exists():
     try:
-        _baked_schedule, _expired_count = load_schedule_pruning_expired(SCHEDULE_OUTPUT_JSON, strict=True)
-        if _expired_count:
+        _baked_schedule, _expired_count = load_schedule_pruning_expired(
+            SCHEDULE_OUTPUT_JSON, strict=True, today=DEMO_TODAY if DEMO_MODE else None,
+        )
+        if _expired_count and not DEMO_MODE:
             save_schedule(_baked_schedule, SCHEDULE_OUTPUT_JSON, make_backup=True)
             print(f"[dashboard] pruned {_expired_count} expired schedule assignment(s)")
         baked_schedule_json = json.dumps(_baked_schedule)
@@ -205,6 +264,8 @@ baked_weather_json = json.dumps(_baked_weather) if _baked_weather["weather"] els
 import sys as _sys
 _sys.path.insert(0, str(BASE))
 from build_availability_heatmap import load_availability, GROUP_A, GROUP_B, DAYS as _AVAIL_DAYS, TODS as _AVAIL_TODS, FULL_NAMES as _AVAIL_NAMES
+if DEMO_USE_PSEUDONYMS:
+    _AVAIL_NAMES = {cid: DEMO_PSEUDONYMS.get(cid, name) for cid, name in _AVAIL_NAMES.items()}
 _avail = load_availability()
 _cells_a, _cells_b = {}, {}
 for _tod in _AVAIL_TODS:
@@ -3942,7 +4003,7 @@ HTML_TEMPLATE = HTML_TEMPLATE.replace('__UPLOAD_COLLECTOR_OPTIONS__', upload_col
 import datetime as _dt
 _failure_banner_html = ""
 _failures_path = PERSISTED_DIR / "upload_failures.json"
-if _failures_path.exists():
+if _failures_path.exists() and not DEMO_MODE:
     try:
         _records = json.loads(_failures_path.read_text(encoding="utf-8"))
         _cutoff = _dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(minutes=30)
@@ -3998,6 +4059,337 @@ HTML_TEMPLATE = HTML_TEMPLATE.replace(
     };
     r.readAsText(f);"""
 )
+
+# -- Static demo mode: browser-side pieces ---
+# Injected first in <head>: pins the clock and answers the dashboard's server
+# calls (and its data-file fetches, so the page also works from file://).
+_DEMO_HEAD_JS = r"""
+(function () {
+  // Clock: open on Wed May 6 2026 10:30 in the viewer's own time zone, then tick.
+  // (Chart.js animates from Date.now(), so time must keep moving.)
+  var RealDate = Date;
+  var offset = new RealDate(2026, 4, 6, 10, 30, 0).getTime() - RealDate.now();
+  function DemoDate() {
+    var args = Array.prototype.slice.call(arguments);
+    if (!new.target) return new RealDate(RealDate.now() + offset).toString();
+    return args.length ? new RealDate(...args) : new RealDate(RealDate.now() + offset);
+  }
+  DemoDate.prototype = RealDate.prototype;
+  DemoDate.now = function () { return RealDate.now() + offset; };
+  DemoDate.parse = RealDate.parse;
+  DemoDate.UTC = RealDate.UTC;
+  window.Date = DemoDate;
+
+  // Server stand-in: each visitor gets a private copy that resets on reload.
+  var realFetch = window.fetch ? window.fetch.bind(window) : null;
+  var D = window.__DEMO = {recal: __DEMO_RECAL__, optins: __DEMO_OPTINS__, schedule: null, walks: null, rebuilt: false};
+  var TODS = ['AM', 'MD', 'PM'];
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  function sched() {
+    if (!D.schedule) D.schedule = clone(BAKED_SCHEDULE || {assignments: [], weather: {}});
+    D.schedule.assignments = D.schedule.assignments || [];
+    return D.schedule;
+  }
+  function walks() { if (D.walks === null) D.walks = SAMPLE_LOG; return D.walks; }
+  function reply(status, body) {
+    return Promise.resolve(new Response(JSON.stringify(body), {status: status, headers: {'Content-Type': 'application/json'}}));
+  }
+  function textReply(body) { return Promise.resolve(new Response(body, {status: 200, headers: {'Content-Type': 'text/plain'}})); }
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function today() { return ymd(new Date()); }
+  function tomorrow() { var d = new Date(); d.setDate(d.getDate() + 1); return ymd(d); }
+  function upper(v) { return String(v || '').trim().toUpperCase(); }
+  function slotKey(a) { return [upper(a.backpack), String(a.date || ''), upper(a.tod)].join('|'); }
+  function advisory(s, date, tod) { return (s.weather || {})[date + '_' + tod] === false; }
+  function bounds(s) {
+    var ds = s.assignments.map(function (a) { return a.date; }).sort();
+    if (ds.length) { s.week_start = ds[0]; s.week_end = ds[ds.length - 1]; }
+  }
+  function matchesId(a, id) {
+    var parts = [upper(a.backpack), upper(a.route), a.date, upper(a.tod)];
+    return a.id === id || parts.join('_') === id || parts.join('|') === id;
+  }
+
+  function claim(p) {
+    var s = sched(), bp = upper(p.backpack), tod = upper(p.tod), route = upper(p.route);
+    var col = upper(p.collector), date = String(p.date || '');
+    if (!bp || !tod || !route || !col || !date) return reply(400, {error: 'backpack, route, date, tod and collector are required'});
+    if (bp !== 'A' && bp !== 'B') return reply(400, {error: "backpack must be 'A' or 'B'"});
+    if (TODS.indexOf(tod) < 0) return reply(400, {error: 'tod must be AM, MD or PM'});
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return reply(400, {error: 'date must be YYYY-MM-DD'});
+    if (date < today()) return reply(400, {error: 'date must be today or later'});
+    if (!ROUTE_LABELS[route]) return reply(400, {error: 'unknown route ' + route});
+    if ((SLOT_BACKPACK_COLLECTORS[bp] || []).indexOf(col) < 0) return reply(400, {error: col + ' is not eligible for Backpack ' + bp});
+    var key = [bp, date, tod].join('|');
+    if (s.assignments.some(function (a) { return slotKey(a) === key; })) {
+      return reply(409, {error: 'Backpack ' + bp + ' is already claimed for ' + date + ' ' + tod});
+    }
+    if (s.assignments.some(function (a) { return upper(a.collector) === col && a.date === date && upper(a.tod) === tod; })) {
+      return reply(409, {error: col + ' is already booked for ' + date + ' ' + tod});
+    }
+    var stamp = new Date().toISOString(), parts = route.split('_');
+    var a = {id: [bp, route, date, tod].join('_'), route: route, label: ROUTE_LABELS[route], boro: parts[0], neigh: parts[1],
+             tod: tod, backpack: bp, collector: col, date: date, status: 'claimed', claimed_at: stamp, claimed_by: col,
+             updated_at: stamp, weather_advisory: advisory(s, date, tod)};
+    s.assignments.push(a);
+    bounds(s);
+    return reply(200, {ok: true, assignment: a, schedule: clone(s)});
+  }
+  function unclaim(p) {
+    var s = sched(), key = slotKey(p), before = s.assignments.length;
+    s.assignments = s.assignments.filter(function (a) { return slotKey(a) !== key; });
+    if (s.assignments.length === before) return reply(404, {error: 'no claim found for that slot'});
+    bounds(s);
+    return reply(200, {ok: true, schedule: clone(s)});
+  }
+  function assignment(method, id, p) {
+    var s = sched(), i = s.assignments.findIndex(function (a) { return matchesId(a, id); });
+    if (i < 0) return reply(404, {error: 'assignment not found'});
+    if (method === 'DELETE') s.assignments.splice(i, 1);
+    else {
+      var a = s.assignments[i];
+      ['route', 'collector', 'date', 'tod', 'backpack', 'status'].forEach(function (k) { if (p[k]) a[k] = String(p[k]); });
+      a.label = ROUTE_LABELS[a.route] || a.label;
+      a.updated_at = new Date().toISOString();
+      a.weather_advisory = advisory(s, a.date, a.tod);
+    }
+    bounds(s);
+    return reply(200, {ok: true, schedule: clone(s)});
+  }
+  function backpackStatus(p) {
+    var s = sched(), bp = upper(p.backpack), holder = upper(p.holder), location = String(p.location || '');
+    if (bp !== 'A' && bp !== 'B') return reply(400, {error: "backpack must be 'A' or 'B'"});
+    if (!holder === !location) return reply(400, {error: 'provide exactly one holder or location'});
+    s.backpack_status = s.backpack_status || {};
+    // Like the server, stamp the latest completed walk so a newer walk can take over later.
+    var mark = typeof _walkLogMark === 'function' ? _walkLogMark(_latestCompletedHolder(bp)) : '';
+    s.backpack_status[bp] = {holder: holder, location: location, updated_at: new Date().toISOString(),
+                             updated_by: upper(p.updated_by), source: 'manual', walk_log_mark: mark};
+    return reply(200, {ok: true, schedule: clone(s)});
+  }
+  function preview() {
+    var s = sched(), day = tomorrow(), collectors = {};
+    var list = s.assignments.filter(function (a) { return a.date === day; }).sort(function (x, y) {
+      return (x.backpack + x.tod + x.route).localeCompare(y.backpack + y.tod + y.route);
+    });
+    var messages = list.map(function (a) {
+      var tod = upper(a.tod), col = upper(a.collector), adv = advisory(s, a.date, tod), label = a.label || a.route;
+      var text = adv ? 'Weather advisory: forecast is unfavorable, verify before departure.'
+                     : 'Weather check: no advisory for this slot.';
+      var dest = D.optins[col] ? [{channel: 'email', target: D.optins[col]}] : [];
+      var m = {collector: col, date: a.date, tod: tod, backpack: a.backpack, route: a.route, route_label: label,
+               weather_advisory: adv, advisory_text: text, destinations: dest, sendable: dest.length > 0,
+               message_text: 'Reminder for ' + col + ': ' + a.date + ' ' + tod + ', Backpack ' + a.backpack + ', ' + label + '. ' + text};
+      (collectors[col] = collectors[col] || []).push(m);
+      return m;
+    });
+    return {date: day, assignment_count: list.length, collector_count: Object.keys(collectors).length,
+            email_transport_configured: false, messages: messages, collectors: collectors};
+  }
+  function recordCalibration(p) {
+    var bp = upper(p.backpack), date = String(p.date || '');
+    if ((bp !== 'A' && bp !== 'B') || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return reply(400, {error: 'backpack and date (YYYY-MM-DD) are required'});
+    }
+    D.recal = D.recal.replace(/\s*$/, '') + '\nRECAL_' + bp + '_' + date.replace(/-/g, '') + '\n';
+    return reply(200, {ok: true});
+  }
+  function uploadWalk(form) {
+    var get = function (k) { return form && form.get ? upper(form.get(k)) : ''; };
+    var fields = [get('backpack'), get('collector'), get('borough'), get('route'), get('date'), get('tod')];
+    if (fields.some(function (v) { return !v; })) return reply(400, {error: 'missing walk metadata'});
+    var code = fields.join('_');
+    D.walks = walks().replace(/\s*$/, '') + '\n' + code + '\n';
+    setTimeout(function () {  // the real server rebuilt the page; here the map updates in place
+      logText = D.walks; allWalks = parseLog(logText); applyFilters(); updateStatus('Walks_Log.txt');
+    }, 0);
+    return reply(200, {ok: true, walk: code});
+  }
+  function api(path, method, init) {
+    var p = {};
+    if (init && typeof init.body === 'string') { try { p = JSON.parse(init.body); } catch (e) { p = {}; } }
+    if (path === '/api/status') {
+      return reply(200, {drive_last_poll: new Date(Date.now() - 4 * 60000).toISOString(), drive_new_files_today: 1,
+                         gcs_connected: true, schedule_output: D.rebuilt ? {mtime: 'demo-' + Date.now()} : null});
+    }
+    if (path === '/api/confirm') return reply(200, {ok: true});
+    if (path === '/api/schedule') return reply(200, clone(sched()));
+    if (path === '/api/schedule/claim') return claim(p);
+    if (path === '/api/schedule/unclaim') return unclaim(p);
+    if (path.indexOf('/api/schedule/assignments/') === 0) return assignment(method, decodeURIComponent(path.split('/').pop()), p);
+    if (path === '/api/backpack-status') return backpackStatus(p);
+    if (path === '/api/notifications/preview') return reply(200, {ok: true, preview: preview()});
+    if (path === '/api/notifications/send') {
+      return reply(200, {ok: true, dispatch: {send_results: preview().messages.map(function (m) {
+        return {collector: m.collector, channel: 'email', status: 'skipped', reason: 'email is off in the static demo'};
+      })}});
+    }
+    if (path === '/api/record-calibration') return recordCalibration(p);
+    if (path === '/api/force-rebuild' || path === '/api/schedule/rebuild-site') {
+      D.rebuilt = true;  // the status poll then reloads the page, which resets the demo
+      return reply(200, {ok: true, status: 'started'});
+    }
+    if (path === '/api/drive/poll') return reply(200, {status: 'ok', new_files: 0});
+    if (path === '/api/upload-walk') return uploadWalk(init && init.body);
+    return reply(404, {error: 'not available in the static demo'});
+  }
+  window.fetch = function (input, init) {
+    var url = typeof input === 'string' ? input : (input && input.url) || '';
+    var path = url.split('#')[0].split('?')[0];
+    var file = path.split('/').pop();
+    if (path.indexOf('/api/') === 0) return api(path, String((init && init.method) || 'GET').toUpperCase(), init);
+    if (file === 'Walks_Log.txt') return textReply(walks());
+    if (file === 'Recal_Log.txt') return textReply(D.recal);
+    if (file === 'schedule_output.json') return reply(200, clone(sched()));
+    if (file === 'weather.json' && BAKED_WEATHER) return reply(200, BAKED_WEATHER);
+    return realFetch ? realFetch(input, init) : Promise.reject(new Error('fetch unavailable'));
+  };
+})();
+"""
+
+_DEMO_MARK_SVG = (
+    '<svg id="demo-mark" viewBox="0 0 32 32" role="img" aria-label="EnAACT">'
+    '<rect x="1" y="1" width="30" height="30" rx="8" fill="#161b22" stroke="#30363d"/>'
+    '<path d="M7 22 L12 14 L17 18 L25 8" fill="none" stroke="#3fb950" stroke-width="2.6" '
+    'stroke-linecap="round" stroke-linejoin="round"/>'
+    '<circle cx="25" cy="8" r="2.6" fill="#60a5fa"/><circle cx="7" cy="22" r="2.2" fill="#d29922"/></svg>'
+)
+
+_DEMO_CSS = """
+#demo-mark{height:34px;width:34px;display:block;flex-shrink:0}
+#demo-pill{position:fixed;left:50%;bottom:12px;transform:translateX(-50%);z-index:8000;display:flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;background:rgba(22,27,34,.92);border:1px solid rgba(210,153,34,.55);color:var(--text2);font-size:11px;font-family:'Space Grotesk',sans-serif;letter-spacing:.3px;cursor:pointer;box-shadow:0 6px 24px rgba(0,0,0,.5);backdrop-filter:blur(4px);white-space:nowrap}
+#demo-pill b{color:var(--yellow);letter-spacing:1px}
+#demo-pill u{color:var(--text);text-decoration-color:rgba(255,255,255,.35)}
+#demo-pill:hover,#demo-pill:focus-visible{border-color:var(--yellow);color:var(--text);outline:none}
+#demo-about-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9600;align-items:center;justify-content:center;backdrop-filter:blur(3px);padding:16px}
+#demo-about-bg.open{display:flex}
+#demo-about{width:min(560px,100%);max-height:86vh;overflow:auto;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:22px 24px;box-shadow:0 16px 48px rgba(0,0,0,.8);font-size:13px;line-height:1.55;color:var(--text2)}
+#demo-about h3{font-family:'Space Grotesk',sans-serif;font-size:16px;color:var(--text);margin:0 0 10px}
+#demo-about p{margin:0 0 10px}
+#demo-about b{color:var(--text)}
+#demo-about ul{margin:4px 0 12px 18px}
+#demo-about li{margin-bottom:4px}
+#demo-about a{color:var(--accent)}
+#demo-about-close{float:right;margin-left:12px}
+@media(max-width:640px){#demo-pill .demo-pill-long{display:none}}
+"""
+
+_DEMO_BODY_HTML = """
+<div id="demo-pill" role="button" tabindex="0" title="About this demo"><b>ARCHIVED DEMO</b><span class="demo-pill-long">made-up data &middot; clock pinned to Wed May 6, 2026</span><u>About</u></div>
+<div id="demo-about-bg" role="dialog" aria-modal="true" aria-labelledby="demo-about-title">
+  <div id="demo-about">
+    <button id="demo-about-close" class="notify-action" type="button">Close</button>
+    <h3 id="demo-about-title">About this demo</h3>
+    <p>A static archive of the <b>NASA EnAACT Field Campaign Data Desk</b>, the dashboard built to coordinate the NYC EnAACT air-quality walking campaign (spring 2026, CCNY and LaGuardia CC).</p>
+    <p><b>Everything runs in your browser.</b> Buttons that used to talk to the server (claiming slots, backpack status, calibration logs, reminders, uploads, rebuild) work on a private copy that resets when you reload. Nothing is sent anywhere.</p>
+    <ul>
+      <li>Walks, claims, calibrations and most weather values are <b>made up</b>.</li>
+      <li>__DEMO_NAMES_NOTE__</li>
+      <li>The clock is pinned to <b>Wed May 6, 2026, 10:30 AM</b>, so the calendar opens mid-campaign.</li>
+      <li>Admin Login accepts any PIN.</li>
+    </ul>
+    <p>More from the project: <a href="extras/algorithm-flowchart.html">scheduler algorithm flowchart</a> &middot; <a href="extras/architecture-map.html">system architecture map</a> &middot; <a href="extras/student-schedule.html">student team schedule</a></p>
+    <p style="font-size:11px;color:var(--text3);margin:0">Student project archive. Not an official NASA website.</p>
+  </div>
+</div>
+<script>
+(function(){
+  var bg=document.getElementById('demo-about-bg'),pill=document.getElementById('demo-pill');
+  function open(){bg.classList.add('open');}
+  function close(){bg.classList.remove('open');}
+  pill.addEventListener('click',open);
+  pill.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();open();}});
+  document.getElementById('demo-about-close').addEventListener('click',close);
+  bg.addEventListener('click',function(e){if(e.target===bg)close();});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')close();});
+})();
+</script>
+"""
+
+
+def _must_replace(html: str, old: str, new: str) -> str:
+    """Replace the first occurrence, failing loudly if the template drifted."""
+    if old not in html:
+        raise RuntimeError(f"demo build: template text not found: {old[:70]!r}")
+    return html.replace(old, new, 1)
+
+
+def _inline_demo_vendor_assets(html: str, vendor: Path) -> str:
+    """Swap CDN links for inline copies so the archive works offline (map tiles aside)."""
+    import base64
+
+    def script(rel: str) -> str:
+        code = (vendor / rel).read_text(encoding="utf-8").replace("</script", "<\\/script")
+        return "<script>" + code + "</script>"
+
+    html = _must_replace(
+        html, '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>',
+        "<style>" + (vendor / "leaflet-1.9.4/package/dist/leaflet.css").read_text(encoding="utf-8") + "</style>",
+    )
+    html = _must_replace(html, '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>',
+                         script("leaflet-1.9.4/package/dist/leaflet.js"))
+    html = _must_replace(html, '<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>',
+                         script("chart.js-4.4.0/package/dist/chart.umd.js"))
+    # Space Grotesk is a variable font: one Latin file covers weights 500-700.
+    fonts_css = (vendor / "fonts" / "space-grotesk.css").read_text(encoding="utf-8")
+    latin = re.search(r"/\*\s*latin\s*\*/\s*@font-face\s*{[^}]*?url\([^)]*/([^/)]+\.woff2)\)", fonts_css)
+    if not latin:
+        raise RuntimeError("demo build: no Latin @font-face in fonts/space-grotesk.css")
+    font_b64 = base64.b64encode((vendor / "fonts" / latin.group(1)).read_bytes()).decode()
+    html = _must_replace(html, '<link rel="preconnect" href="https://fonts.googleapis.com">\n', "")
+    html = _must_replace(html, '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n', "")
+    html = _must_replace(
+        html,
+        '<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">',
+        "<style>@font-face{font-family:'Space Grotesk';font-style:normal;font-weight:500 700;font-display:swap;"
+        f"src:url(data:font/woff2;base64,{font_b64}) format('woff2')}}</style>",
+    )
+    return html
+
+
+def _apply_demo_mode(html: str) -> str:
+    from urllib.parse import quote
+    from shared.paths import RECAL_LOG
+
+    recal_text = RECAL_LOG.read_text(encoding="utf-8") if RECAL_LOG.exists() else ""
+    # Reminder opt-ins with masked placeholder addresses (one collector left without email).
+    optins = {cid: cid.lower()[:2] + "***@example.com" for cid in STUDENT_COLLECTORS if cid not in ("JAM", "EFD")}
+    head_js = (_DEMO_HEAD_JS
+               .replace("__DEMO_RECAL__", json.dumps(recal_text))
+               .replace("__DEMO_OPTINS__", json.dumps(optins)))
+    names_note = (
+        "Map pins show walk-activity centres, not homes."
+        if DEMO_REAL_NAMES else
+        "Collector names are <b>pseudonyms</b>; map pins show walk-activity centres, not homes."
+    )
+    html = _must_replace(html, '<head>\n<meta charset="UTF-8">', '<head>\n<meta charset="UTF-8">\n<script>' + head_js + "</script>")
+    html = _must_replace(html, "<title>NASA EnAACT Field Campaign Data Desk</title>",
+                         "<title>NASA EnAACT Field Campaign Data Desk (archived demo)</title>")
+    html = _must_replace(html, '<link rel="icon" type="image/png" href="favicon.png">',
+                         '<link rel="icon" href="data:image/svg+xml,' + quote(_DEMO_MARK_SVG) + '">')
+    html = _must_replace(html, "<h1>NASA EnAACT Field Campaign Data Desk</h1>",
+                         "<h1>NASA EnAACT Field Campaign Data Desk<em>ARCHIVED DEMO</em></h1>")
+    if not DEMO_KEEP_LOGOS:
+        html, swapped = re.subn(
+            r'<div id="header-logos">.*?</svg>\s*</div>(?=\s*<div id="header-title">)',
+            lambda _m: '<div id="header-logos">' + _DEMO_MARK_SVG + "</div>", html, count=1, flags=re.S,
+        )
+        if not swapped:
+            raise RuntimeError("demo build: header logo block not found")
+    html = _must_replace(html, "Home location</small>", "Walk activity centre (demo)</small>")
+    html = _must_replace(html, "</style>", _DEMO_CSS + "</style>")
+    body_end = html.rfind("</body>")
+    if body_end < 0:
+        raise RuntimeError("demo build: </body> not found")
+    html = html[:body_end] + _DEMO_BODY_HTML.replace("__DEMO_NAMES_NOTE__", names_note) + html[body_end:]
+    if DEMO_VENDOR_DIR:
+        html = _inline_demo_vendor_assets(html, Path(DEMO_VENDOR_DIR))
+    return html
+
+
+if DEMO_MODE:
+    HTML_TEMPLATE = _apply_demo_mode(HTML_TEMPLATE)
 
 def build():
     DASHBOARD_HTML.parent.mkdir(parents=True, exist_ok=True)
