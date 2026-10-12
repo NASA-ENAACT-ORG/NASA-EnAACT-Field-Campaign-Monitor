@@ -1,0 +1,225 @@
+<title>Backend Swipe</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: one centered column. Card stack on top, big action buttons below, results as three lists. */
+:root{
+  --bg:#eef1f6; --panel:#ffffff; --fg:#10192e; --muted:#5b6785; --line:#d3d9e6;
+  --accent:#0b3d91; --keep:#17803d; --cut:#c0392b; --maybe:#a8650a; --chip:#e4e9f3;
+  --disp:'Barlow Condensed','Arial Narrow',sans-serif;
+  --body:'Barlow',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0a1020; --panel:#141d36; --fg:#e8ecf7; --muted:#97a3c3; --line:#26335a;
+  --accent:#6fa3ff; --keep:#3ddc84; --cut:#ff6b5b; --maybe:#ffb454; --chip:#1d2947; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0a1020; --panel:#141d36; --fg:#e8ecf7; --muted:#97a3c3; --line:#26335a;
+  --accent:#6fa3ff; --keep:#3ddc84; --cut:#ff6b5b; --maybe:#ffb454; --chip:#1d2947; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;margin:0;padding-inline:16px;padding-block:14px;overflow-x:hidden}
+.wrap{max-width:460px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;gap:12px}
+header{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+h1{font-family:var(--disp);font-size:1.6rem;margin:0;letter-spacing:.04em;text-transform:uppercase;font-weight:700}
+.count{font-family:var(--mono);font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.bar{height:5px;background:var(--chip);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s}
+.cat{font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+.stack{position:relative;flex:1;min-height:380px;max-height:520px;touch-action:pan-y}
+.card{position:absolute;inset:0;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:12px;overflow:auto;box-shadow:0 8px 24px rgba(0,0,0,.12);user-select:none;transition:transform .25s,opacity .25s;will-change:transform}
+.card.drag{transition:none;cursor:grabbing}
+.card.top{cursor:grab;touch-action:none}
+.card.s1{transform:scale(.96) translateY(14px);opacity:.7}
+.card.s2{transform:scale(.92) translateY(28px);opacity:.4}
+.card h2{font-family:var(--disp);font-size:2rem;line-height:1.05;margin:0;text-wrap:balance;font-weight:700}
+.card p{margin:0;line-height:1.45}
+.plain{font-size:1.05rem}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{font-family:var(--mono);font-size:.7rem;padding:3px 8px;border-radius:5px;background:var(--chip);color:var(--fg)}
+.tag.heavy{color:var(--cut)} .tag.light{color:var(--keep)} .tag.mid{color:var(--maybe)}
+.how{font-size:.9rem;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}
+.how b{color:var(--fg);font-weight:600}
+.stamp{position:absolute;top:18px;font-family:var(--disp);font-weight:700;font-size:2rem;letter-spacing:.08em;border:3px solid;border-radius:8px;padding:0 10px;opacity:0;pointer-events:none}
+.stamp.k{right:18px;color:var(--keep);transform:rotate(8deg)}
+.stamp.c{left:18px;color:var(--cut);transform:rotate(-8deg)}
+.stamp.m{left:50%;margin-left:-45px;color:var(--maybe)}
+
+.actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+button{font:inherit;cursor:pointer}
+.act{padding:14px 6px;border-radius:12px;border:2px solid;background:transparent;font-family:var(--disp);font-weight:700;font-size:1.15rem;letter-spacing:.05em;text-transform:uppercase}
+.act small{display:block;font-family:var(--mono);font-size:.62rem;opacity:.7;letter-spacing:0;text-transform:none}
+.act.c{color:var(--cut);border-color:var(--cut)} .act.k{color:var(--keep);border-color:var(--keep)} .act.m{color:var(--maybe);border-color:var(--maybe)}
+.act:hover{background:var(--chip)}
+.act:focus-visible,.link:focus-visible,.mv:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.sub{display:flex;justify-content:space-between;gap:8px}
+.link{background:none;border:none;color:var(--accent);font-size:.9rem;padding:4px 0;text-decoration:underline}
+.link:disabled{opacity:.35;cursor:default}
+
+.results h2{font-family:var(--disp);font-size:1.7rem;margin:0 0 4px;text-transform:uppercase}
+.col{margin-top:14px}
+.col h3{font-family:var(--disp);font-size:1.25rem;margin:0 0 6px;text-transform:uppercase;letter-spacing:.04em;display:flex;justify-content:space-between}
+.col.k h3{color:var(--keep)} .col.c h3{color:var(--cut)} .col.m h3{color:var(--maybe)}
+.item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;background:var(--panel);border:1px solid var(--line);border-radius:8px;margin-bottom:6px}
+.item span{min-width:0}
+.mvs{display:flex;gap:4px;flex-shrink:0}
+.mv{border:1px solid var(--line);background:var(--chip);color:var(--fg);border-radius:6px;padding:3px 8px;font-family:var(--mono);font-size:.72rem}
+.summary{font-size:.92rem;color:var(--muted);margin:6px 0}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.btn{padding:12px 18px;border-radius:10px;border:2px solid var(--accent);background:var(--accent);color:var(--bg);font-weight:600}
+.btn.ghost{background:transparent;color:var(--accent)}
+textarea{width:100%;min-height:120px;margin-top:10px;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:10px;font-family:var(--mono);font-size:.78rem}
+.note{font-size:.85rem;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){.card,.bar i{transition:none}}
+</style>
+
+<div class="wrap" id="app"></div>
+
+<script>
+/* ---- The feature deck, taken from the fullest version of the site (commit 8bd4907, May 22 2026) ---- */
+var DECK = [
+ // category, title, plain-English description, weight, status, what it means for the rebuild
+ ["Server","Always-on server (not just static files)","A program that stays running 24/7 and answers requests, instead of only handing out finished web pages. It is what lets the site accept uploads and react to new data.","mid","Live today","Cut this and the site becomes pure static files: simplest and cheapest, but uploads and automatic Drive sync would need another route."],
+ ["Server","Hand-built Python server (2,300 lines)","The current server is one big custom file with no standard framework. It does everything: pages, uploads, Drive sync, scheduling, email.","heavy","Live today","Cutting it means starting a small, clean server with only the features you kept. Most of those 2,300 lines serve things you already cut."],
+ ["Server","Pre-built pages with data baked in","Instead of looking up data every visit, the dashboard is generated ahead of time as one HTML file containing the walks, routes and charts' data.","light","Live today","Very fast and simple to host. The tradeoff is the page must be regenerated when data changes."],
+ ["Server","Rebuild the page when data changes","A step that re-reads the walk log and regenerates the dashboard file automatically after new walks arrive.","mid","Live today","Needed if you keep pre-built pages. It is the link between new data and what visitors see."],
+ ["Server","Health / status check address","A tiny web address (/api/status) that reports whether the server is alive and when data was last updated.","light","Live today","Handy for monitoring your own server. Takes a few lines."],
+ ["Data","Walk log as a plain text file","All completed walks are stored as one line each in Walks_Log.txt. No database. Easy to read and fix by hand.","light","Live today","Cut means moving to a real database (like SQLite): safer and searchable, but more to learn."],
+ ["Data","Filename-to-walk converter","The code that reads a walk's file name (like collector, route, date, time of day) and turns it into a walk entry. This is how the map counts walks.","light","Live today","This is the heart of the data. Almost certainly worth keeping."],
+ ["Data","Route shapes pre-converted to a data file","The routes were converted once from Google Earth (KML) and Excel into a single routes_data.json that the map reads.","light","Live today","Small, fast, and no Excel needed at run time. The KML/Excel originals can stay as an archive."],
+ ["Data","Fixed lists of collectors, routes and backpacks","A shared file (registry) holding the official names, route codes, and which collectors use which backpack. Everything else checks against it.","mid","Live today","Keep it but slim it down. Collector names and route codes still drive the map and collector pages."],
+ ["Data","Calibration date log","A small file recording when each backpack was last calibrated. Powers the days-since-calibration bars you marked maybe.","light","Hidden since May","Only worth keeping if you keep calibration bars."],
+ ["Data","Backpack holder/location saving","Stores who has each backpack and where it is, plus the rule that a new completed walk updates it.","mid","Hidden since May","Only worth keeping if you keep the backpack status card."],
+ ["Data","Schedule storage with safety rules","The engine behind the calendar: it saves slots, blocks double-booking, rejects bad routes, and prunes old entries (424 lines).","heavy","Hidden since May","You cut claiming slots. Keep only if the calendar stays as read-only display."],
+ ["Google","Google Drive watcher script","A small Google Apps Script that notices new walk files in Drive and tells the site to refresh. It is how the walk count updates itself.","mid","Live today","Keep it to stay hands-off. Needs the script to point at your new server's address."],
+ ["Google","Drive polling fallback","The server can also check Drive every few minutes on its own, in case the watcher script misses something.","light","Live today","Already switched off in production. Safe to drop if the watcher works."],
+ ["Google","Google service account (robot login)","A special Google login the server uses to read and write Drive folders. Secret key is stored as a password-like file.","mid","Live today","Needed for Drive sync and uploads. Must be kept secret on your server."],
+ ["Google","Shared secret between Drive script and server","A password that proves a Drive notification really came from your script, so strangers cannot trigger refreshes.","light","Live today","Important once the site is public. Tiny to keep."],
+ ["Uploads","Upload form handling","The code that receives GPS tracks, sensor files and notes from the browser form and checks them.","mid","Hidden since May","Needed since you kept Upload walk data."],
+ ["Uploads","Holding area before Drive","Uploads are saved to a staging bucket first, then a background worker copies them to Drive. If Drive is flaky, nothing is lost (about 900 lines of code).","heavy","Live today","Cut means saving straight to Drive or your own disk: simpler, but a Drive hiccup can lose an upload."],
+ ["Uploads","Auto-filing into Drive folders","New files are filed into Walks / Borough / Route / walk code folders automatically.","mid","Live today","Keep if the team relies on that folder layout."],
+ ["Uploads","Password on uploads","Uploading requires a password so strangers cannot add files. This matters a lot on a public website.","light","Hidden since May","You cut Admin login, but a public upload form without any password is risky. Strongly consider keeping."],
+ ["Uploads","Limits against spam and huge files","Caps on file size and how often someone can upload, to protect your server and Drive storage.","light","New","Not in the old site. Recommended for any public upload form."],
+ ["Hosting","Cloud storage backup (Google Cloud Storage)","The old site saved its data to Google's cloud so it survived restarts of Cloud Run.","mid","Live today","Not needed on your own server with a normal disk. Cut it and use regular backups instead."],
+ ["Hosting","Docker packaging","Bundles the app and everything it needs into one container so it runs the same anywhere.","mid","Live today","Makes self-hosting repeatable. Skip it for the very simplest setup."],
+ ["Hosting","Auto-deploy from GitHub","Every push to the main branch builds and publishes the site automatically.","mid","Live today","Nice to have. On your own server it means a small set-up for a deploy step."],
+ ["Hosting","Own web address with free HTTPS","A custom domain with the padlock, set up with a free certificate service.","light","New","Required for a public self-hosted site."],
+ ["Hosting","Search-engine blocking at the server","The server adds a no-index rule to every page and serves a robots.txt file.","light","New","Matches your public but not searchable choice. A few lines."],
+ ["Code","Keep Python as the language","Stay with Python for the backend, since the existing walk parsing, Drive code and build script are already Python.","light","Live today","Cut means rewriting in another language such as JavaScript. More work, less reuse."],
+ ["Code","Trim the install list","The old project installs libraries for features that are gone: AI, PDF reading, Excel, a map-maker.","light","Live today","Cutting the list down makes the new site smaller and faster to start."],
+ ["Code","Automated checks (regression tests)","Scripts that test the rules, walk parsing and uploads to catch mistakes before they go live.","mid","Live today","Keep only the ones for features you kept."],
+ ["Code","Short README with set-up steps","A plain-language guide to running, updating and restoring the site.","light","Live today","Worth keeping short, especially since you are self-hosting."]
+];
+
+var KEY="backendSwipe.v1";
+var state={i:0,ans:{}}; // ans[index]= 'k' | 'c' | 'm'
+var hist=[];
+try{var s=JSON.parse(localStorage.getItem(KEY)||"null"); if(s&&s.ans){state=s;hist=Object.keys(s.ans).map(Number).sort(function(a,b){return a-b})}}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
+var app=document.getElementById("app");
+function esc(t){return String(t).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+var WT={light:"Lightweight",mid:"Medium effort",heavy:"Heavy lift"};
+
+function cardHTML(f,cls){
+  return '<div class="card '+cls+'"><div class="stamp k">KEEP</div><div class="stamp c">CUT</div><div class="stamp m">MAYBE</div>'+
+  '<div class="cat">'+esc(f[0])+'</div><h2>'+esc(f[1])+'</h2><p class="plain">'+esc(f[2])+'</p>'+
+  '<div class="tags"><span class="tag '+f[3]+'">'+WT[f[3]]+'</span><span class="tag">'+esc(f[4])+'</span></div>'+
+  '<p class="how"><b>Behind the scenes:</b> '+esc(f[5])+'</p></div>';
+}
+
+function render(){
+  if(state.i>=DECK.length){return results()}
+  var f=DECK[state.i], pct=Math.round(state.i/DECK.length*100);
+  var html='<header><h1>Backend Swipe</h1><span class="count">'+(state.i+1)+' / '+DECK.length+'</span></header>'+
+   '<div class="bar"><i style="width:'+pct+'%"></i></div><div class="stack" id="stack">';
+  for(var k=2;k>=0;k--){var j=state.i+k; if(j<DECK.length) html+=cardHTML(DECK[j],k==0?'top':'s'+k)}
+  html+='</div><div class="actions">'+
+   '<button class="act c" data-a="c">Cut<small>&larr; left</small></button>'+
+   '<button class="act m" data-a="m">Maybe<small>&uarr; up</small></button>'+
+   '<button class="act k" data-a="k">Keep<small>right &rarr;</small></button></div>'+
+   '<div class="sub"><button class="link" id="undo"'+(hist.length?'':' disabled')+'>Undo last</button>'+
+   '<button class="link" id="skipEnd">See results now</button></div>'+
+   '<p class="note">Cut means the new site will not have it, or will use something simpler. Arrow keys work too.</p>';
+  app.innerHTML=html;
+  bind();
+}
+
+function answer(a){
+  if(state.i>=DECK.length)return;
+  var top=document.querySelector(".card.top");
+  var dx=a=="k"?600:a=="c"?-600:0, dy=a=="m"?-600:0;
+  if(top){top.classList.remove("drag");top.style.transform="translate("+dx+"px,"+dy+"px) rotate("+(dx/25)+"deg)";top.style.opacity="0"}
+  state.ans[state.i]=a;hist.push(state.i);state.i++;save();
+  setTimeout(render,top?220:0);
+}
+function undo(){
+  if(!hist.length)return;
+  var last=hist.pop();delete state.ans[last];state.i=last;save();render();
+}
+
+function bind(){
+  document.querySelectorAll(".act").forEach(function(b){b.onclick=function(){answer(b.dataset.a)}});
+  document.getElementById("undo").onclick=undo;
+  document.getElementById("skipEnd").onclick=function(){state.i=DECK.length;save();render()};
+  var top=document.querySelector(".card.top"); if(!top)return;
+  var sx=0,sy=0,dx=0,dy=0,on=false;
+  function stamps(){
+    var k=Math.min(1,Math.max(0,dx/100)), c=Math.min(1,Math.max(0,-dx/100)), m=Math.min(1,Math.max(0,-dy/100));
+    top.querySelector(".stamp.k").style.opacity=k;top.querySelector(".stamp.c").style.opacity=c;top.querySelector(".stamp.m").style.opacity=(Math.abs(dy)>Math.abs(dx))?m:0;
+  }
+  top.addEventListener("pointerdown",function(e){on=true;sx=e.clientX;sy=e.clientY;dx=dy=0;top.classList.add("drag");try{top.setPointerCapture(e.pointerId)}catch(x){}});
+  top.addEventListener("pointermove",function(e){if(!on)return;dx=e.clientX-sx;dy=Math.min(0,e.clientY-sy);
+    top.style.transform="translate("+dx+"px,"+dy+"px) rotate("+(dx/25)+"deg)";stamps()});
+  function end(){
+    if(!on)return;on=false;top.classList.remove("drag");
+    if(dx>100)return answer("k"); if(dx<-100)return answer("c"); if(dy<-100&&Math.abs(dy)>Math.abs(dx))return answer("m");
+    top.style.transform="";dx=dy=0;stamps();
+  }
+  top.addEventListener("pointerup",end);top.addEventListener("pointercancel",end);
+}
+document.addEventListener("keydown",function(e){
+  if(state.i>=DECK.length)return;
+  if(e.key=="ArrowRight")answer("k");else if(e.key=="ArrowLeft")answer("c");else if(e.key=="ArrowUp"){e.preventDefault();answer("m")}
+  else if((e.key=="z"||e.key=="Backspace")&&hist.length)undo();
+});
+
+function groups(){
+  var g={k:[],c:[],m:[]};
+  DECK.forEach(function(f,idx){var a=state.ans[idx]; if(g[a])g[a].push(idx)});
+  return g;
+}
+function summaryText(){
+  var g=groups(),t="MY BACKEND CHOICES\n";
+  [["k","KEEP"],["m","MAYBE"],["c","CUT"]].forEach(function(p){
+    t+="\n"+p[1]+" ("+g[p[0]].length+"):\n"+g[p[0]].map(function(i){return "- "+DECK[i][1]}).join("\n")+"\n";
+  });
+  return t;
+}
+function results(){
+  var g=groups(), unseen=DECK.length-Object.keys(state.ans).length;
+  var kept=g.k.map(function(i){return DECK[i][3]}), heavy=kept.filter(function(w){return w=="heavy"}).length;
+  var h='<header><h1>Your picks</h1><span class="count">'+Object.keys(state.ans).length+' / '+DECK.length+'</span></header><div class="results">'+
+   '<p class="summary">You are keeping '+g.k.length+' pieces, '+heavy+' of them heavy lifts. Tap a button on any row to change your mind.'+(unseen?' You skipped '+unseen+' cards, which are left out below.':'')+'</p>';
+  [["k","Keep"],["m","Maybe"],["c","Cut"]].forEach(function(p){
+    h+='<div class="col '+p[0]+'"><h3><span>'+p[1]+'</span><span>'+g[p[0]].length+'</span></h3>';
+    g[p[0]].forEach(function(i){
+      h+='<div class="item"><span>'+esc(DECK[i][1])+'</span><span class="mvs">'+
+      ["k","m","c"].filter(function(x){return x!=p[0]}).map(function(x){return '<button class="mv" data-i="'+i+'" data-a="'+x+'">'+{k:"Keep",m:"Maybe",c:"Cut"}[x]+'</button>'}).join("")+'</span></div>';
+    });
+    if(!g[p[0]].length)h+='<p class="note">Nothing here.</p>';
+    h+='</div>';
+  });
+  h+='<div class="row"><button class="btn" id="copy">Copy my picks</button><button class="btn ghost" id="again">Start over</button></div>'+
+   '<p class="note" id="copied">Copy the list and paste it back into our chat. I will build the new site from it.</p>'+
+   '<textarea id="out" readonly aria-label="Your picks as text">'+esc(summaryText())+'</textarea></div>';
+  app.innerHTML=h;
+  document.querySelectorAll(".mv").forEach(function(b){b.onclick=function(){state.ans[b.dataset.i]=b.dataset.a;save();results()}});
+  document.getElementById("again").onclick=function(){state={i:0,ans:{}};hist=[];save();render()};
+  document.getElementById("copy").onclick=function(){
+    var ta=document.getElementById("out"),n=document.getElementById("copied");
+    function fallback(){ta.focus();ta.select();n.textContent="Text selected. Press Ctrl+C (or Cmd+C) to copy."}
+    try{navigator.clipboard.writeText(ta.value).then(function(){n.textContent="Copied. Paste it into our chat."},fallback)}catch(e){fallback()}
+  };
+}
+render();
+</script>
